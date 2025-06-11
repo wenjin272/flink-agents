@@ -35,7 +35,7 @@ github:
     merge: false
   features:
     issues: true
-    discussions: false
+    discussions: true
     wiki: false
     projects: false
 
@@ -43,3 +43,4 @@ notifications:
   commits: commits@flink.apache.org
   issues: issues@flink.apache.org
   pullrequests: issues@flink.apache.org
+  discussions: issues@flink.apache.org
