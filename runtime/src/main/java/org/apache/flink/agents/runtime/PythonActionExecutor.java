@@ -17,8 +17,9 @@
  */
 package org.apache.flink.agents.runtime;
 
+import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.plan.PythonFunction;
-import org.apache.flink.agents.runtime.context.PythonRunnerContext;
+import org.apache.flink.agents.runtime.context.PythonRunnerContextImpl;
 import org.apache.flink.agents.runtime.env.EmbeddedPythonEnvironment;
 import org.apache.flink.agents.runtime.env.PythonEnvironmentManager;
 import pemja.core.PythonInterpreter;
@@ -32,13 +33,13 @@ public class PythonActionExecutor {
             "from flink_agents.runtime import flink_runner_context";
 
     private final PythonEnvironmentManager environmentManager;
-    private final PythonRunnerContext runnerContext;
+    private final PythonRunnerContextImpl runnerContext;
 
     private PythonInterpreter interpreter;
 
     public PythonActionExecutor(PythonEnvironmentManager environmentManager) {
         this.environmentManager = environmentManager;
-        this.runnerContext = new PythonRunnerContext();
+        this.runnerContext = new PythonRunnerContextImpl();
     }
 
     public void open() throws Exception {
@@ -55,7 +56,7 @@ public class PythonActionExecutor {
         interpreter.set("python_function_wrapper", pythonFunctionWrapper);
     }
 
-    public List<PythonEvent> executePythonFunction(
+    public List<Event> executePythonFunction(
             PythonFunction pythonFunction, PythonEvent inputMessage) {
         runnerContext.checkNoPendingEvents();
         pythonFunction.setInterpreter(interpreter);

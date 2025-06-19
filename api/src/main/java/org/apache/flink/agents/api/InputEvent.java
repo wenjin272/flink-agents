@@ -30,4 +30,16 @@ public class InputEvent extends Event {
     public Object getInput() {
         return input;
     }
+
+    @Override
+    public boolean isInputEvent() {
+        return true;
+    }
+
+    @Override
+    public String toString() {
+        return "InputEvent{" +
+                "input=" + input +
+                '}';
+    }
 }
