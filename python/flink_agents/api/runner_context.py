@@ -15,33 +15,23 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-import pytest
+from abc import ABC, abstractmethod
 
-from flink_agents.api.event import InputEvent
-from flink_agents.api.runner_context import RunnerContext
-from flink_agents.plan.action import Action
-from flink_agents.plan.function import PythonFunction
+from flink_agents.api.event import Event
 
 
-def legal_signature(event: InputEvent, ctx: RunnerContext) -> None: # noqa: D103
-    pass
+class RunnerContext(ABC):
+    """Abstract base class providing context for workflow execution.
 
-def illegal_signature(value: int, ctx: RunnerContext) ->  None: # noqa: D103
-    pass
+    This context provides access to event handling.
+    """
 
-def test_action_signature_legal() -> None: # noqa: D103
-    Action(
-        name="legal",
-        exec=PythonFunction.from_callable(legal_signature),
-        listen_event_types=[InputEvent],
-    )
+    @abstractmethod
+    def send_event(self, event: Event) -> None:
+        """Send an event to the workflow for processing.
 
-def test_action_signature_illegal() -> None:  # noqa: D103
-    with pytest.raises(TypeError):
-        Action(
-            name="illegal",
-            exec=PythonFunction.from_callable(illegal_signature),
-            listen_event_types=[InputEvent],
-        )
-
-
+        Parameters
+        ----------
+        event : Event
+            The event to be processed by the workflow system.
+        """
