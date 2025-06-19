@@ -15,33 +15,3 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-import pytest
-
-from flink_agents.api.event import InputEvent
-from flink_agents.api.runner_context import RunnerContext
-from flink_agents.plan.action import Action
-from flink_agents.plan.function import PythonFunction
-
-
-def legal_signature(event: InputEvent, ctx: RunnerContext) -> None: # noqa: D103
-    pass
-
-def illegal_signature(value: int, ctx: RunnerContext) ->  None: # noqa: D103
-    pass
-
-def test_action_signature_legal() -> None: # noqa: D103
-    Action(
-        name="legal",
-        exec=PythonFunction.from_callable(legal_signature),
-        listen_event_types=[InputEvent],
-    )
-
-def test_action_signature_illegal() -> None:  # noqa: D103
-    with pytest.raises(TypeError):
-        Action(
-            name="illegal",
-            exec=PythonFunction.from_callable(illegal_signature),
-            listen_event_types=[InputEvent],
-        )
-
-

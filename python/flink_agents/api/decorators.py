@@ -15,33 +15,36 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-import pytest
+from typing import Callable, Tuple, Type
 
-from flink_agents.api.event import InputEvent
-from flink_agents.api.runner_context import RunnerContext
-from flink_agents.plan.action import Action
-from flink_agents.plan.function import PythonFunction
+from flink_agents.api.event import Event
 
 
-def legal_signature(event: InputEvent, ctx: RunnerContext) -> None: # noqa: D103
-    pass
+def action(*listen_events: Tuple[Type[Event], ...]) -> Callable:
+    """Decorator for marking a function as a workflow action.
 
-def illegal_signature(value: int, ctx: RunnerContext) ->  None: # noqa: D103
-    pass
+    Parameters
+    ----------
+    listen_events : list[Type[Event]]
+        List of event types that this action should respond to.
 
-def test_action_signature_legal() -> None: # noqa: D103
-    Action(
-        name="legal",
-        exec=PythonFunction.from_callable(legal_signature),
-        listen_event_types=[InputEvent],
-    )
+    Returns:
+    -------
+    Callable
+        Decorator function that marks the target function with event listeners.
 
-def test_action_signature_illegal() -> None:  # noqa: D103
-    with pytest.raises(TypeError):
-        Action(
-            name="illegal",
-            exec=PythonFunction.from_callable(illegal_signature),
-            listen_event_types=[InputEvent],
-        )
+    Raises:
+    ------
+    AssertionError
+        If no events are provided to listen to.
+    """
+    assert len(listen_events) > 0, 'action must have at least one event type to listen to'
 
+    for event in listen_events:
+        assert issubclass(event, Event), 'action must only listen to event types.'
 
+    def decorator(func: Callable) -> Callable:
+        func._listen_events = listen_events
+        return func
+
+    return decorator
