@@ -30,21 +30,22 @@ import java.util.List;
  */
 public class Action {
     private final String name;
-    private final ActionFunction exec;
+    private final Function exec;
     private final List<Class<? extends Event>> listenEventTypes;
 
-    public Action(String name, ActionFunction exec, List<Class<? extends Event>> listenEventTypes)
+    public Action(String name, Function exec, List<Class<? extends Event>> listenEventTypes)
             throws Exception {
         this.name = name;
         this.exec = exec;
         this.listenEventTypes = listenEventTypes;
+        exec.checkSignature(new Class[] {Event.class});
     }
 
     public String getName() {
         return name;
     }
 
-    public ActionFunction getExec() {
+    public Function getExec() {
         return exec;
     }
 

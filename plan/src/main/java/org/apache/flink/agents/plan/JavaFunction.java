@@ -17,24 +17,38 @@
  */
 package org.apache.flink.agents.plan;
 
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonIgnore;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
 /** Represent a Java function. */
 public class JavaFunction implements Function {
-    private final String qualName;
-    private final String methodName;
-    private final Class<?>[] parameterTypes;
-    private final Class<?> clazz;
-    private final Method method;
+    static final String FIELD_NAME_QUAL_NAME = "qualName";
+    static final String FIELD_NAME_METHOD_NAME = "methodName";
+    static final String FIELD_NAME_PARAMETER_TYPES = "parameterTypes";
 
-    public JavaFunction(String qualName, String methodName, Class<?>[] parameterTypes)
+    @JsonProperty(FIELD_NAME_QUAL_NAME)
+    private final String qualName;
+
+    @JsonProperty(FIELD_NAME_METHOD_NAME)
+    private final String methodName;
+
+    @JsonProperty(FIELD_NAME_PARAMETER_TYPES)
+    private final Class<?>[] parameterTypes;
+
+    @JsonIgnore private final Method method;
+
+    public JavaFunction(
+            @JsonProperty(FIELD_NAME_QUAL_NAME) String qualName,
+            @JsonProperty(FIELD_NAME_METHOD_NAME) String methodName,
+            @JsonProperty(FIELD_NAME_PARAMETER_TYPES) Class<?>[] parameterTypes)
             throws Exception {
         this.qualName = qualName;
         this.methodName = methodName;
         this.parameterTypes = parameterTypes;
-        this.clazz = Class.forName(qualName);
-        this.method = clazz.getMethod(methodName, parameterTypes);
+        this.method = Class.forName(qualName).getMethod(methodName, parameterTypes);
     }
 
     public JavaFunction(Class<?> clazz, String methodName, Class<?>[] parameterTypes)
@@ -42,8 +56,39 @@ public class JavaFunction implements Function {
         this.qualName = clazz.getName();
         this.methodName = methodName;
         this.parameterTypes = parameterTypes;
-        this.clazz = clazz;
         this.method = clazz.getMethod(methodName, parameterTypes);
+    }
+
+    public String getQualName() {
+        return qualName;
+    }
+
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public Class<?>[] getParameterTypes() {
+        return parameterTypes;
+    }
+
+    public Method getMethod() {
+        return method;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        JavaFunction that = (JavaFunction) o;
+        return this.qualName.equals(that.qualName)
+                && this.methodName.equals(that.methodName)
+                && Arrays.equals(this.parameterTypes, that.parameterTypes);
     }
 
     @Override

@@ -20,6 +20,7 @@ package org.apache.flink.agents.plan;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -116,5 +117,19 @@ public class TestFunction {
         Assertions.assertThrows(
                 IllegalArgumentException.class,
                 () -> func.checkSignature(new Class[] {int.class, int.class}));
+    }
+
+    @Test
+    public void testFunctionSerializable() throws Exception {
+        Function func =
+                new JavaFunction(
+                        "org.apache.flink.agents.plan.TestFunction",
+                        "check_class",
+                        new Class[] {InputEvent.class, OutputEvent.class});
+
+        ObjectMapper mapper = new ObjectMapper();
+        String value = mapper.writeValueAsString(func);
+        Function serializedFunc = mapper.readValue(value, JavaFunction.class);
+        Assertions.assertEquals(func, serializedFunc);
     }
 }
