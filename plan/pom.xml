@@ -31,7 +31,7 @@ under the License.
     <dependencies>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>api</artifactId>
+            <artifactId>flink-agents-api</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
