@@ -31,7 +31,7 @@ public class WorkflowPlan {
         this.actions = actions;
     }
 
-    public List<Action> getAction(Class<?> type) {
+    public List<Action> getAction(Class<? extends Event> type) {
         return actions.get(type);
     }
 
