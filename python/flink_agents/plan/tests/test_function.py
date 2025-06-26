@@ -15,12 +15,14 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import json
+from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import pytest
 
 from flink_agents.api.event import Event, InputEvent, OutputEvent
-from flink_agents.plan.function import PythonFunction
+from flink_agents.plan.function import Function, PythonFunction
 
 
 def check_class(input_event: InputEvent, output_event: OutputEvent) -> None: # noqa: D103
@@ -85,3 +87,23 @@ def test_function_signature_generic_type_mismatch() -> None: # noqa: D103
     func = PythonFunction.from_callable(check_generic_type)
     with pytest.raises(TypeError):
         func.check_signature(Tuple[str, ...], Dict[str, Any])
+
+current_dir = Path(__file__).parent
+
+@pytest.fixture(scope="module")
+def func() -> Function: # noqa: D103
+    return PythonFunction.from_callable(check_class)
+
+def test_python_function_serialize(func: Function) -> None: # noqa: D103
+    json_value = func.model_dump_json(serialize_as_any=True)
+    with Path.open(Path(f'{current_dir}/resources/python_function.json')) as f:
+        expected_json = f.read()
+    actual = json.loads(json_value)
+    expected = json.loads(expected_json)
+    assert actual == expected
+
+def test_python_function_deserialize(func: Function) -> None: # noqa: D103
+    with Path.open(Path(f'{current_dir}/resources/python_function.json')) as f:
+        expected_json = f.read()
+    deserialized_func = PythonFunction.model_validate_json(expected_json)
+    assert deserialized_func == func
