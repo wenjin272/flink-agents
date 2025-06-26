@@ -15,6 +15,8 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+from pathlib import Path
+
 import pytest
 
 from flink_agents.api.event import InputEvent
@@ -33,7 +35,7 @@ def test_action_signature_legal() -> None: # noqa: D103
     Action(
         name="legal",
         exec=PythonFunction.from_callable(legal_signature),
-        listen_event_types=[InputEvent],
+        listen_event_types=[f'{InputEvent.__module__}.{InputEvent.__qualname__}'],
     )
 
 def test_action_signature_illegal() -> None:  # noqa: D103
@@ -41,7 +43,35 @@ def test_action_signature_illegal() -> None:  # noqa: D103
         Action(
             name="illegal",
             exec=PythonFunction.from_callable(illegal_signature),
-            listen_event_types=[InputEvent],
+            listen_event_types=[f'{InputEvent.__module__}.{InputEvent.__qualname__}'],
         )
+
+@pytest.fixture(scope="module")
+def action() -> Action: # noqa: D103
+    func = PythonFunction.from_callable(legal_signature)
+    return Action(
+        name="legal",
+        exec=func,
+        listen_event_types=[f'{InputEvent.__module__}.{InputEvent.__qualname__}'],
+    )
+
+current_dir = Path(__file__).parent
+
+def test_action_serialize(action: Action) -> None:  # noqa: D103
+    json_value = action.model_dump_json(serialize_as_any=True, indent=4)
+    with Path.open(Path(f'{current_dir}/resources/action.json')) as f:
+        expected_json = f.read()
+    assert json_value == expected_json
+
+def test_action_deserialize(action: Action) -> None: # noqa: D103
+    with Path.open(Path(f'{current_dir}/resources/action.json')) as f:
+        expected_json = f.read()
+    action = Action.model_validate_json(expected_json)
+    assert action.name == 'legal'
+    assert action.listen_event_types == ['flink_agents.api.event.InputEvent']
+    func = action.exec
+    assert func.module == 'flink_agents.plan.tests.test_action'
+    assert func.qualname == 'legal_signature'
+
 
 

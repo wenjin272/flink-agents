@@ -162,7 +162,8 @@ class LocalRunner(WorkflowRunner):
             if isinstance(event, OutputEvent):
                 self.__outputs.append({key: event.output})
                 continue
-            for action in self.__workflow_plan.get_actions(type(event)):
+            event_type = f'{event.__class__.__module__}.{event.__class__.__name__}'
+            for action in self.__workflow_plan.get_actions(event_type):
                 logger.info(
                     "key: %s, performing action: %s", key, action.name
                 )

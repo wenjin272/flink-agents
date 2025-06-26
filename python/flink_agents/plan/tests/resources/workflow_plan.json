@@ -1,0 +1,36 @@
+{
+    "actions": {
+        "first_action": {
+            "name": "first_action",
+            "exec": {
+                "module": "flink_agents.plan.tests.test_workflow_plan",
+                "qualname": "MyWorkflow.first_action",
+                "func_type": "PythonFunction"
+            },
+            "listen_event_types": [
+                "flink_agents.api.event.InputEvent"
+            ]
+        },
+        "second_action": {
+            "name": "second_action",
+            "exec": {
+                "module": "flink_agents.plan.tests.test_workflow_plan",
+                "qualname": "MyWorkflow.second_action",
+                "func_type": "PythonFunction"
+            },
+            "listen_event_types": [
+                "flink_agents.api.event.InputEvent",
+                "flink_agents.plan.tests.test_workflow_plan.MyEvent"
+            ]
+        }
+    },
+    "event_trigger_actions": {
+        "flink_agents.api.event.InputEvent": [
+            "first_action",
+            "second_action"
+        ],
+        "flink_agents.plan.tests.test_workflow_plan.MyEvent": [
+            "second_action"
+        ]
+    }
+}
