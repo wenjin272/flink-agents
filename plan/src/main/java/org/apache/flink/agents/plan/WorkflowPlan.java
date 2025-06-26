@@ -19,23 +19,28 @@
 package org.apache.flink.agents.plan;
 
 import org.apache.flink.agents.api.Event;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonCreator;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 import java.util.Map;
 
 /** Workflow plan compiled from user defined workflow. */
 public class WorkflowPlan {
-    private final Map<Class<? extends Event>, List<Action>> actions;
+    static final String FIELD_NAME_ACTIONS = "actions";
+    @JsonProperty(FIELD_NAME_ACTIONS)
+    private final Map<String, List<Action>> actions;
 
-    public WorkflowPlan(Map<Class<? extends Event>, List<Action>> actions) {
+    @JsonCreator
+    public WorkflowPlan(@JsonProperty(FIELD_NAME_ACTIONS) Map<String, List<Action>> actions) {
         this.actions = actions;
     }
 
-    public List<Action> getAction(Class<? extends Event> type) {
+    public List<Action> getAction(String type) {
         return actions.get(type);
     }
 
-    public Map<Class<? extends Event>, List<Action>> getActions() {
+    public Map<String, List<Action>> getActions() {
         return actions;
     }
 }

@@ -19,7 +19,11 @@
 package org.apache.flink.agents.plan;
 
 import org.apache.flink.agents.api.Event;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonCreator;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -29,17 +33,29 @@ import java.util.List;
  * executes an associated function when those events occur.
  */
 public class Action {
+    static final String FIELD_NAME_NAME = "name";
+    static final String FIELD_NAME_EXEC = "exec";
+    static final String FIELD_NAME_LISTEN_EVENT_TYPES = "listenEventTypes";
+
+    @JsonProperty(FIELD_NAME_NAME)
     private final String name;
+    @JsonProperty(FIELD_NAME_EXEC)
     private final Function exec;
+    @JsonProperty(FIELD_NAME_LISTEN_EVENT_TYPES)
     private final List<Class<? extends Event>> listenEventTypes;
 
-    public Action(String name, Function exec, List<Class<? extends Event>> listenEventTypes)
+    @JsonCreator
+    public Action(
+            @JsonProperty(FIELD_NAME_NAME) String name,
+            @JsonProperty(FIELD_NAME_EXEC) JavaFunction exec,
+            @JsonProperty(FIELD_NAME_LISTEN_EVENT_TYPES) List<Class<? extends Event>> listenEventTypes)
             throws Exception {
         this.name = name;
         this.exec = exec;
         this.listenEventTypes = listenEventTypes;
         exec.checkSignature(new Class[] {Event.class});
     }
+
 
     public String getName() {
         return name;
@@ -51,5 +67,21 @@ public class Action {
 
     public List<Class<? extends Event>> getListenEventTypes() {
         return listenEventTypes;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        Action that = (Action) o;
+        return this.name.equals(that.name)
+                && this.exec.equals(that.exec)
+                && this.listenEventTypes.equals(that.listenEventTypes);
     }
 }
