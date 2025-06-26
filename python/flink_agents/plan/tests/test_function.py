@@ -15,6 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import json
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -94,10 +95,12 @@ def func() -> Function: # noqa: D103
     return PythonFunction.from_callable(check_class)
 
 def test_python_function_serialize(func: Function) -> None: # noqa: D103
-    json_value = func.model_dump_json(serialize_as_any=True, indent=4)
+    json_value = func.model_dump_json(serialize_as_any=True)
     with Path.open(Path(f'{current_dir}/resources/python_function.json')) as f:
         expected_json = f.read()
-    assert json_value == expected_json
+    actual = json.loads(json_value)
+    expected = json.loads(expected_json)
+    assert actual == expected
 
 def test_python_function_deserialize(func: Function) -> None: # noqa: D103
     with Path.open(Path(f'{current_dir}/resources/python_function.json')) as f:

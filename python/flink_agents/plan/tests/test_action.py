@@ -15,6 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import json
 from pathlib import Path
 
 import pytest
@@ -58,10 +59,12 @@ def action() -> Action: # noqa: D103
 current_dir = Path(__file__).parent
 
 def test_action_serialize(action: Action) -> None:  # noqa: D103
-    json_value = action.model_dump_json(serialize_as_any=True, indent=4)
+    json_value = action.model_dump_json(serialize_as_any=True)
     with Path.open(Path(f'{current_dir}/resources/action.json')) as f:
         expected_json = f.read()
-    assert json_value == expected_json
+    actual = json.loads(json_value)
+    expected = json.loads(expected_json)
+    assert actual == expected
 
 def test_action_deserialize(action: Action) -> None: # noqa: D103
     with Path.open(Path(f'{current_dir}/resources/action.json')) as f:

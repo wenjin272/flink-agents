@@ -15,6 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import json
 from pathlib import Path
 
 import pytest
@@ -84,7 +85,9 @@ def test_workflow_plan_serialize(workflow_plan: WorkflowPlan) -> None: # noqa: D
     json_value = workflow_plan.model_dump_json(serialize_as_any=True, indent=4)
     with Path.open(Path(f'{current_dir}/resources/workflow_plan.json')) as f:
         expected_json = f.read()
-    assert json_value == expected_json
+    actual = json.loads(json_value)
+    expected = json.loads(expected_json)
+    assert actual == expected
 
 def test_workflow_plan_deserialize(workflow_plan: WorkflowPlan) -> None: # noqa: D103
     with Path.open(Path(f'{current_dir}/resources/workflow_plan.json')) as f:
