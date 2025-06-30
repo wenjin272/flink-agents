@@ -84,7 +84,7 @@ public class FlinkAgentTest {
         }
 
         public static WorkflowPlan getWorkflowPlan() throws Exception {
-            Map<Class<? extends Event>, List<Action>> eventTriggerActions = new HashMap<>();
+            Map<String, List<Action>> eventTriggerActions = new HashMap<>();
             Action action1 =
                     new Action(
                             "processInputEvent",
@@ -92,7 +92,7 @@ public class FlinkAgentTest {
                                     MockedWorkflow.class,
                                     "processInputEvent",
                                     new Class<?>[] {InputEvent.class, RunnerContext.class}),
-                            Collections.singletonList(InputEvent.class));
+                            Collections.singletonList(InputEvent.class.getName()));
             Action action2 =
                     new Action(
                             "processMockedEvent",
@@ -100,9 +100,9 @@ public class FlinkAgentTest {
                                     MockedWorkflow.class,
                                     "processMockedEvent",
                                     new Class<?>[] {MockedEvent.class, RunnerContext.class}),
-                            Collections.singletonList(MockedEvent.class));
-            eventTriggerActions.put(InputEvent.class, Collections.singletonList(action1));
-            eventTriggerActions.put(MockedEvent.class, Collections.singletonList(action2));
+                            Collections.singletonList(MockedEvent.class.getName()));
+            eventTriggerActions.put(InputEvent.class.getName(), Collections.singletonList(action1));
+            eventTriggerActions.put(MockedEvent.class.getName(), Collections.singletonList(action2));
             Map<String, Action> actions = new HashMap<>();
             actions.put(action1.getName(), action1);
             actions.put(action2.getName(), action2);

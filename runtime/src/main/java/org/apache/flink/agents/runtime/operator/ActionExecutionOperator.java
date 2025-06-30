@@ -18,6 +18,7 @@ import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.python.PythonOptions;
 import org.apache.flink.python.env.PythonDependencyInfo;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
@@ -132,7 +133,7 @@ public class ActionExecutionOperator<K> extends AbstractStreamOperator<EventMess
     @Override
     public void processElement(StreamRecord<EventMessage<K>> record) throws Exception {
         EventMessage<K> eventMessage = record.getValue();
-        LOG.debug("FunctionGroupOperator receive element {}", eventMessage);
+        System.out.printf("FunctionGroupOperator receive element %s%n", eventMessage);
 
         if (eventMessage.isInputEvent() && !canProcessInputEvent()) {
             // If the event is an InputEvent and there is already another event with the same key
@@ -147,10 +148,12 @@ public class ActionExecutionOperator<K> extends AbstractStreamOperator<EventMess
 
     private void processEventMessage(EventMessage<K> eventMessage) throws Exception {
         Event event = eventMessage.getEvent();
-        List<Action> actions = workflowPlan.getEventTriggerActions(event.getClass());
+        System.out.println("Event type: " + event.getEventType());
+        List<Action> actions = workflowPlan.getEventTriggerActions(event.getEventType());
         if (actions != null && !actions.isEmpty()) {
             addPendingActionCount(actions.size());
             for (Action action : actions) {
+                System.out.println("Action: " + action.getName());
                 List<Event> actionOutputEvents;
                 if (action.getExec() instanceof JavaFunction) {
                     action.getExec().call(event, runnerContext);
@@ -173,7 +176,7 @@ public class ActionExecutionOperator<K> extends AbstractStreamOperator<EventMess
                                 reusedSideOutputStreamRecord.replace(actionOutputEventMessage));
                     } else {
                         List<Action> pendingActions =
-                                workflowPlan.getEventTriggerActions(actionOutputEvent.getClass());
+                                workflowPlan.getEventTriggerActions(actionOutputEvent.getEventType());
                         addPendingActionCount(pendingActions == null ? 0 : pendingActions.size());
                         output.collect(reusedStreamRecord.replace(actionOutputEventMessage));
                     }
@@ -235,7 +238,7 @@ public class ActionExecutionOperator<K> extends AbstractStreamOperator<EventMess
         if (containPythonAction) {
             PythonDependencyInfo dependencyInfo =
                     PythonDependencyInfo.create(
-                            getExecutionConfig().toConfiguration(),
+                            getExecutionConfig().toConfiguration().set(PythonOptions.PYTHON_PATH, "/Users/jhin/Repo/oss/flink-agents/python/.venv1/bin/python"),
                             getRuntimeContext().getDistributedCache());
             PythonEnvironmentManager pythonEnvironmentManager =
                     new PythonEnvironmentManager(

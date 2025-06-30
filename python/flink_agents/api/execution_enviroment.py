@@ -19,14 +19,17 @@ import importlib
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
+from pyflink.datastream import DataStream, KeySelector
+
 from flink_agents.api.workflow import Workflow
 
 
 class AgentsExecutionEnvironment(ABC):
     """Base class for workflow execution environment."""
+    local: bool = True
 
-    @staticmethod
-    def get_execution_environment(**kwargs: Dict[str, Any]) -> 'AgentsExecutionEnvironment':
+    @classmethod
+    def get_execution_environment(cls, **kwargs: Dict[str, Any]) -> 'AgentsExecutionEnvironment':
         """Get agents execution environment.
 
         Currently, this method only returns LocalExecutionEnvironment. After
@@ -38,9 +41,14 @@ class AgentsExecutionEnvironment(ABC):
         AgentsExecutionEnvironment
             Environment for workflow execution.
         """
-        return importlib.import_module(
-            "flink_agents.runtime.local_execution_environment"
-        ).get_execution_environment(**kwargs)
+        if cls.local:
+            return importlib.import_module(
+                "flink_agents.runtime.local_execution_environment"
+            ).get_execution_environment(**kwargs)
+        else:
+            return importlib.import_module(
+                "flink_agents.runtime.remote_execution_environment"
+            ).get_execution_environment(**kwargs)
 
     @abstractmethod
     def from_list(self, input: List[Dict[str, Any]]) -> 'AgentsExecutionEnvironment':
@@ -51,6 +59,18 @@ class AgentsExecutionEnvironment(ABC):
         input : list
             Receive a list as input. The element in the list should be a dict like
             {'key': Any, 'value': Any} or {'value': Any} , extra field will be ignored.
+        """
+
+    @abstractmethod
+    def from_datastream(self, input: DataStream, key_selector: KeySelector = None) -> 'AgentsExecutionEnvironment':
+        """Set input for agents. Used for remote execution.
+
+        Parameters
+        ----------
+        input : DataStream
+            Receive a DataStream as input.
+        key_selector : KeySelector
+            Extract key from each input record.
         """
 
     @abstractmethod
@@ -72,6 +92,16 @@ class AgentsExecutionEnvironment(ABC):
         Returns:
         -------
         list
+            Outputs of workflow execution.
+        """
+
+    @abstractmethod
+    def to_datastream(self) -> DataStream:
+        """Get outputs of workflow execution. Used for remote execution.
+
+        Returns:
+        -------
+        DataStream
             Outputs of workflow execution.
         """
 

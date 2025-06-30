@@ -59,10 +59,10 @@ public class ActionJsonSerializer extends StdSerializer<Action> {
         }
 
         // Write listenEventTypes field
-        jsonGenerator.writeFieldName("listenEventTypes");
+        jsonGenerator.writeFieldName("listen_event_types");
         jsonGenerator.writeStartArray();
-        for (Class<? extends Event> eventType : action.getListenEventTypes()) {
-            jsonGenerator.writeString(eventType.getName());
+        for (String eventType : action.getListenEventTypes()) {
+            jsonGenerator.writeString(eventType);
         }
         jsonGenerator.writeEndArray();
 

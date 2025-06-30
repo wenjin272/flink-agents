@@ -69,7 +69,7 @@ public class WorkflowPlanJsonDeserializer extends StdDeserializer<WorkflowPlan> 
 
         // Deserialize event trigger actions
         JsonNode eventTriggerActionsNode = node.get("event_trigger_actions");
-        Map<Class<? extends Event>, List<Action>> eventTriggerActions = new HashMap<>();
+        Map<String, List<Action>> eventTriggerActions = new HashMap<>();
         if (eventTriggerActionsNode != null && eventTriggerActionsNode.isObject()) {
             Iterator<Map.Entry<String, JsonNode>> iterator = eventTriggerActionsNode.fields();
             while (iterator.hasNext()) {
@@ -77,12 +77,12 @@ public class WorkflowPlanJsonDeserializer extends StdDeserializer<WorkflowPlan> 
                 String eventClassName = entry.getKey();
                 JsonNode actionsArrayNode = entry.getValue();
 
-                Class<? extends Event> eventClass;
-                try {
-                    eventClass = (Class<? extends Event>) Class.forName(eventClassName);
-                } catch (ClassNotFoundException e) {
-                    throw new IOException("Event class not found: " + eventClassName, e);
-                }
+//                Class<? extends Event> eventClass;
+//                try {
+//                    eventClass = (Class<? extends Event>) Class.forName(eventClassName);
+//                } catch (ClassNotFoundException e) {
+//                    throw new IOException("Event class not found: " + eventClassName, e);
+//                }
 
                 List<Action> actionsTriggeredByEvent = new ArrayList<>();
                 for (JsonNode actionNameNode : actionsArrayNode) {
@@ -93,7 +93,7 @@ public class WorkflowPlanJsonDeserializer extends StdDeserializer<WorkflowPlan> 
                     }
                     actionsTriggeredByEvent.add(action);
                 }
-                eventTriggerActions.put(eventClass, actionsTriggeredByEvent);
+                eventTriggerActions.put(eventClassName, actionsTriggeredByEvent);
             }
         }
 

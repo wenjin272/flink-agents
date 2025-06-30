@@ -37,14 +37,14 @@ import java.util.Map;
 @JsonDeserialize(using = WorkflowPlanJsonDeserializer.class)
 public class WorkflowPlan implements Serializable {
     private Map<String, Action> actions;
-    private Map<Class<? extends Event>, List<Action>> eventTriggerActions;
+    private Map<String, List<Action>> eventTriggerActions;
 
     public WorkflowPlan() {
     }
 
     public WorkflowPlan(
             Map<String, Action> actions,
-            Map<Class<? extends Event>, List<Action>> eventTriggerActions) {
+            Map<String, List<Action>> eventTriggerActions) {
         this.actions = actions;
         this.eventTriggerActions = eventTriggerActions;
     }
@@ -53,11 +53,11 @@ public class WorkflowPlan implements Serializable {
         return actions;
     }
 
-    public Map<Class<? extends Event>, List<Action>> getEventTriggerActions() {
+    public Map<String, List<Action>> getEventTriggerActions() {
         return eventTriggerActions;
     }
 
-    public List<Action> getEventTriggerActions(Class<? extends Event> event) {
+    public List<Action> getEventTriggerActions(String event) {
         return eventTriggerActions.get(event);
     }
 

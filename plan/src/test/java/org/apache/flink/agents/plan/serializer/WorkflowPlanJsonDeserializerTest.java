@@ -96,7 +96,7 @@ public class WorkflowPlanJsonDeserializerTest {
                     "MyAction",
                     new JavaFunction(
                             MyAction.class.getName(), "doNothing", new Class[] {Event.class}),
-                    List.of(InputEvent.class, MyEvent.class));
+                    List.of(InputEvent.class.getName(), MyEvent.class.getName()));
         }
     }
 }

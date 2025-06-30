@@ -17,6 +17,8 @@
 #################################################################################
 from typing import Any, Dict, List
 
+from pyflink.datastream import DataStream, KeySelector
+
 from flink_agents.api.execution_enviroment import AgentsExecutionEnvironment
 from flink_agents.api.workflow import Workflow
 from flink_agents.runtime.local_runner import LocalRunner
@@ -68,6 +70,12 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
         outputs = self.__runner.get_outputs()
         for output in outputs:
             self.__output.append(output)
+
+    def from_datastream(self, input: DataStream, key_selector: KeySelector = None) -> 'AgentsExecutionEnvironment':
+        pass
+
+    def to_datastream(self) -> DataStream:
+        pass
 
 
 def get_execution_environment(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:

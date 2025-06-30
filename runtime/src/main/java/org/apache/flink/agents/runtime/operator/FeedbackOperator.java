@@ -122,7 +122,7 @@ public class FeedbackOperator<K> extends AbstractStreamOperator<EventMessage<K>>
         if (closedOrDisposed) {
             return;
         }
-        LOG.debug("FeedbackOperator processing feedback {}", element);
+        System.out.printf("FeedbackOperator processing feedback %s", element);
         OptionalLong maybeCheckpoint = element.isBarrierMessage();
         if (maybeCheckpoint.isPresent()) {
             // if it is a checkpoint barrier, we can commit all checkpoints up to the given
@@ -141,7 +141,7 @@ public class FeedbackOperator<K> extends AbstractStreamOperator<EventMessage<K>>
 
     @Override
     public void processElement(StreamRecord<EventMessage<K>> streamRecord) throws Exception {
-        LOG.debug("FeedbackOperator processElement {}", streamRecord);
+        System.out.printf("FeedbackOperator processElement %s%n", streamRecord);
         sendDownstream(streamRecord.getValue());
     }
 

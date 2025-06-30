@@ -38,9 +38,9 @@ import java.util.List;
 public class Action {
     private final String name;
     private final Function exec;
-    private final List<Class<? extends Event>> listenEventTypes;
+    private final List<String> listenEventTypes;
 
-    public Action(String name, Function exec, List<Class<? extends Event>> listenEventTypes)
+    public Action(String name, Function exec, List<String> listenEventTypes)
             throws Exception {
         this.name = name;
         this.exec = exec;
@@ -56,7 +56,7 @@ public class Action {
         return exec;
     }
 
-    public List<Class<? extends Event>> getListenEventTypes() {
+    public List<String> getListenEventTypes() {
         return listenEventTypes;
     }
 }

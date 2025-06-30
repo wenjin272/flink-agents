@@ -52,33 +52,34 @@ public class PythonEnvironmentManager extends AbstractPythonEnvironmentManager {
                         .addPythonPaths(env.getOrDefault("PYTHONPATH", ""));
 
         // For python exec from archives, we need to config PYTHON_HOME
-        if (isPythonExecFromArchives(
-                dependencyInfo.getPythonExec(), dependencyInfo.getArchives())) {
-            interpreterConfigBuilder
-                    .setPythonHome(
-                            String.join(
-                                    Path.SEPARATOR,
-                                    env.get(PYTHON_WORKING_DIR),
-                                    dependencyInfo
-                                            .getPythonExec()
-                                            .substring(
-                                                    0,
-                                                    dependencyInfo
-                                                                    .getPythonExec()
-                                                                    .lastIndexOf("bin")
-                                                            - 1)))
-                    .setPythonExec(
-                            String.join(
-                                    Path.SEPARATOR,
-                                    env.get(PYTHON_WORKING_DIR),
-                                    dependencyInfo.getPythonExec()));
-        } else {
-            interpreterConfigBuilder.setPythonExec(dependencyInfo.getPythonExec());
-        }
+//        if (isPythonExecFromArchives(
+//                dependencyInfo.getPythonExec(), dependencyInfo.getArchives())) {
+//            interpreterConfigBuilder
+//                    .setPythonHome(
+//                            String.join(
+//                                    Path.SEPARATOR,
+//                                    env.get(PYTHON_WORKING_DIR),
+//                                    dependencyInfo
+//                                            .getPythonExec()
+//                                            .substring(
+//                                                    0,
+//                                                    dependencyInfo
+//                                                                    .getPythonExec()
+//                                                                    .lastIndexOf("bin")
+//                                                            - 1)))
+//                    .setPythonExec(
+//                            String.join(
+//                                    Path.SEPARATOR,
+//                                    env.get(PYTHON_WORKING_DIR),
+//                                    dependencyInfo.getPythonExec()));
+//        } else {
+////            interpreterConfigBuilder.setPythonExec(dependencyInfo.getPythonExec());
+//        }
+        interpreterConfigBuilder.setPythonExec("/Users/jhin/Repo/oss/flink-agents/python/.venv1/bin/python");
 
-        if (env.containsKey(PYTHON_WORKING_DIR)) {
-            interpreterConfigBuilder.setWorkingDirectory(env.get(PYTHON_WORKING_DIR));
-        }
+//        if (env.containsKey(PYTHON_WORKING_DIR)) {
+//            interpreterConfigBuilder.setWorkingDirectory(env.get(PYTHON_WORKING_DIR));
+//        }
 
         return new EmbeddedPythonEnvironment(interpreterConfigBuilder.build(), env);
     }

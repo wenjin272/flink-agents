@@ -47,7 +47,7 @@ public class ActionJsonSerializerTest {
                         new Class[] {InputEvent.class});
 
         // Create an Action
-        Action action = new Action("testAction", function, List.of(InputEvent.class));
+        Action action = new Action("testAction", function, List.of(InputEvent.class.getName()));
 
         // Serialize the action to JSON
         String json = new ObjectMapper().writeValueAsString(action);
@@ -83,7 +83,7 @@ public class ActionJsonSerializerTest {
                 };
 
         // Create an Action
-        Action action = new Action("testPythonAction", function, List.of(InputEvent.class));
+        Action action = new Action("testPythonAction", function, List.of(InputEvent.class.getName()));
 
         // Serialize the action to JSON
         String json = new ObjectMapper().writeValueAsString(action);
@@ -119,9 +119,9 @@ public class ActionJsonSerializerTest {
                         new Class[] {InputEvent.class});
 
         // Create an Action with multiple event types
-        List<Class<? extends Event>> eventTypes = new ArrayList<>();
-        eventTypes.add(InputEvent.class);
-        eventTypes.add(OutputEvent.class);
+        List<String> eventTypes = new ArrayList<>();
+        eventTypes.add(InputEvent.class.getName());
+        eventTypes.add(OutputEvent.class.getName());
         Action action = new Action("multiEventAction", function, eventTypes);
 
         // Serialize the action to JSON
@@ -176,7 +176,7 @@ public class ActionJsonSerializerTest {
                         new Class[] {InputEvent.class});
 
         // Create an Action
-        Action originalAction = new Action("roundTripAction", function, List.of(InputEvent.class));
+        Action originalAction = new Action("roundTripAction", function, List.of(InputEvent.class.getName()));
 
         // Serialize the action to JSON
         ObjectMapper mapper = new ObjectMapper();

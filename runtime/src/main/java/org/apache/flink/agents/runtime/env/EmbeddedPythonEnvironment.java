@@ -42,6 +42,7 @@ public class EmbeddedPythonEnvironment implements PythonEnvironment {
     }
 
     public PythonInterpreter getInterpreter() {
+        System.out.println(config.getPythonExec());
         return new PythonInterpreter(config);
     }
 }

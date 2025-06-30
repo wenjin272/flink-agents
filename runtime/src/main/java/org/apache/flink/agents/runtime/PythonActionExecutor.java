@@ -49,6 +49,7 @@ public class PythonActionExecutor {
 
         interpreter = env.getInterpreter();
         interpreter.exec(IMPORT_FLINK_RUNNER_CONTEXT);
+        System.out.println("IMPORT_FLINK_RUNNER_CONTEXT");
 
         Object pythonFunctionWrapper =
                 interpreter.invoke(

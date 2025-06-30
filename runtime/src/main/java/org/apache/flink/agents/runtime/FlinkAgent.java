@@ -18,6 +18,7 @@
 
 package org.apache.flink.agents.runtime;
 
+import org.apache.flink.agents.plan.PythonFunction;
 import org.apache.flink.agents.plan.WorkflowPlan;
 import org.apache.flink.agents.runtime.feedback.FeedbackKey;
 import org.apache.flink.agents.runtime.message.EventMessage;
@@ -26,14 +27,42 @@ import org.apache.flink.agents.runtime.message.Message;
 import org.apache.flink.agents.runtime.operator.ActionExecutionOperatorFactory;
 import org.apache.flink.agents.runtime.operator.FeedbackOperatorFactory;
 import org.apache.flink.agents.runtime.operator.FeedbackSinkOperator;
+import org.apache.flink.api.common.typeinfo.IntegerTypeInfo;
+import org.apache.flink.api.common.typeinfo.TypeHint;
+import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonProcessingException;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.types.Row;
 import org.apache.flink.util.OutputTag;
+
+import javax.xml.crypto.Data;
 
 /** A utility class that bridges Flink DataStream/SQL with the Flink Agents workflow. */
 public class FlinkAgent {
+
+
+    public static DataStream<byte[]> connectToWorkflow(
+            DataStream<Row> inputDataStream,
+            String workflowPlan) throws JsonProcessingException {
+        TypeInformation<EventMessage<Integer>> typeInfo = TypeInformation.of(new TypeHint<EventMessage<Integer>>() {});
+        DataStream<EventMessage<java.lang.Integer>> map = inputDataStream.map(row -> {
+                    System.out.print(row.getField(0));
+                    return new EventMessage<Integer>((Integer) row.getField(0),
+                            new PythonEvent((byte[]) row.getField(1), "flink_agents.api.event.InputEvent"));
+                })
+                .returns(typeInfo);
+
+        WorkflowPlan plan = new ObjectMapper().readValue(workflowPlan, WorkflowPlan.class);
+        System.out.print(plan.getEventTriggerActions());
+        DataStream<EventMessage<Integer>> output = connectToWorkflow(map, TypeInformation.of(Integer.class) ,plan);
+        return output.map(x -> ((PythonEvent) x.getEvent()).getEvent()).returns(TypeInformation.of(new TypeHint<byte[]>() {
+        }));
+    }
 
     /**
      * Connects the given DataStream to the Flink Agents workflow.
