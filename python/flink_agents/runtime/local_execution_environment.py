@@ -17,6 +17,8 @@
 #################################################################################
 from typing import Any, Dict, List
 
+from pyflink.datastream import DataStream, KeySelector
+
 from flink_agents.api.execution_enviroment import AgentsExecutionEnvironment
 from flink_agents.api.agent import Agent
 from flink_agents.runtime.local_runner import LocalRunner
@@ -34,18 +36,20 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
         """Init empty output list."""
         self.__output = []
 
-    def from_list(self, input: list) -> 'AgentsExecutionEnvironment':
+    def from_list(self, input: list) -> "AgentsExecutionEnvironment":
         """Set input list of execution environment."""
         self.__input = input
         return self
 
-    def apply(self, agent: Agent) -> 'AgentsExecutionEnvironment':
+    def apply(self, agent: Agent) -> "AgentsExecutionEnvironment":
         """Create local runner to execute given agent.
 
         Doesn't support apply multiple agents.
         """
         if self.__runner is not None:
-            err_msg = "LocalExecutionEnvironment doesn't support apply multiple agents."
+            err_msg = (
+                "LocalExecutionEnvironment doesn't support apply multiple agents."
+            )
             raise RuntimeError(err_msg)
         self.__runner = LocalRunner(agent)
         return self
@@ -60,7 +64,9 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
         Doesn't support execute multiple times.
         """
         if self.__executed:
-            err_msg = "LocalExecutionEnvironment doesn't support execute multiple times."
+            err_msg = (
+                "LocalExecutionEnvironment doesn't support execute multiple times."
+            )
             raise RuntimeError(err_msg)
         self.__executed = True
         for input in self.__input:
@@ -68,6 +74,24 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
         outputs = self.__runner.get_outputs()
         for output in outputs:
             self.__output.append(output)
+
+    def from_datastream(
+        self, input: DataStream, key_selector: KeySelector = None
+    ) -> "AgentsExecutionEnvironment":
+        """Set input DataStream of agent execution.
+
+        This method is not supported for local execution environments.
+        """
+        msg = "LocalExecutionEnvironment does not support from_datastream."
+        raise NotImplementedError(msg)
+
+    def to_datastream(self) -> DataStream:
+        """Get output DataStream of agent execution.
+
+        This method is not supported for local execution environments.
+        """
+        msg = "LocalExecutionEnvironment does not support to_datastream."
+        raise NotImplementedError(msg)
 
 
 def get_execution_environment(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
