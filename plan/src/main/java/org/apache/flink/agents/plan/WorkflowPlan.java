@@ -54,6 +54,10 @@ public class WorkflowPlan implements Serializable {
         return eventTriggerActions;
     }
 
+    public List<Action> getEventTriggerActions(String eventType) {
+        return eventTriggerActions.get(eventType);
+    }
+
     private void writeObject(ObjectOutputStream out) throws IOException {
         String serializedStr = new ObjectMapper().writeValueAsString(this);
         out.writeUTF(serializedStr);
