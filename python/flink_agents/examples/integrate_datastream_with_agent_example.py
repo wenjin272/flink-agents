@@ -25,7 +25,7 @@ from pyflink.datastream import (
 )
 from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
 
-from flink_agents.api.execution_enviroment import AgentsExecutionEnvironment
+from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.examples.my_agent import DataStreamAgent, ItemData
 
 
