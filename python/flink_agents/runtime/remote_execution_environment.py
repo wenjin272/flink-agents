@@ -31,7 +31,7 @@ from pyflink.datastream import (
 from pyflink.table import Schema, StreamTableEnvironment, Table
 from pyflink.util.java_utils import invoke_method
 
-from flink_agents.api.execution_enviroment import (
+from flink_agents.api.execution_environment import (
     AgentBuilder,
     AgentInstance,
     AgentsExecutionEnvironment,
