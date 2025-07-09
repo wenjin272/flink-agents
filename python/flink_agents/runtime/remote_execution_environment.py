@@ -26,6 +26,7 @@ from pyflink.datastream import (
     DataStream,
     KeyedStream,
     KeySelector,
+    StreamExecutionEnvironment,
 )
 from pyflink.table import Schema, StreamTableEnvironment, Table
 from pyflink.util.java_utils import invoke_method
@@ -39,19 +40,38 @@ from flink_agents.api.workflow import Workflow
 from flink_agents.plan.workflow_plan import WorkflowPlan
 
 
+class RemoteAgentInstance(AgentInstance):
+    """AgentInstance impl must be executed as a flink job."""
+
+    __env: StreamExecutionEnvironment
+
+    def __init__(self, env: StreamExecutionEnvironment) -> None:
+        """Init method."""
+        self.__env = env
+
+    def execute(self) -> None:
+        """Execute agent."""
+        self.__env.execute()
+
+
 class RemoteAgentBuilder(AgentBuilder):
     """RemoteAgentBuilder for integrating datastream and agent."""
 
+    __env: StreamExecutionEnvironment
     __input: DataStream
     __workflow_plan: WorkflowPlan = None
     __output: DataStream = None
     __t_env: StreamTableEnvironment
 
     def __init__(
-        self, input: DataStream, t_env: Optional[StreamTableEnvironment] = None
+        self,
+        input: DataStream,
+        env: StreamExecutionEnvironment,
+        t_env: Optional[StreamTableEnvironment] = None,
     ) -> None:
         """Init method of RemoteAgentBuilder."""
         self.__input = input
+        self.__env = env
         self.__t_env = t_env
 
     def apply(self, workflow: Workflow) -> "AgentBuilder":
@@ -123,19 +143,18 @@ class RemoteAgentBuilder(AgentBuilder):
         raise NotImplementedError(msg)
 
     def build(self) -> AgentInstance:
-        """Build agent instance.
-
-        This method is not supported for RemoteAgentBuilder.
-        """
-        msg = (
-            "RemoteAgentBuilder does not support build Agent Instance and run individually, must run as"
-            "a flink job."
-        )
-        raise NotImplementedError(msg)
+        """Build agent instance."""
+        return RemoteAgentInstance(env=self.__env)
 
 
 class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
     """Implementation of AgentsExecutionEnvironment for execution with DataStream."""
+
+    __env: StreamExecutionEnvironment
+
+    def __init__(self, env: StreamExecutionEnvironment) -> None:
+        """Init method of RemoteExecutionEnvironment."""
+        self.__env = env
 
     @staticmethod
     def __process_input_datastream(
@@ -165,7 +184,7 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         """
         input = self.__process_input_datastream(input, key_selector)
 
-        return RemoteAgentBuilder(input=input)
+        return RemoteAgentBuilder(input=input, env=self.__env)
 
     def from_table(
         self,
@@ -189,7 +208,7 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         input = input.map(lambda x: x, output_type=PickledBytesTypeInfo())
 
         input = self.__process_input_datastream(input, key_selector)
-        return RemoteAgentBuilder(input=input, t_env=t_env)
+        return RemoteAgentBuilder(input=input, env=self.__env, t_env=t_env)
 
     def from_list(self, input: List[Dict[str, Any]]) -> "AgentsExecutionEnvironment":
         """Set input list of workflow execution.
@@ -200,11 +219,15 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         raise NotImplementedError(msg)
 
 
-def create_instance(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
+def create_instance(
+    env: StreamExecutionEnvironment, **kwargs: Dict[str, Any]
+) -> AgentsExecutionEnvironment:
     """Factory function to create a remote agents execution environment.
 
     Parameters
     ----------
+    env : StreamExecutionEnvironment
+        The execution environment of flink job.
     **kwargs : Dict[str, Any]
         The dict of parameters to configure the execution environment.
 
@@ -213,4 +236,4 @@ def create_instance(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
     AgentsExecutionEnvironment
         A configured agents execution environment instance.
     """
-    return RemoteExecutionEnvironment()
+    return RemoteExecutionEnvironment(env=env)

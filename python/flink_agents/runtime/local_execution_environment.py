@@ -15,10 +15,10 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pyflink.common import TypeInformation
-from pyflink.datastream import DataStream, KeySelector
+from pyflink.datastream import DataStream, KeySelector, StreamExecutionEnvironment
 from pyflink.table import Schema, StreamTableEnvironment, Table
 
 from flink_agents.api.execution_enviroment import (
@@ -30,7 +30,7 @@ from flink_agents.api.workflow import Workflow
 from flink_agents.runtime.local_runner import LocalRunner
 
 
-class AgentInstanceImpl(AgentInstance):
+class LocalAgentInstance(AgentInstance):
     """AgentInstance impl which can be executed individually."""
 
     __input: List[Dict[str, Any]]
@@ -96,7 +96,7 @@ class LocalAgentBuilder(AgentBuilder):
 
     def build(self) -> AgentInstance:
         """Build agent instance."""
-        return AgentInstanceImpl(self.__input, self.__output, self.__runner)
+        return LocalAgentInstance(self.__input, self.__output, self.__runner)
 
     def to_datastream(self) -> DataStream:
         """Get output DataStream of workflow execution.
@@ -146,11 +146,15 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
         raise NotImplementedError(msg)
 
 
-def create_instance(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
+def create_instance(
+    env: Optional[StreamExecutionEnvironment] = None, **kwargs: Dict[str, Any]
+) -> AgentsExecutionEnvironment:
     """Factory function to create a local agents execution environment.
 
     Parameters
     ----------
+    env : StreamExecutionEnvironment
+        The execution environment of flink job, is None of LocalExecutionEnvironment.
     **kwargs : Dict[str, Any]
         The dict of parameters to configure the execution environment.
 
