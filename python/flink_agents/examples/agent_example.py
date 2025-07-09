@@ -27,7 +27,8 @@ from flink_agents.api.agent import Agent
 class MyEvent(Event):  # noqa D101
     value: Any
 
-#TODO: Replace this agent with more practical example.
+
+# TODO: Replace this workflow with more practical example.
 class MyAgent(Agent):
     """An example of agent to show the basic usage.
 
@@ -57,9 +58,7 @@ if __name__ == "__main__":
     input_list = []
     agent = MyAgent()
 
-    builder = env.from_list(input_list)
-    output_list = builder.apply(agent).to_list()
-    agent_instance = builder.build()
+    output_list = env.from_list(input_list).apply(agent).to_list()
 
     input_list.append({"key": "bob", "value": "The message from bob"})
     input_list.append({"k": "john", "v": "The message from john"})
@@ -67,7 +66,7 @@ if __name__ == "__main__":
         {"value": "The message from unknown"}
     )  # will automatically generate a new unique key
 
-    agent_instance.execute()
+    env.execute()
 
     for output in output_list:
         print(output)

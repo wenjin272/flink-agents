@@ -15,88 +15,52 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from pyflink.common import TypeInformation
-from pyflink.datastream import DataStream, KeySelector, StreamExecutionEnvironment
+from pyflink.datastream import DataStream, KeySelector
 from pyflink.table import Schema, StreamTableEnvironment, Table
 
 from flink_agents.api.execution_environment import (
     AgentBuilder,
-    AgentInstance,
     AgentsExecutionEnvironment,
 )
 from flink_agents.api.workflow import Workflow
 from flink_agents.runtime.local_runner import LocalRunner
 
 
-class LocalAgentInstance(AgentInstance):
-    """AgentInstance impl which can be executed individually."""
-
-    __input: List[Dict[str, Any]]
-    __output: List[Any]
-    __runner: LocalRunner
-    __executed: bool = False
-
-    def __init__(
-        self, input: List[Dict[str, Any]], output: List[Any], runner: LocalRunner
-    ) -> None:
-        """Init method of AgentInstanceImpl."""
-        self.__input = input
-        self.__output = output
-        self.__runner = runner
-
-    def execute(self) -> None:
-        """Execute agent.
-
-        Doesn't support execute multiple times.
-        """
-        if self.__executed:
-            err_msg = (
-                "LocalExecutionEnvironment doesn't support execute multiple times."
-            )
-            raise RuntimeError(err_msg)
-        self.__executed = True
-        for input in self.__input:
-            self.__runner.run(**input)
-        outputs = self.__runner.get_outputs()
-        for output in outputs:
-            self.__output.append(output)
-
-
 class LocalAgentBuilder(AgentBuilder):
     """LocalAgentBuilder for building agent instance."""
 
+    __env: "LocalExecutionEnvironment"
     __input: List[Dict[str, Any]]
     __output: List[Any]
     __runner: LocalRunner = None
     __executed: bool = False
 
-    def __init__(self, input: List[Dict[str, Any]]) -> None:
+    def __init__(
+        self, env: "LocalExecutionEnvironment", input: List[Dict[str, Any]]
+    ) -> None:
         """Init empty output list."""
+        self.__env = env
         self.__input = input
         self.__output = []
 
-    def apply(self, workflow: Workflow) -> "AgentBuilder":
+    def apply(self, workflow: Workflow) -> AgentBuilder:
         """Create local runner to execute given workflow.
 
         Doesn't support apply multiple workflows.
         """
         if self.__runner is not None:
-            err_msg = (
-                "LocalExecutionEnvironment doesn't support apply multiple workflows."
-            )
+            err_msg = "LocalAgentBuilder doesn't support apply multiple workflows."
             raise RuntimeError(err_msg)
         self.__runner = LocalRunner(workflow)
         return self
 
     def to_list(self) -> List[Dict[str, Any]]:
         """Get output list of execution environment."""
+        self.__env.set_agent(self.__input, self.__output, self.__runner)
         return self.__output
-
-    def build(self) -> AgentInstance:
-        """Build agent instance."""
-        return LocalAgentInstance(self.__input, self.__output, self.__runner)
 
     def to_datastream(self) -> DataStream:
         """Get output DataStream of workflow execution.
@@ -118,13 +82,38 @@ class LocalAgentBuilder(AgentBuilder):
 class LocalExecutionEnvironment(AgentsExecutionEnvironment):
     """Implementation of AgentsExecutionEnvironment for local execution environment."""
 
+    __input: List[Dict[str, Any]]
+    __output: List[Any]
+    __runner: LocalRunner = None
+    __executed: bool = False
+
     def from_list(self, input: list) -> LocalAgentBuilder:
         """Set input list of execution environment."""
-        return LocalAgentBuilder(input)
+        return LocalAgentBuilder(env=self, input=input)
+
+    def set_agent(self, input: list, output: list, runner: LocalRunner) -> None:
+        """Set agent input, output and runner."""
+        self.__input = input
+        self.__runner = runner
+        self.__output = output
+
+    def execute(self) -> None:
+        """Execute agent individually."""
+        if self.__executed:
+            err_msg = (
+                "LocalExecutionEnvironment doesn't support execute multiple times."
+            )
+            raise RuntimeError(err_msg)
+        self.__executed = True
+        for input in self.__input:
+            self.__runner.run(**input)
+        outputs = self.__runner.get_outputs()
+        for output in outputs:
+            self.__output.append(output)
 
     def from_datastream(
         self, input: DataStream, key_selector: KeySelector = None
-    ) -> "AgentsExecutionEnvironment":
+    ) -> AgentBuilder:
         """Set input DataStream of workflow execution.
 
         This method is not supported for local execution environments.
@@ -146,15 +135,11 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
         raise NotImplementedError(msg)
 
 
-def create_instance(
-    env: Optional[StreamExecutionEnvironment] = None, **kwargs: Dict[str, Any]
-) -> AgentsExecutionEnvironment:
+def create_instance(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
     """Factory function to create a local agents execution environment.
 
     Parameters
     ----------
-    env : StreamExecutionEnvironment
-        The execution environment of flink job, is None of LocalExecutionEnvironment.
     **kwargs : Dict[str, Any]
         The dict of parameters to configure the execution environment.
 
