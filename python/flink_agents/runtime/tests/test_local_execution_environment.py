@@ -80,3 +80,12 @@ def test_local_execution_environment_execute_multi_times() -> None: # noqa: D103
     env.execute()
     with pytest.raises(RuntimeError):
         env.execute()
+
+def test_local_execution_environment_call_from_list_twice() -> None:  # noqa: D103
+    env = AgentsExecutionEnvironment.get_execution_environment()
+
+    input_list = []
+
+    env.from_list(input_list)
+    with pytest.raises(RuntimeError):
+        env.from_list(input_list)

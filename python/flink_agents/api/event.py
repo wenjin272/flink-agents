@@ -19,19 +19,35 @@ from abc import ABC
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from pyflink.common import Row
 
 
 class Event(BaseModel, ABC, extra="allow"):
-    """Base class for all event types in the system.
+    """Base class for all event types in the system. Event allow extra properties, but
+    these properties are required isinstance of BaseModel, or json serializable.
 
     Attributes:
     ----------
     id : UUID
         Unique identifier for the event, automatically generated using uuid4.
     """
-
     id: UUID = Field(default_factory=uuid4)
+
+    @model_validator(mode='after')
+    def validate_extra(self) -> 'Event':
+        """Ensure init fields is serializable."""
+        #TODO: support Event contains Row field be json serializable
+        for value in self.model_dump().values():
+            if isinstance(value, Row):
+                return self
+        self.model_dump_json()
+        return self
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        # Ensure added property can be serialized.
+        self.model_dump_json()
 
 
 class InputEvent(Event):

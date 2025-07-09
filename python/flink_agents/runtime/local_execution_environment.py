@@ -55,11 +55,11 @@ class LocalAgentBuilder(AgentBuilder):
             err_msg = "LocalAgentBuilder doesn't support apply multiple workflows."
             raise RuntimeError(err_msg)
         self.__runner = LocalRunner(workflow)
+        self.__env.set_agent(self.__input, self.__output, self.__runner)
         return self
 
     def to_list(self) -> List[Dict[str, Any]]:
         """Get output list of execution environment."""
-        self.__env.set_agent(self.__input, self.__output, self.__runner)
         return self.__output
 
     def to_datastream(self) -> DataStream:
@@ -82,13 +82,18 @@ class LocalAgentBuilder(AgentBuilder):
 class LocalExecutionEnvironment(AgentsExecutionEnvironment):
     """Implementation of AgentsExecutionEnvironment for local execution environment."""
 
-    __input: List[Dict[str, Any]]
-    __output: List[Any]
+    __input: List[Dict[str, Any]] = None
+    __output: List[Any] = None
     __runner: LocalRunner = None
     __executed: bool = False
 
     def from_list(self, input: list) -> LocalAgentBuilder:
         """Set input list of execution environment."""
+        if self.__input is not None:
+            err_msg = "LocalExecutionEnvironment doesn't support call from_list multiple times."
+            raise RuntimeError(err_msg)
+
+        self.__input = input
         return LocalAgentBuilder(env=self, input=input)
 
     def set_agent(self, input: list, output: list, runner: LocalRunner) -> None:

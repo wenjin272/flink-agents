@@ -83,9 +83,9 @@ class AgentBuilder(ABC):
 class AgentsExecutionEnvironment(ABC):
     """Base class for agent execution environment."""
 
-    @classmethod
+    @staticmethod
     def get_execution_environment(
-        cls, env: Optional[StreamExecutionEnvironment] = None, **kwargs: Dict[str, Any]
+        env: Optional[StreamExecutionEnvironment] = None, **kwargs: Dict[str, Any]
     ) -> "AgentsExecutionEnvironment":
         """Get agents execution environment.
 
