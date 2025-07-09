@@ -58,9 +58,7 @@ if __name__ == "__main__":
     input_list = []
     workflow = MyWorkflow()
 
-    builder = env.from_list(input_list)
-    output_list = builder.apply(workflow).to_list()
-    agent_instance = builder.build()
+    output_list = env.from_list(input_list).apply(workflow).to_list()
 
     input_list.append({"key": "bob", "value": "The message from bob"})
     input_list.append({"k": "john", "v": "The message from john"})
@@ -68,7 +66,7 @@ if __name__ == "__main__":
         {"value": "The message from unknown"}
     )  # will automatically generate a new unique key
 
-    agent_instance.execute()
+    env.execute()
 
     for output in output_list:
         print(output)

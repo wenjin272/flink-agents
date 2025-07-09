@@ -48,14 +48,12 @@ def test_local_execution_environment() -> None:  # noqa: D103
     input_list = []
     workflow = TestWorkflow1()
 
-    builder = env.from_list(input_list)
-    output_list = builder.apply(workflow).to_list()
-    agent = builder.build()
+    output_list = env.from_list(input_list).apply(workflow).to_list()
 
     input_list.append({"key": "bob", "value": 1})
     input_list.append({"k": "john", "v": 2})
 
-    agent.execute()
+    env.execute()
 
     assert output_list == [{"bob": 2}, {"john": 3}]
 
@@ -77,13 +75,10 @@ def test_local_execution_environment_execute_multi_times() -> None:  # noqa: D10
     input_list = []
     workflow = TestWorkflow1()
 
-    builder = env.from_list(input_list)
-    builder.apply(workflow).to_list()
-    agent = builder.build()
-
+    env.from_list(input_list).apply(workflow).to_list()
     input_list.append({"key": "bob", "value": 1})
     input_list.append({"k": "john", "v": 2})
 
-    agent.execute()
+    env.execute()
     with pytest.raises(RuntimeError):
-        agent.execute()
+        env.execute()

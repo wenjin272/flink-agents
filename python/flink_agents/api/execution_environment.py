@@ -26,14 +26,6 @@ from pyflink.table import Schema, StreamTableEnvironment, Table
 from flink_agents.api.workflow import Workflow
 
 
-class AgentInstance(ABC):
-    """Agent instance can be executed individually."""
-
-    @abstractmethod
-    def execute(self) -> None:
-        """Execute agent."""
-
-
 class AgentBuilder(ABC):
     """Builder for integrating agent with input and output."""
 
@@ -87,10 +79,6 @@ class AgentBuilder(ABC):
             Output table of agent execution.
         """
 
-    @abstractmethod
-    def build(self) -> AgentInstance:
-        """Build agent instance."""
-
 
 class AgentsExecutionEnvironment(ABC):
     """Base class for workflow execution environment."""
@@ -114,11 +102,11 @@ class AgentsExecutionEnvironment(ABC):
         if env is None:
             return importlib.import_module(
                 "flink_agents.runtime.local_execution_environment"
-            ).create_instance(env, **kwargs)
+            ).create_instance(**kwargs)
         else:
             return importlib.import_module(
                 "flink_agents.runtime.remote_execution_environment"
-            ).create_instance(env, **kwargs)
+            ).create_instance(**kwargs)
 
     @abstractmethod
     def from_list(self, input: List[Dict[str, Any]]) -> AgentBuilder:
@@ -178,3 +166,7 @@ class AgentsExecutionEnvironment(ABC):
         AgentBuilder
             A new builder to build an agent for specific input.
         """
+
+    @abstractmethod
+    def execute(self) -> None:
+        """Execute agent individually."""
