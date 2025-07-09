@@ -15,80 +15,46 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-import uuid
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, List, Optional
 
 import cloudpickle
-from pyflink.common import Row
-from pyflink.common.typeinfo import PickledBytesTypeInfo, RowTypeInfo
+from pyflink.common import TypeInformation
+from pyflink.common.typeinfo import (
+    PickledBytesTypeInfo,
+)
 from pyflink.datastream import (
     DataStream,
-    KeyedProcessFunction,
     KeyedStream,
     KeySelector,
-    StreamExecutionEnvironment,
 )
+from pyflink.table import Schema, StreamTableEnvironment, Table
 from pyflink.util.java_utils import invoke_method
 
-from flink_agents.api.event import InputEvent
-from flink_agents.api.execution_enviroment import AgentsExecutionEnvironment
+from flink_agents.api.execution_enviroment import (
+    AgentBuilder,
+    AgentInstance,
+    AgentsExecutionEnvironment,
+)
 from flink_agents.api.workflow import Workflow
 from flink_agents.plan.workflow_plan import WorkflowPlan
 
 
-class MapKeyedProcessFunctionAdapter(KeyedProcessFunction):
-    """Util class for converting element in KeyedStream to Row."""
+class RemoteAgentBuilder(AgentBuilder):
+    """RemoteAgentBuilder for integrating datastream and agent."""
 
-    def process_element(
-        self, value: Any, ctx: "KeyedProcessFunction.Context"
-    ) -> Generator:
-        """Convert element to Row contains key."""
-        ctx.get_current_key()
-        yield Row(ctx.get_current_key(), InputEvent(input=value))
-
-
-class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
-    """Implementation of AgentsExecutionEnvironment for execution with DataStream."""
-
-    __env: StreamExecutionEnvironment
     __input: DataStream
-    __workflow_plan: WorkflowPlan
-    __output: DataStream
+    __workflow_plan: WorkflowPlan = None
+    __output: DataStream = None
+    __t_env: StreamTableEnvironment
 
-    def from_datastream(
-        self, input: DataStream, key_selector: KeySelector = None
-    ) -> "AgentsExecutionEnvironment":
-        """Set input for agents.
+    def __init__(
+        self, input: DataStream, t_env: Optional[StreamTableEnvironment] = None
+    ) -> None:
+        """Init method of RemoteAgentBuilder."""
+        self.__input = input
+        self.__t_env = t_env
 
-        Parameters
-        ----------
-        input : DataStream
-            Receive a DataStream as input.
-        key_selector : KeySelector
-            Extract key from each input record.
-        """
-        if isinstance(input, KeyedStream):
-            self.__input = input.process(
-                MapKeyedProcessFunctionAdapter(),
-                output_type=RowTypeInfo(
-                    [PickledBytesTypeInfo(), PickledBytesTypeInfo()]
-                ),
-            )
-        else:
-            self.__input = input.map(
-                lambda x: Row(
-                    key_selector.get_key(x)
-                    if key_selector is not None
-                    else uuid.uuid4(),
-                    InputEvent(input=x),
-                ),
-                output_type=RowTypeInfo(
-                    [PickledBytesTypeInfo(), PickledBytesTypeInfo()]
-                ),
-            )
-        return self
-
-    def apply(self, workflow: Workflow) -> "AgentsExecutionEnvironment":
+    def apply(self, workflow: Workflow) -> "AgentBuilder":
         """Set workflow of execution environment.
 
         Parameters
@@ -96,41 +62,134 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         workflow : Workflow
             The workflow user defined to run in execution environment.
         """
+        if self.__workflow_plan is not None:
+            err_msg = "RemoteAgentBuilder doesn't support apply multiple workflows yet."
+            raise RuntimeError(err_msg)
         self.__workflow_plan = WorkflowPlan.from_workflow(workflow)
         return self
 
-    def to_datastream(self) -> DataStream:
-        """Get outputs of workflow execution. Used for remote execution.
+    def to_datastream(
+        self, output_type: Optional[TypeInformation] = None
+    ) -> DataStream:
+        """Get output datastream of workflow execution.
 
         Returns:
         -------
         DataStream
-            Outputs of workflow execution.
+            Output datastream of agent execution.
         """
         j_data_stream_output = invoke_method(
             None,
-            "org.apache.flink.agents.runtime.FlinkAgent",
+            "org.apache.flink.agents.runtime.CompileUtils",
             "connectToWorkflow",
             [
                 self.__input._j_data_stream,
                 self.__workflow_plan.model_dump_json(serialize_as_any=True),
             ],
             [
-                "org.apache.flink.streaming.api.datastream.DataStream",
+                "org.apache.flink.streaming.api.datastream.KeyedStream",
                 "java.lang.String",
             ],
         )
         output_stream = DataStream(j_data_stream_output)
-        self.__output = output_stream.map(lambda x: cloudpickle.loads(x).output)
+        self.__output = output_stream.map(
+            lambda x: cloudpickle.loads(x), output_type=output_type
+        )
         return self.__output
 
-    def execute(self) -> None:
-        """Execute agents.
+    def to_table(self, schema: Schema, output_type: TypeInformation) -> Table:
+        """Get output Table of workflow execution.
+
+        Parameters
+        ----------
+        schema : Schema
+            Indicate schema of the output table.
+        output_type : TypeInformation
+            Indicate schema corresponding type information.
+
+        Returns:
+        -------
+        Table
+            Output Table of agent execution.
+        """
+        return self.__t_env.from_data_stream(self.to_datastream(output_type), schema)
+
+    def to_list(self) -> List[Dict[str, Any]]:
+        """Get output list of workflow execution.
 
         This method is not supported for remote execution environments.
         """
-        msg = "RemoteExecutionEnvironment does not support execute locally."
+        msg = "RemoteAgentBuilder does not support to_list."
         raise NotImplementedError(msg)
+
+    def build(self) -> AgentInstance:
+        """Build agent instance.
+
+        This method is not supported for RemoteAgentBuilder.
+        """
+        msg = (
+            "RemoteAgentBuilder does not support build Agent Instance and run individually, must run as"
+            "a flink job."
+        )
+        raise NotImplementedError(msg)
+
+
+class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
+    """Implementation of AgentsExecutionEnvironment for execution with DataStream."""
+
+    @staticmethod
+    def __process_input_datastream(
+        input: DataStream, key_selector: Optional[KeySelector] = None
+    ) -> KeyedStream:
+        if isinstance(input, KeyedStream):
+            return input
+        else:
+            if key_selector is None:
+                msg = "KeySelector must be provided."
+                raise RuntimeError(msg)
+            input = input.key_by(key_selector)
+            return input
+
+    def from_datastream(
+        self, input: DataStream, key_selector: KeySelector = None
+    ) -> RemoteAgentBuilder:
+        """Set input datastream of agent.
+
+        Parameters
+        ----------
+        input : DataStream
+            Receive a DataStream as input.
+        key_selector : KeySelector
+            Extract key from each input record, must not be None when input is
+            not KeyedStream.
+        """
+        input = self.__process_input_datastream(input, key_selector)
+
+        return RemoteAgentBuilder(input=input)
+
+    def from_table(
+        self,
+        input: Table,
+        t_env: StreamTableEnvironment,
+        key_selector: Optional[KeySelector] = None,
+    ) -> AgentBuilder:
+        """Set input Table of agent.
+
+        Parameters
+        ----------
+        input : Table
+            Receive a Table as input.
+        t_env: StreamTableEnvironment
+            table environment supports convert table to/from datastream.
+        key_selector : KeySelector
+            Extract key from each input record.
+        """
+        input = t_env.to_data_stream(table=input)
+
+        input = input.map(lambda x: x, output_type=PickledBytesTypeInfo())
+
+        input = self.__process_input_datastream(input, key_selector)
+        return RemoteAgentBuilder(input=input, t_env=t_env)
 
     def from_list(self, input: List[Dict[str, Any]]) -> "AgentsExecutionEnvironment":
         """Set input list of workflow execution.
@@ -140,16 +199,8 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         msg = "RemoteExecutionEnvironment does not support from_list."
         raise NotImplementedError(msg)
 
-    def to_list(self) -> List[Dict[str, Any]]:
-        """Get output list of workflow execution.
 
-        This method is not supported for remote execution environments.
-        """
-        msg = "RemoteExecutionEnvironment does not support to_list."
-        raise NotImplementedError(msg)
-
-
-def get_execution_environment(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
+def create_instance(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
     """Factory function to create a remote agents execution environment.
 
     Parameters
