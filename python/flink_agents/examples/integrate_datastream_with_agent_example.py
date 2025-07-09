@@ -17,71 +17,31 @@
 #################################################################################
 from pathlib import Path
 
-from pydantic import BaseModel
 from pyflink.common import Duration, WatermarkStrategy
 from pyflink.datastream import (
+    KeySelector,
     RuntimeExecutionMode,
     StreamExecutionEnvironment,
 )
 from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
 
 from flink_agents.api.execution_enviroment import AgentsExecutionEnvironment
-from flink_agents.examples.stream_agent_declaration import MyWorkflow
+from flink_agents.examples.my_agent import DataStreamAgent, ItemData
 
 
-class ItemData(BaseModel):
-    """Data model for storing item information.
+class MyKeySelector(KeySelector):
+    """KeySelector for extracting key."""
 
-    Attributes:
-    ----------
-    id : int
-        Unique identifier of the item
-    review : str
-        The user review of the item
-    review_score: float
-        The review_score of the item
-    """
-
-    id: int
-    review: str
-    review_score: float
-
-    def get_id(self) -> int:
-        """Retrieve the unique identifier of the word entry.
-
-        Returns:
-        -------
-        int
-            The ID associated with this word record
-        """
-        return self.id
-
-    def get_review(self) -> str:
-        """Get the word string value being counted.
-
-        Returns:
-        -------
-        str
-            The original word text (case-sensitive)
-        """
-        return self.review
-
-    def get_review_score(self) -> float:
-        """Get the word string value being counted.
-
-        Returns:
-        -------
-        str
-            The original word text (case-sensitive)
-        """
-        return self.review_score
+    def get_key(self, value: ItemData) -> int:
+        """Extract key from ItemData."""
+        return value.id
 
 
 current_dir = Path(__file__).parent
 
-# if this example raises exception "No module named 'flink_agents'", you could export
-#  PYTHONPATH like "export PYTHONPATH=$VENV_HOME/lib/$PYTHON_VERSION/site-packages"
-#  before run this example. We will fix this later.
+# if this example raises exception "No module named 'flink_agents'", you could set
+# PYTHONPATH like "os.environ["PYTHONPATH"] = ($VENV_HOME/lib/$PYTHON_VERSION/
+# site-packages) in this file.
 if __name__ == "__main__":
     env = StreamExecutionEnvironment.get_execution_environment()
 
@@ -115,10 +75,12 @@ if __name__ == "__main__":
         lambda x: ItemData.model_validate_json(x)
     )
 
-    agents_env = AgentsExecutionEnvironment.from_env(env).get_execution_environment()
+    agents_env = AgentsExecutionEnvironment.get_execution_environment(env=env)
     output_datastream = (
-        agents_env.from_datastream(input=deserialize_datastream)
-        .apply(MyWorkflow())
+        agents_env.from_datastream(
+            input=deserialize_datastream, key_selector=MyKeySelector()
+        )
+        .apply(DataStreamAgent())
         .to_datastream()
     )
 

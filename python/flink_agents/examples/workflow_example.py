@@ -24,29 +24,31 @@ from flink_agents.api.runner_context import RunnerContext
 from flink_agents.api.workflow import Workflow
 
 
-class MyEvent(Event): #noqa D101
+class MyEvent(Event):  # noqa D101
     value: Any
 
-#TODO: Replace this workflow with more practical example.
+
+# TODO: Replace this workflow with more practical example.
 class MyWorkflow(Workflow):
     """An example of Workflow to show the basic usage.
 
     Currently, this workflow doesn't really make sense, and it's mainly for developing
     validation.
     """
+
     @action(InputEvent)
     @staticmethod
-    def first_action(event: Event, ctx: RunnerContext): #noqa D102
+    def first_action(event: Event, ctx: RunnerContext):  # noqa D102
         input = event.input
-        content = input + ' first_action'
+        content = input + " first_action"
         ctx.send_event(MyEvent(value=content))
         ctx.send_event(OutputEvent(output=content))
 
     @action(MyEvent)
     @staticmethod
-    def second_action(event: Event, ctx: RunnerContext): #noqa D102
+    def second_action(event: Event, ctx: RunnerContext):  # noqa D102
         input = event.value
-        content = input + ' second_action'
+        content = input + " second_action"
         ctx.send_event(OutputEvent(output=content))
 
 
@@ -56,14 +58,17 @@ if __name__ == "__main__":
     input_list = []
     workflow = MyWorkflow()
 
-    output_list = env.from_list(input_list).apply(workflow).to_list()
+    builder = env.from_list(input_list)
+    output_list = builder.apply(workflow).to_list()
+    agent_instance = builder.build()
 
+    input_list.append({"key": "bob", "value": "The message from bob"})
+    input_list.append({"k": "john", "v": "The message from john"})
+    input_list.append(
+        {"value": "The message from unknown"}
+    )  # will automatically generate a new unique key
 
-    input_list.append({'key': 'bob', 'value': 'The message from bob'})
-    input_list.append({'k': 'john', 'v': 'The message from john'})
-    input_list.append({'value': 'The message from unknown'}) # will automatically generate a new unique key
-
-    env.execute()
+    agent_instance.execute()
 
     for output in output_list:
         print(output)

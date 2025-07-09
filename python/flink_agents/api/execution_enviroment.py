@@ -17,81 +17,29 @@
 #################################################################################
 import importlib
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+from pyflink.common import TypeInformation
 from pyflink.datastream import DataStream, KeySelector, StreamExecutionEnvironment
+from pyflink.table import Schema, StreamTableEnvironment, Table
 
 from flink_agents.api.workflow import Workflow
 
 
-class AgentsExecutionEnvironment(ABC):
-    """Base class for workflow execution environment."""
-
-    __env: StreamExecutionEnvironment = None
-
-    @classmethod
-    def from_env(
-        cls, env: StreamExecutionEnvironment
-    ) -> type["AgentsExecutionEnvironment"]:
-        """Set StreamExecutionEnvironment of AgentsExecutionEnvironment.
-
-        Currently, this property is only used for distinguishing execution environment.
-        """
-        cls.__env = env
-        return cls
-
-    @classmethod
-    def get_execution_environment(
-        cls, **kwargs: Dict[str, Any]
-    ) -> "AgentsExecutionEnvironment":
-        """Get agents execution environment.
-
-        Currently, this method only returns LocalExecutionEnvironment. After
-        implement other AgentsExecutionEnvironments, this method will return
-        appropriate environment according to configuration.
-
-        Returns:
-        -------
-        AgentsExecutionEnvironment
-            Environment for workflow execution.
-        """
-        if cls.__env is None:
-            return importlib.import_module(
-                "flink_agents.runtime.local_execution_environment"
-            ).get_execution_environment(**kwargs)
-        else:
-            return importlib.import_module(
-                "flink_agents.runtime.remote_execution_environment"
-            ).get_execution_environment(**kwargs)
+class AgentInstance(ABC):
+    """Agent instance can be executed individually."""
 
     @abstractmethod
-    def from_list(self, input: List[Dict[str, Any]]) -> "AgentsExecutionEnvironment":
-        """Set input for agents. Used for local execution.
+    def execute(self) -> None:
+        """Execute agent."""
 
-        Parameters
-        ----------
-        input : list
-            Receive a list as input. The element in the list should be a dict like
-            {'key': Any, 'value': Any} or {'value': Any} , extra field will be ignored.
-        """
+
+class AgentBuilder(ABC):
+    """Builder for integrating agent with input and output."""
 
     @abstractmethod
-    def from_datastream(
-        self, input: DataStream, key_selector: KeySelector = None
-    ) -> "AgentsExecutionEnvironment":
-        """Set input for agents. Used for remote execution.
-
-        Parameters
-        ----------
-        input : DataStream
-            Receive a DataStream as input.
-        key_selector : KeySelector
-            Extract key from each input record.
-        """
-
-    @abstractmethod
-    def apply(self, workflow: Workflow) -> "AgentsExecutionEnvironment":
-        """Set workflow of execution environment.
+    def apply(self, workflow: Workflow) -> "AgentBuilder":
+        """Set workflow of AgentBuilder.
 
         Parameters
         ----------
@@ -101,26 +49,132 @@ class AgentsExecutionEnvironment(ABC):
 
     @abstractmethod
     def to_list(self) -> List[Dict[str, Any]]:
-        """Get outputs of workflow execution. Used for local execution.
+        """Get output list of agent execution.
 
         The element in the list is a dict like {'key': output}.
 
         Returns:
         -------
         list
-            Outputs of workflow execution.
+            Outputs of agent execution.
         """
 
     @abstractmethod
     def to_datastream(self) -> DataStream:
-        """Get outputs of workflow execution. Used for remote execution.
+        """Get output datastream of agent execution.
 
         Returns:
         -------
         DataStream
-            Outputs of workflow execution.
+            Output datastream of agent execution.
+        """
+
+    # TODO: auto generate output_type.
+    @abstractmethod
+    def to_table(self, schema: Schema, output_type: TypeInformation) -> Table:
+        """Get output table of agent execution.
+
+        Parameters
+        ----------
+        schema : Schema
+            Indicate schema of the output table.
+        output_type : TypeInformation
+            Indicate schema corresponding type information.
+
+        Returns:
+        -------
+        Table
+            Output table of agent execution.
         """
 
     @abstractmethod
-    def execute(self) -> None:
-        """Execute agents."""
+    def build(self) -> AgentInstance:
+        """Build agent instance."""
+
+
+class AgentsExecutionEnvironment(ABC):
+    """Base class for workflow execution environment."""
+
+    @classmethod
+    def get_execution_environment(
+        cls, env: Optional[StreamExecutionEnvironment] = None, **kwargs: Dict[str, Any]
+    ) -> "AgentsExecutionEnvironment":
+        """Get agents execution environment.
+
+        Currently, user can run flink agents in ide using LocalExecutionEnvironment or
+        RemoteExecutionEnvironment. To distinguish which environment to use, when run
+        flink agents with pyflink datastream/table, user should pass flink
+        StreamExecutionEnvironment when get AgentsExecutionEnvironment.
+
+        Returns:
+        -------
+        AgentsExecutionEnvironment
+            Environment for workflow execution.
+        """
+        if env is None:
+            return importlib.import_module(
+                "flink_agents.runtime.local_execution_environment"
+            ).create_instance(**kwargs)
+        else:
+            return importlib.import_module(
+                "flink_agents.runtime.remote_execution_environment"
+            ).create_instance(**kwargs)
+
+    @abstractmethod
+    def from_list(self, input: List[Dict[str, Any]]) -> AgentBuilder:
+        """Set input for agents. Used for local execution.
+
+        Parameters
+        ----------
+        input : list
+            Receive a list as input. The element in the list should be a dict like
+            {'key': Any, 'value': Any} or {'value': Any} , extra field will be ignored.
+
+        Returns:
+        -------
+        AgentBuilder
+            A new builder to build an agent for specific input.
+        """
+
+    @abstractmethod
+    def from_datastream(
+        self, input: DataStream, key_selector: Optional[KeySelector] = None
+    ) -> AgentBuilder:
+        """Set input for agents. Used for remote execution.
+
+        Parameters
+        ----------
+        input : DataStream
+            Receive a DataStream as input.
+        key_selector : KeySelector
+            Extract key from each input record.
+
+        Returns:
+        -------
+        AgentBuilder
+            A new builder to build an agent for specific input.
+        """
+
+    @abstractmethod
+    def from_table(
+        self,
+        input: Table,
+        t_env: StreamTableEnvironment,
+        key_selector: Optional[KeySelector] = None,
+    ) -> AgentBuilder:
+        """Set input for agents. Used for remote execution.
+
+        Parameters
+        ----------
+        input : Table
+            Receive a Table as input.
+        t_env: StreamTableEnvironment
+            table environment supports convert Table to/from DataStream.
+        key_selector : KeySelector
+            Extract key from each input record.
+
+        Returns:
+        -------
+        AgentBuilder
+            A new builder to build an agent for specific input.
+        """
