@@ -23,10 +23,10 @@ from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.api.workflow import Workflow
 
+print("load custom workflow")
 
 class MyEvent(Event):  # noqa D101
     value: Any
-
 
 # TODO: Replace this workflow with more practical example.
 class MyWorkflow(Workflow):
@@ -40,16 +40,39 @@ class MyWorkflow(Workflow):
     @staticmethod
     def first_action(event: Event, ctx: RunnerContext):  # noqa D102
         input = event.input
-        content = input + " first_action"
+        # content = input + " first_action"
+        # ctx.send_event(MyEvent(value=content))
+        # ctx.send_event(OutputEvent(output=content))
+        memory = ctx.get_short_term_memory()
+
+        counter = memory.get("counter") or 0
+        memory.set("counter", counter + 1)
+        count = memory.get("counter")
+
+        content = f"{input} -> first_action"
+        key_with_count = f"(seen {count} times)"
+
         ctx.send_event(MyEvent(value=content))
-        ctx.send_event(OutputEvent(output=content))
+        ctx.send_event(OutputEvent(output={key_with_count: content}))
 
     @action(MyEvent)
     @staticmethod
     def second_action(event: Event, ctx: RunnerContext):  # noqa D102
-        input = event.value
-        content = input + " second_action"
-        ctx.send_event(OutputEvent(output=content))
+        # input = event.value
+        # content = input + " second_action"
+        # ctx.send_event(OutputEvent(output=content))
+        memory = ctx.get_short_term_memory()
+
+        counter = memory.get("counter") or 0
+        memory.set("counter", counter + 1)
+        count = memory.get("counter")
+
+        base_message = event.value.split('->')[0].strip()
+        content = f"{base_message} -> second_action"
+
+        key_with_count = f"(seen {count} times)"
+        ctx.send_event(OutputEvent(output={key_with_count: content}))
+
 
 
 if __name__ == "__main__":
@@ -60,11 +83,17 @@ if __name__ == "__main__":
 
     output_list = env.from_list(input_list).apply(workflow).to_list()
 
-    input_list.append({"key": "bob", "value": "The message from bob"})
-    input_list.append({"k": "john", "v": "The message from john"})
-    input_list.append(
-        {"value": "The message from unknown"}
-    )  # will automatically generate a new unique key
+    # input_list.append({"key": "bob", "value": "The message from bob"})
+    # input_list.append({"k": "john", "v": "The message from john"})
+    # input_list.append(
+    #     {"value": "The message from unknown"}
+    # )  # will automatically generate a new unique key
+
+    input_list.append({'key': 'bob', 'value': 'The message from bob'})
+    input_list.append({'key': 'bob', 'value': 'Second message from bob'})
+    input_list.append({'k': 'john', 'v': 'The message from john'})
+    input_list.append({'key': 'john', 'value': 'Second message from john'})
+    input_list.append({'value': 'Message from unknown'})   # will automatically generate a new unique key
 
     env.execute()
 

@@ -18,7 +18,7 @@
 from abc import ABC, abstractmethod
 
 from flink_agents.api.event import Event
-
+from flink_agents.api.memoryobject import MemoryObject
 
 class RunnerContext(ABC):
     """Abstract base class providing context for workflow execution.
@@ -34,4 +34,15 @@ class RunnerContext(ABC):
         ----------
         event : Event
             The event to be processed by the workflow system.
+        """
+
+    @abstractmethod
+    def get_short_term_memory(self) -> MemoryObject:
+        """
+        Get the short-term memory.
+
+        Returns:
+        -------
+        MemoryObject
+          The root object of the short-term memory.
         """
