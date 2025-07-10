@@ -28,10 +28,6 @@ from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.examples.my_agent import DataStreamAgent, ItemData
 
-import os
-
-os.environ["PYTHONPATH"] = "/Users/toots/flink-agents/python/.venv/lib/python3.10/site-packages"
-
 
 class MyKeySelector(KeySelector):
     """KeySelector for extracting key."""

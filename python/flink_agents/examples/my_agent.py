@@ -62,6 +62,12 @@ class DataStreamAgent(Workflow):
         input = event.input
         content = copy.deepcopy(input)
         content.review += " first action"
+        ctx.get_short_term_memory().set("a.b", 1)
+        ctx.get_short_term_memory().set("m", True)
+        print(ctx.get_short_term_memory().get("m"))
+        print(ctx.get_short_term_memory().get("a").get_field_names())
+        print(ctx.get_short_term_memory().get("a").get_fields())
+        print(ctx.get_short_term_memory().get("a").get("b"))
         ctx.send_event(MyEvent(value=content))
 
     @action(MyEvent)
