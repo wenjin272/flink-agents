@@ -20,6 +20,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, model_validator
+from pyflink.common import Row
 
 
 class Event(BaseModel, ABC, extra="allow"):
@@ -36,6 +37,10 @@ class Event(BaseModel, ABC, extra="allow"):
     @model_validator(mode='after')
     def validate_extra(self) -> 'Event':
         """Ensure init fields is serializable."""
+        #TODO: support Event contains Row field be json serializable
+        for value in self.model_dump().values():
+            if isinstance(value, Row):
+                return self
         self.model_dump_json()
         return self
 

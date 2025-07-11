@@ -17,11 +17,11 @@
 #################################################################################
 import pytest
 
+from flink_agents.api.agent import Agent
 from flink_agents.api.decorators import action
 from flink_agents.api.event import Event, InputEvent, OutputEvent
-from flink_agents.api.execution_enviroment import AgentsExecutionEnvironment
+from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.runner_context import RunnerContext
-from flink_agents.api.agent import Agent
 
 
 class TestAgent1(Agent): # noqa: D101
@@ -80,3 +80,12 @@ def test_local_execution_environment_execute_multi_times() -> None: # noqa: D103
     env.execute()
     with pytest.raises(RuntimeError):
         env.execute()
+
+def test_local_execution_environment_call_from_list_twice() -> None:  # noqa: D103
+    env = AgentsExecutionEnvironment.get_execution_environment()
+
+    input_list = []
+
+    env.from_list(input_list)
+    with pytest.raises(RuntimeError):
+        env.from_list(input_list)

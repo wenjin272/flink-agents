@@ -20,12 +20,12 @@ from pathlib import Path
 
 import pytest
 
+from flink_agents.api.agent import Agent
 from flink_agents.api.decorators import action
 from flink_agents.api.event import Event, InputEvent, OutputEvent
 from flink_agents.api.runner_context import RunnerContext
-from flink_agents.api.agent import Agent
-from flink_agents.plan.function import PythonFunction
 from flink_agents.plan.agent_plan import AgentPlan
+from flink_agents.plan.function import PythonFunction
 
 
 class TestAgent(Agent): #noqa D101

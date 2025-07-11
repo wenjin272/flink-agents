@@ -15,58 +15,84 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import copy
 from typing import Any
+
+from pydantic import BaseModel
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.decorators import action
 from flink_agents.api.event import Event, InputEvent, OutputEvent
-from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.runner_context import RunnerContext
+
+
+class ItemData(BaseModel):
+    """Data model for storing item information.
+
+    Attributes:
+    ----------
+    id : int
+        Unique identifier of the item
+    review : str
+        The user review of the item
+    review_score: float
+        The review_score of the item
+    """
+
+    id: int
+    review: str
+    review_score: float
 
 
 class MyEvent(Event):  # noqa D101
     value: Any
 
 
-# TODO: Replace this agent with more practical example.
-class MyAgent(Agent):
-    """An example of agent to show the basic usage.
+class DataStreamAgent(Agent):
+    """Agent used for explaining integrating agents with DataStream.
 
-    Currently, this agent doesn't really make sense, and it's mainly for developing
-    validation.
+    Because pemja will find action in this class when execute Agent, we can't
+    define this class directly in example.py for module name will be set
+    to __main__.
     """
 
     @action(InputEvent)
     @staticmethod
     def first_action(event: Event, ctx: RunnerContext):  # noqa D102
         input = event.input
-        content = input + " first_action"
+        content = copy.deepcopy(input)
+        content.review += " first action"
         ctx.send_event(MyEvent(value=content))
-        ctx.send_event(OutputEvent(output=content))
 
     @action(MyEvent)
     @staticmethod
     def second_action(event: Event, ctx: RunnerContext):  # noqa D102
         input = event.value
-        content = input + " second_action"
+        content = copy.deepcopy(input)
+        content.review += " second action"
         ctx.send_event(OutputEvent(output=content))
 
 
-if __name__ == "__main__":
-    env = AgentsExecutionEnvironment.get_execution_environment()
+class TableAgent(Agent):
+    """Agent used for explaining integrating agents with Table.
 
-    input_list = []
-    agent = MyAgent()
+    Because pemja will find action in this class when execute Agent, we can't
+    define this class directly in example.py for module name will be set
+    to __main__.
+    """
 
-    output_list = env.from_list(input_list).apply(agent).to_list()
+    @action(InputEvent)
+    @staticmethod
+    def first_action(event: Event, ctx: RunnerContext):  # noqa D102
+        input = event.input
+        content = input
+        content["review"] += " first action"
+        ctx.send_event(MyEvent(value=content))
 
-    input_list.append({"key": "bob", "value": "The message from bob"})
-    input_list.append({"k": "john", "v": "The message from john"})
-    input_list.append(
-        {"value": "The message from unknown"}
-    )  # will automatically generate a new unique key
-
-    env.execute()
-
-    for output in output_list:
-        print(output)
+    @action(MyEvent)
+    @staticmethod
+    def second_action(event: Event, ctx: RunnerContext):  # noqa D102
+        input = event.value
+        content = input
+        content["review"] += " second action"
+        ctx.send_event(OutputEvent(output=content))
