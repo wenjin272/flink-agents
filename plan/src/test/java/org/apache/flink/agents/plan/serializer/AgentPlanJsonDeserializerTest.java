@@ -24,12 +24,15 @@ import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.plan.Action;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.plan.JavaFunction;
+import org.apache.flink.agents.plan.PythonFunction;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,6 +69,52 @@ public class AgentPlanJsonDeserializerTest {
                 agentPlan.getActionsByEvent().get(InputEvent.class.getName()));
         assertEquals(
                 List.of(secondAction), agentPlan.getActionsByEvent().get(MyEvent.class.getName()));
+    }
+
+    @Test
+    public void testDeserializePythonAgentPlanJson() throws Exception {
+        // Read JSON for an Action with JavaFunction from resource file
+        String testRootPath = System.getProperty("user.dir"); // the path is flink-agents/plan
+        String json =
+                Files.readString(
+                        Paths.get(
+                                testRootPath,
+                                "/../python/flink_agents/plan/tests/resources/agent_plan.json"));
+        AgentPlan agentPlan = new ObjectMapper().readValue(json, AgentPlan.class);
+        assertEquals(2, agentPlan.getActions().size());
+
+        // Check the first action
+        assertTrue(agentPlan.getActions().containsKey("first_action"));
+        Action firstAction = agentPlan.getActions().get("first_action");
+        assertInstanceOf(PythonFunction.class, firstAction.getExec());
+        assertEquals(
+                List.of("flink_agents.api.event.InputEvent"), firstAction.getListenEventTypes());
+
+        // Check the second action
+        assertTrue(agentPlan.getActions().containsKey("second_action"));
+        Action secondAction = agentPlan.getActions().get("second_action");
+        assertInstanceOf(PythonFunction.class, secondAction.getExec());
+        assertEquals(
+                List.of(
+                        "flink_agents.api.event.InputEvent",
+                        "flink_agents.plan.tests.test_agent_plan.MyEvent"),
+                secondAction.getListenEventTypes());
+
+        // Check event trigger actions
+        assertEquals(2, agentPlan.getActionsByEvent().size());
+        assertTrue(agentPlan.getActionsByEvent().containsKey("flink_agents.api.event.InputEvent"));
+        assertTrue(
+                agentPlan
+                        .getActionsByEvent()
+                        .containsKey("flink_agents.plan.tests.test_agent_plan.MyEvent"));
+        assertEquals(
+                List.of(firstAction, secondAction),
+                agentPlan.getActionsByEvent().get("flink_agents.api.event.InputEvent"));
+        assertEquals(
+                List.of(secondAction),
+                agentPlan
+                        .getActionsByEvent()
+                        .get("flink_agents.plan.tests.test_agent_plan.MyEvent"));
     }
 
     /**
