@@ -26,6 +26,7 @@ from pyflink.datastream import (
     DataStream,
     KeyedStream,
     KeySelector,
+    StreamExecutionEnvironment,
 )
 from pyflink.table import Schema, StreamTableEnvironment, Table
 from pyflink.util.java_utils import invoke_method
@@ -77,23 +78,29 @@ class RemoteAgentBuilder(AgentBuilder):
         DataStream
             Output datastream of agent execution.
         """
-        j_data_stream_output = invoke_method(
-            None,
-            "org.apache.flink.agents.runtime.CompileUtils",
-            "connectToAgent",
-            [
-                self.__input._j_data_stream,
-                self.__agent_plan.model_dump_json(serialize_as_any=True),
-            ],
-            [
-                "org.apache.flink.streaming.api.datastream.KeyedStream",
-                "java.lang.String",
-            ],
-        )
-        output_stream = DataStream(j_data_stream_output)
-        self.__output = output_stream.map(
-            lambda x: cloudpickle.loads(x), output_type=output_type
-        )
+        if self.__agent_plan is None:
+            err_msg = "Must apply agent before call to_datastream/to_table."
+            raise RuntimeError(err_msg)
+
+        # return the same output datastream when call to_datastream multiple.
+        if self.__output is None:
+            j_data_stream_output = invoke_method(
+                None,
+                "org.apache.flink.agents.runtime.CompileUtils",
+                "connectToAgent",
+                [
+                    self.__input._j_data_stream,
+                    self.__agent_plan.model_dump_json(serialize_as_any=True),
+                ],
+                [
+                    "org.apache.flink.streaming.api.datastream.KeyedStream",
+                    "java.lang.String",
+                ],
+            )
+            output_stream = DataStream(j_data_stream_output)
+            self.__output = output_stream.map(
+                lambda x: cloudpickle.loads(x), output_type=output_type
+            )
         return self.__output
 
     def to_table(self, schema: Schema, output_type: TypeInformation) -> Table:
@@ -124,6 +131,12 @@ class RemoteAgentBuilder(AgentBuilder):
 
 class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
     """Implementation of AgentsExecutionEnvironment for execution with DataStream."""
+
+    __env: StreamExecutionEnvironment
+
+    def __init__(self, env: StreamExecutionEnvironment) -> None:
+        """Init method of RemoteExecutionEnvironment."""
+        self.__env = env
 
     @staticmethod
     def __process_input_datastream(
@@ -188,22 +201,17 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         raise NotImplementedError(msg)
 
     def execute(self) -> None:
-        """Execute agent individually.
-
-        RemoteExecutionEnvironment does not support execute agent individually.
-        """
-        err_msg = (
-            "RemoteExecutionEnvironment does not support execute "
-            "agent individually, must run as a flink job."
-        )
-        raise NotImplementedError(err_msg)
+        """Execute agent."""
+        self.__env.execute()
 
 
-def create_instance(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
+def create_instance(env: StreamExecutionEnvironment, **kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
     """Factory function to create a remote agents execution environment.
 
     Parameters
     ----------
+    env : StreamExecutionEnvironment
+        Flink job execution environment.
     **kwargs : Dict[str, Any]
         The dict of parameters to configure the execution environment.
 
@@ -212,4 +220,4 @@ def create_instance(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
     AgentsExecutionEnvironment
         A configured agents execution environment instance.
     """
-    return RemoteExecutionEnvironment()
+    return RemoteExecutionEnvironment(env=env)

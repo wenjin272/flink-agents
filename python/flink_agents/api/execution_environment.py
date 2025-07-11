@@ -102,11 +102,11 @@ class AgentsExecutionEnvironment(ABC):
         if env is None:
             return importlib.import_module(
                 "flink_agents.runtime.local_execution_environment"
-            ).create_instance(**kwargs)
+            ).create_instance(env=env, **kwargs)
         else:
             return importlib.import_module(
                 "flink_agents.runtime.remote_execution_environment"
-            ).create_instance(**kwargs)
+            ).create_instance(env=env, **kwargs)
 
     @abstractmethod
     def from_list(self, input: List[Dict[str, Any]]) -> AgentBuilder:

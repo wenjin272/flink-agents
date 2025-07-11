@@ -86,4 +86,4 @@ if __name__ == "__main__":
 
     output_datastream.print()
 
-    env.execute()
+    agents_env.execute()

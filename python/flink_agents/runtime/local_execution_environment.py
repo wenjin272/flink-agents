@@ -18,7 +18,7 @@
 from typing import Any, Dict, List
 
 from pyflink.common import TypeInformation
-from pyflink.datastream import DataStream, KeySelector
+from pyflink.datastream import DataStream, KeySelector, StreamExecutionEnvironment
 from pyflink.table import Schema, StreamTableEnvironment, Table
 
 from flink_agents.api.agent import Agent
@@ -140,11 +140,13 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
         raise NotImplementedError(msg)
 
 
-def create_instance(**kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
-    """Factory function to create a local agents execution environment.
+def create_instance(env: StreamExecutionEnvironment, **kwargs: Dict[str, Any]) -> AgentsExecutionEnvironment:
+    """Factory function to create a remote agents execution environment.
 
     Parameters
     ----------
+    env : StreamExecutionEnvironment
+        Flink job execution environment.
     **kwargs : Dict[str, Any]
         The dict of parameters to configure the execution environment.
 
