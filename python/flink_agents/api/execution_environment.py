@@ -30,13 +30,13 @@ class AgentBuilder(ABC):
     """Builder for integrating agent with input and output."""
 
     @abstractmethod
-    def apply(self, workflow: Workflow) -> "AgentBuilder":
-        """Set workflow of AgentBuilder.
+    def apply(self, agent: Agent) -> "AgentBuilder":
+        """Set agent of AgentBuilder.
 
         Parameters
         ----------
-        workflow : Workflow
-            The workflow user defined to run in execution environment.
+        agent : Agent
+            The agent user defined to run in execution environment.
         """
 
     @abstractmethod

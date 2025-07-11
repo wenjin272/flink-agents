@@ -17,18 +17,18 @@
 #################################################################################
 from typing import Any
 
+from flink_agents.api.agent import Agent
 from flink_agents.api.decorators import action
 from flink_agents.api.event import Event, InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.runner_context import RunnerContext
-from flink_agents.api.agent import Agent
 
 
 class MyEvent(Event):  # noqa D101
     value: Any
 
 
-# TODO: Replace this workflow with more practical example.
+# TODO: Replace this agent with more practical example.
 class MyAgent(Agent):
     """An example of agent to show the basic usage.
 

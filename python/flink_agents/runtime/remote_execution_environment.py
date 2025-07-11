@@ -30,19 +30,19 @@ from pyflink.datastream import (
 from pyflink.table import Schema, StreamTableEnvironment, Table
 from pyflink.util.java_utils import invoke_method
 
+from flink_agents.api.agent import Agent
 from flink_agents.api.execution_environment import (
     AgentBuilder,
     AgentsExecutionEnvironment,
 )
-from flink_agents.api.workflow import Workflow
-from flink_agents.plan.workflow_plan import WorkflowPlan
+from flink_agents.plan.agent_plan import AgentPlan
 
 
 class RemoteAgentBuilder(AgentBuilder):
     """RemoteAgentBuilder for integrating datastream/table and agent."""
 
     __input: DataStream
-    __workflow_plan: WorkflowPlan = None
+    __agent_plan: AgentPlan = None
     __output: DataStream = None
     __t_env: StreamTableEnvironment
 
@@ -53,24 +53,24 @@ class RemoteAgentBuilder(AgentBuilder):
         self.__input = input
         self.__t_env = t_env
 
-    def apply(self, workflow: Workflow) -> "AgentBuilder":
-        """Set workflow of execution environment.
+    def apply(self, agent: Agent) -> "AgentBuilder":
+        """Set agent of execution environment.
 
         Parameters
         ----------
-        workflow : Workflow
-            The workflow user defined to run in execution environment.
+        agent : Agent
+            The agent user defined to run in execution environment.
         """
-        if self.__workflow_plan is not None:
-            err_msg = "RemoteAgentBuilder doesn't support apply multiple workflows yet."
+        if self.__agent_plan is not None:
+            err_msg = "RemoteAgentBuilder doesn't support apply multiple agents yet."
             raise RuntimeError(err_msg)
-        self.__workflow_plan = WorkflowPlan.from_workflow(workflow)
+        self.__agent_plan = AgentPlan.from_agent(agent)
         return self
 
     def to_datastream(
         self, output_type: Optional[TypeInformation] = None
     ) -> DataStream:
-        """Get output datastream of workflow execution.
+        """Get output datastream of agent execution.
 
         Returns:
         -------
@@ -80,10 +80,10 @@ class RemoteAgentBuilder(AgentBuilder):
         j_data_stream_output = invoke_method(
             None,
             "org.apache.flink.agents.runtime.CompileUtils",
-            "connectToWorkflow",
+            "connectToAgent",
             [
                 self.__input._j_data_stream,
-                self.__workflow_plan.model_dump_json(serialize_as_any=True),
+                self.__agent_plan.model_dump_json(serialize_as_any=True),
             ],
             [
                 "org.apache.flink.streaming.api.datastream.KeyedStream",
@@ -97,7 +97,7 @@ class RemoteAgentBuilder(AgentBuilder):
         return self.__output
 
     def to_table(self, schema: Schema, output_type: TypeInformation) -> Table:
-        """Get output Table of workflow execution.
+        """Get output Table of agent execution.
 
         Parameters
         ----------
@@ -114,7 +114,7 @@ class RemoteAgentBuilder(AgentBuilder):
         return self.__t_env.from_data_stream(self.to_datastream(output_type), schema)
 
     def to_list(self) -> List[Dict[str, Any]]:
-        """Get output list of workflow execution.
+        """Get output list of agent execution.
 
         This method is not supported for remote execution environments.
         """
@@ -180,7 +180,7 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         return RemoteAgentBuilder(input=input, t_env=t_env)
 
     def from_list(self, input: List[Dict[str, Any]]) -> "AgentsExecutionEnvironment":
-        """Set input list of workflow execution.
+        """Set input list of agent execution.
 
         This method is not supported for remote execution environments.
         """

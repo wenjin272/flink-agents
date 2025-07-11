@@ -21,11 +21,11 @@ from pyflink.common import TypeInformation
 from pyflink.datastream import DataStream, KeySelector
 from pyflink.table import Schema, StreamTableEnvironment, Table
 
+from flink_agents.api.agent import Agent
 from flink_agents.api.execution_environment import (
     AgentBuilder,
     AgentsExecutionEnvironment,
 )
-from flink_agents.api.workflow import Workflow
 from flink_agents.runtime.local_runner import LocalRunner
 
 
@@ -46,15 +46,15 @@ class LocalAgentBuilder(AgentBuilder):
         self.__input = input
         self.__output = []
 
-    def apply(self, workflow: Workflow) -> AgentBuilder:
-        """Create local runner to execute given workflow.
+    def apply(self, agent: Agent) -> AgentBuilder:
+        """Create local runner to execute given agent.
 
-        Doesn't support apply multiple workflows.
+        Doesn't support apply multiple Agents.
         """
         if self.__runner is not None:
-            err_msg = "LocalAgentBuilder doesn't support apply multiple workflows."
+            err_msg = "LocalAgentBuilder doesn't support apply multiple agents."
             raise RuntimeError(err_msg)
-        self.__runner = LocalRunner(workflow)
+        self.__runner = LocalRunner(agent)
         self.__env.set_agent(self.__input, self.__output, self.__runner)
         return self
 
@@ -63,7 +63,7 @@ class LocalAgentBuilder(AgentBuilder):
         return self.__output
 
     def to_datastream(self) -> DataStream:
-        """Get output DataStream of workflow execution.
+        """Get output DataStream of agent execution.
 
         This method is not supported for LocalAgentBuilder.
         """
@@ -71,7 +71,7 @@ class LocalAgentBuilder(AgentBuilder):
         raise NotImplementedError(msg)
 
     def to_table(self, schema: Schema, output_type: TypeInformation) -> Table:
-        """Get output Table of workflow execution.
+        """Get output Table of agent execution.
 
         This method is not supported for LocalAgentBuilder.
         """
@@ -119,7 +119,7 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
     def from_datastream(
         self, input: DataStream, key_selector: KeySelector = None
     ) -> AgentBuilder:
-        """Set input DataStream of workflow execution.
+        """Set input DataStream of agent execution.
 
         This method is not supported for local execution environments.
         """
@@ -132,7 +132,7 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
         t_env: StreamTableEnvironment,
         key_selector: KeySelector = None,
     ) -> AgentBuilder:
-        """Set input Table of workflow execution.
+        """Set input Table of agent execution.
 
         This method is not supported for local execution environments.
         """

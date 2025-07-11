@@ -20,10 +20,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from flink_agents.api.agent import Agent
 from flink_agents.api.decorators import action
 from flink_agents.api.event import Event, InputEvent, OutputEvent
 from flink_agents.api.runner_context import RunnerContext
-from flink_agents.api.workflow import Workflow
 
 
 class ItemData(BaseModel):
@@ -48,7 +48,7 @@ class MyEvent(Event):  # noqa D101
     value: Any
 
 
-class DataStreamAgent(Workflow):
+class DataStreamAgent(Agent):
     """Agent used for explaining integrating agents with DataStream.
 
     Because pemja will find action in this class when execute Agent, we can't
@@ -73,7 +73,7 @@ class DataStreamAgent(Workflow):
         ctx.send_event(OutputEvent(output=content))
 
 
-class TableAgent(Workflow):
+class TableAgent(Agent):
     """Agent used for explaining integrating agents with Table.
 
     Because pemja will find action in this class when execute Agent, we can't
