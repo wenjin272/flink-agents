@@ -15,7 +15,6 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
@@ -25,6 +24,10 @@ from pydantic import BaseModel
 class MemoryObject(BaseModel, ABC):
     """
     Representation of an object in the short-term memory.
+
+    A direct field is a field which stores concrete data directly, while an indirect filed is
+    just a "prefix" which represents a nested object.
+    Fields can be accessed using an absolute or relative path.
     """
 
     @abstractmethod
@@ -40,7 +43,8 @@ class MemoryObject(BaseModel, ABC):
         Returns:
         -------
         Any
-          The value of the field. If the field is an object, another MemoryObject will be returned. If the field doesn't exist, returns None.
+          The value of the field. If the field is an object, another MemoryObject will be returned.
+          If the field doesn't exist, returns None.
         """
 
 
@@ -123,7 +127,6 @@ class LocalMemoryObject(MemoryObject):
         """
         Initialize a memory object with the shared store and prefix.
         """
-        # 具体数据，MemoryObject
         self._store = store  # shared flattened map
         self._prefix = prefix  # current object prefix path
 
@@ -135,7 +138,7 @@ class LocalMemoryObject(MemoryObject):
         abs_path = self._full_path(path) #
         if abs_path in self._store:
             value = self._store[abs_path]
-            if self._is_object_marker(value):
+            if self._is_nested_object(value):
                 return LocalMemoryObject(self._store, abs_path)
             return value
         return None
@@ -153,7 +156,7 @@ class LocalMemoryObject(MemoryObject):
         else:
             self._store[parent] = {"__OBJ__": {parts[-1]}}
 
-        if abs_path in self._store and self._is_object_marker(self._store[abs_path]):
+        if abs_path in self._store and self._is_nested_object(self._store[abs_path]):
             raise ValueError(f"Cannot overwrite object field '{abs_path}' with primitive.")
 
         if isinstance(value, LocalMemoryObject):
@@ -169,7 +172,7 @@ class LocalMemoryObject(MemoryObject):
 
         # Now create or overwrite final marker
         if abs_path in self._store:
-            if not self._is_object_marker(self._store[abs_path]):
+            if not self._is_nested_object(self._store[abs_path]):
                 if not overwrite:
                     raise ValueError(f"Field '{abs_path}' exists but is not object.")
                 else:
@@ -197,7 +200,7 @@ class LocalMemoryObject(MemoryObject):
         Get all direct field names of the current object.
         """
         marker = self._store.get(self._prefix)
-        if self._is_object_marker(marker):
+        if self._is_nested_object(marker):
             return sorted(marker["__OBJ__"])
         return []
 
@@ -210,7 +213,7 @@ class LocalMemoryObject(MemoryObject):
         for name in self.get_field_names():
             abs_path = self._full_path(name)
             value = self._store.get(abs_path)
-            if self._is_object_marker(value):
+            if self._is_nested_object(value):
                 children = sorted(value["__OBJ__"])
                 result[name] = f"__OBJ__:{children}"
             else:
@@ -239,17 +242,8 @@ class LocalMemoryObject(MemoryObject):
         """
         return f"{self._prefix}.{path}".strip(".") if path else self._prefix
 
-    def _is_object_marker(self, value: Any) -> bool:
+    def _is_nested_object(self, value: Any) -> bool:
         """
         Check if a value is an object marker.
         """
         return isinstance(value, dict) and "__OBJ__" in value
-
-
-if __name__ == '__main__':
-    memoryobject = LocalMemoryObject({})
-    memoryobject.set("a.b.c", 1)
-    print(memoryobject.get("a.b").model_dump_json())
-    o1 = memoryobject.get("a.b")
-    o1.get('c')
-

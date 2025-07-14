@@ -32,7 +32,6 @@ import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
 import org.apache.flink.agents.runtime.utils.EventUtil;
 import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.python.env.PythonDependencyInfo;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
@@ -73,7 +72,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
     private transient StreamRecord<OUT> reusedStreamRecord;
 
-    private transient MapState<String, MemoryObjectImpl.ValueWrapper> pendingMemoryStoreState;
+    private transient MapState<String, MemoryObjectImpl.MemoryItem> shortTermMemState;
 
     // RunnerContext for Java actions
     private final RunnerContextImpl runnerContext;
@@ -98,14 +97,14 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
         reusedStreamRecord = new StreamRecord<>(null);
 
-        // init state
-        MapStateDescriptor<String, MemoryObjectImpl.ValueWrapper> pendingMemoryStoreDescriptor =
+        // init shortTermMemState
+        MapStateDescriptor<String, MemoryObjectImpl.MemoryItem> shortTermMemStateDescriptor =
                 new MapStateDescriptor<>(
-                        "pendingMemoryStore",
-                        TypeInformation.of(new TypeHint<String>() {}),
-                        TypeInformation.of(new TypeHint<MemoryObjectImpl.ValueWrapper>() {}));
-        pendingMemoryStoreState = getRuntimeContext().getMapState(pendingMemoryStoreDescriptor);
-        runnerContext.setStore(pendingMemoryStoreState);
+                        "shortTermMemory",
+                        TypeInformation.of(String.class),
+                        TypeInformation.of(MemoryObjectImpl.MemoryItem.class));
+        shortTermMemState = getRuntimeContext().getMapState(shortTermMemStateDescriptor);
+        runnerContext.setStore(shortTermMemState);
 
         // init PythonActionExecutor
         initPythonActionExecutor();
@@ -190,7 +189,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                             new HashMap<>(System.getenv()),
                             getRuntimeContext().getJobInfo().getJobId());
             pythonActionExecutor = new PythonActionExecutor(pythonEnvironmentManager);
-            pythonActionExecutor.open(pendingMemoryStoreState);
+            pythonActionExecutor.open(shortTermMemState);
         }
     }
 

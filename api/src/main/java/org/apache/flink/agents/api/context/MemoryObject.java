@@ -1,75 +1,103 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.flink.agents.api.context;
 
 import java.util.List;
 import java.util.Map;
 
-// ObjectMemoryObject, RecursiveMemoryObject
+/**
+ * A representation of an object in the short-term memory. It is responsible for accessing and
+ * manipulating (direct or indirect) fields within the memory structure. A direct field is a field
+ * which stores primitive data directly, while an indirect filed is a field which represents a
+ * nested object.Fields can be accessed using an absolute or relative path.
+ */
 public interface MemoryObject {
     /**
-     * Get the value of a (direct or indirect) field in the object.
+     * Returns a MemoryObject that represents the given path.
      *
-     * @param path Relative path from the current object to the target field.
-     * @return The value of the field. If the field is an object, another MemoryObject will be
-     *     returned. If the field doesn't exist, returns null.
+     * @param path relative path from the current object to the target field
+     * @return a MemoryObject instance pointing to the field If the field is a primitive value type,
+     *     the value of the returned MemoryObject can be exposed via {@link #getValue()}.If the
+     *     field is a nested object, the subfields of the returned MemoryObject can be exposed via
+     *     {@link #getFields()}.
+     * @throws Exception if the field does not exist
      */
     MemoryObject get(String path) throws Exception;
 
     /**
-     * Set the value of a (direct or indirect) field in the object. This will also create the
-     * intermediate objects if they don't exist.
+     * Sets the value of a direct field in the current object; any missing intermediate objects will
+     * be created automatically.
      *
-     * @param path Relative path from the current object to the target field.
-     * @param value New value of the field.
-     * @throws IllegalArgumentException if trying to overwrite an object with primitive type or set
-     *     a MemoryObject directly
+     * @param path relative path from the current object to the target field
+     * @param value new value of the field
+     * @throws Exception if trying to overwrite an object with a primitive value or set a
+     *     MemoryObject directly
      */
     void set(String path, Object value) throws Exception;
 
     /**
-     * Create a new object as the value of a (direct or indirect) field in the object.
+     * Creates a new object as an indirect field in the current object.
      *
-     * @param path Relative path from the current object to the target field.
-     * @param overwrite Whether to overwrite existing field if it's not an object
-     * @return The created object.
-     * @throws IllegalArgumentException if field exists but is not an object and overwrite is false
+     * @param path relative path from the current object to the target field
+     * @param overwrite whether to overwrite existing field if it's not a nested object
+     * @return the created object
+     * @throws Exception if field exists but is not an object and overwrite is false
      */
     MemoryObject newObject(String path, boolean overwrite) throws Exception;
 
     /**
-     * Check whether a (direct or indirect) field exists in the object.
+     * Checks whether a (direct or indirect) field exists in the current object.
      *
-     * @param path Relative path from the current object to the target field.
-     * @return Whether the field exists.
+     * @param path relative path from the current object to the target field
+     * @return true if the field exists, false otherwise
      */
-    boolean isExist(String path) throws Exception;
+    boolean isExist(String path);
 
     /**
-     * Get names of all the direct fields of the object.
+     * Gets names of all the top-level fields of the current object.
      *
-     * @return Direct field names of the object in a list.
+     * @return list of top-level field names
+     * @throws Exception state-backend failure
      */
     List<String> getFieldNames() throws Exception;
 
     /**
-     * Get all the direct fields of the object.
+     * Gets all the top-level fields of the current object.
      *
-     * @return Direct fields in a map.
+     * @return map of top-level fields
+     * @throws Exception state-backend failure
      */
     Map<String, Object> getFields() throws Exception;
 
     /**
-     * Get the primitive value stored at the current path.
+     * Gets the primitive value stored at the current path.
      *
-     * @return The primitive value if the current path is a value type, or null if this MemoryObject
+     * @return the primitive value if the current path is a value type, or null if this MemoryObject
      *     represents a nested object (prefix).
+     * @throws Exception state-backend failure
      */
     Object getValue() throws Exception;
 
     /**
-     * Check whether the current object is a nested object (prefix).
+     * Checks whether the current object is a nested object (prefix).
      *
-     * @return true if this MemoryObject is a prefix object (i.e., it has subfields), false if it
-     *     holds a primitive value.
+     * @return true if this MemoryObject is a prefix object, false if it is a value
+     * @throws Exception state-backend failure
      */
-    boolean isPrefix() throws Exception;
+    boolean isNestedObject() throws Exception;
 }

@@ -34,7 +34,7 @@ import java.util.List;
 public class RunnerContextImpl implements RunnerContext {
 
     protected final List<Event> events = new ArrayList<>();
-    protected MapState<String, MemoryObjectImpl.ValueWrapper> store;
+    protected MapState<String, MemoryObjectImpl.MemoryItem> store;
 
     @Override
     public void sendEvent(Event event) {
@@ -52,12 +52,12 @@ public class RunnerContextImpl implements RunnerContext {
                 this.events.isEmpty(), "There are pending events remaining in the context.");
     }
 
-    public void setStore(MapState<String, MemoryObjectImpl.ValueWrapper> store) {
+    public void setStore(MapState<String, MemoryObjectImpl.MemoryItem> store) {
         this.store = store;
     }
 
     @Override
     public MemoryObject getShortTermMemory() throws Exception {
-        return new MemoryObjectImpl(store, "");
+        return new MemoryObjectImpl(store, MemoryObjectImpl.ROOT_KEY);
     }
 }

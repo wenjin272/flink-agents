@@ -58,7 +58,7 @@ public class PythonActionExecutor {
         this.runnerContext = new PythonRunnerContextImpl();
     }
 
-    public void open(MapState<String, MemoryObjectImpl.ValueWrapper> pendingMemoryStoreState)
+    public void open(MapState<String, MemoryObjectImpl.MemoryItem> shortTermMemState)
             throws Exception {
         environmentManager.open();
         EmbeddedPythonEnvironment env = environmentManager.createEnvironment();
@@ -70,7 +70,7 @@ public class PythonActionExecutor {
         Object pythonRunnerContextObject =
                 interpreter.invoke(CREATE_FLINK_RUNNER_CONTEXT, runnerContext);
         interpreter.set(FLINK_RUNNER_CONTEXT_VAR_NAME, pythonRunnerContextObject);
-        runnerContext.setStore(pendingMemoryStoreState);
+        runnerContext.setStore(shortTermMemState);
     }
 
     public List<Event> executePythonFunction(PythonFunction function, PythonEvent event)

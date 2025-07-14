@@ -45,6 +45,6 @@ public class PythonRunnerContextImpl extends RunnerContextImpl {
 
     @Override
     public MemoryObject getShortTermMemory() throws Exception {
-        return new MemoryObjectImpl(store, "");
+        return new MemoryObjectImpl(store, MemoryObjectImpl.ROOT_KEY);
     }
 }

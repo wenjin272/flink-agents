@@ -54,8 +54,8 @@ class LocalRunnerContext(RunnerContext):
     __workflow_plan: WorkflowPlan
     __key: Any
     events: deque[Event]
-    _store:dict
-    _short_term_memory:MemoryObject
+    _store: dict
+    _short_term_memory: MemoryObject
 
 
     def __init__(self, workflow_plan: WorkflowPlan, key: Any) -> None:

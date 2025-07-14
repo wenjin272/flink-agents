@@ -1,4 +1,20 @@
-
+################################################################################
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+# limitations under the License.
+#################################################################################
 from flink_agents.api.memoryobject import LocalMemoryObject
 
 
@@ -12,7 +28,6 @@ def test_basic_set_get():
     assert mem.get("count") == 1
     assert mem.get_field_names() == ["count"]
     assert mem.get_fields() == {"count": 1}
-    print("test_basic_set_get passed.")
 
 
 def test_nested_set_and_get():
@@ -23,7 +38,6 @@ def test_nested_set_and_get():
     assert mem.get("a").get_fields()["b"].startswith("__OBJ__")
     assert mem.get("a.b.c") is True
     assert mem.get("a.b").get("c") == True
-    print("test_nested_set_and_get passed.")
 
 
 def test_new_object_and_is_exist():
@@ -33,7 +47,6 @@ def test_new_object_and_is_exist():
     assert mem.is_exist("foo.bar") is True
     fields = mem.get("foo").get_fields()
     assert "bar" in fields
-    print("test_new_object_and_is_exist passed.")
 
 
 def test_overwrite_behavior():
@@ -47,7 +60,6 @@ def test_overwrite_behavior():
     mem.new_object("profile", overwrite=True)
     mem.get("profile").set("status", "ok")
     assert mem.get("profile").get("status") == "ok"
-    print("test_overwrite_behavior passed.")
 
 
 def test_auto_parent_fill_and_children():
@@ -59,7 +71,6 @@ def test_auto_parent_fill_and_children():
     assert "x" in mem.get_field_names()
     fields = mem.get_fields()
     assert fields["x"].startswith("__OBJ__")
-    print("test_auto_parent_fill_and_children passed.")
 
 
 def test_disallow_overwrite_object_with_primitive():
@@ -70,14 +81,4 @@ def test_disallow_overwrite_object_with_primitive():
         assert False, "Should raise error when overwriting object with primitive"
     except ValueError:
         pass
-    print("test_disallow_overwrite_object_with_primitive passed.")
 
-
-if __name__ == "__main__":
-    test_basic_set_get()
-    test_nested_set_and_get()
-    test_new_object_and_is_exist()
-    test_overwrite_behavior()
-    test_auto_parent_fill_and_children()
-    test_disallow_overwrite_object_with_primitive()
-    print("\nAll tests passed.")
