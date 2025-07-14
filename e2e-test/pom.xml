@@ -25,42 +25,10 @@ under the License.
         <version>0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>flink-agents-plan</artifactId>
-    <name>Flink Agents : Plan</name>
-
-    <dependencies>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-agents-api</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-shaded-jackson</artifactId>
-            <version>${flink.shaded.jackson.version}-${flink.shaded.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>pemja</artifactId>
-            <version>${pemja.version}</version>
-        </dependency>
-    </dependencies>
-
-    <build>
-    <plugins>
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-jar-plugin</artifactId>
-            <version>3.4.2</version>
-            <executions>
-                <execution>
-                    <goals>
-                        <goal>test-jar</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
-    </plugins>
-</build>
-
+    <artifactId>flink-agents-e2e-tests</artifactId>
+    <packaging>pom</packaging>
+    <name>Flink Agents : E2E Tests: </name>
+    <modules>
+        <module>agent-plan-compatibility-test</module>
+    </modules>
 </project>

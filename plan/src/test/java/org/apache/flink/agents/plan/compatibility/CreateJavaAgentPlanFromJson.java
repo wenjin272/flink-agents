@@ -33,12 +33,11 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Utils for testing agent plan compatibility between Python and Java. */
-public class CreateJavaAgentPlanFromPython {
+public class CreateJavaAgentPlanFromJson {
 
     /** Test creating Java AgentPlan from Python AgentPlan json. */
     public static void main(String[] args) throws IOException {
         String agentJsonFile = args[0];
-        System.out.println(agentJsonFile);
         String json = Files.readString(Paths.get(agentJsonFile));
         AgentPlan agentPlan = new ObjectMapper().readValue(json, AgentPlan.class);
         assertEquals(2, agentPlan.getActions().size());
