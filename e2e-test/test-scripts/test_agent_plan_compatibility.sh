@@ -17,54 +17,55 @@
 #
 #
 
-root_path=$(pwd)
-if [[ -n $1 ]]; then
-  root_path=$1
-fi
-echo $root_path
+root_dir=$(pwd)
 
-# build python
-cd python
-pip install -e .[build]
-python -m build
-python -m pip install python/dist/*.whl
+echo $root_dir
 
-cd $root_path
+jar_path=$root_dir/e2e-test/agent-plan-compatibility-test/target/flink-agents-agent-plan-compatibility-tests-0.1-SNAPSHOT.jar
 
-# build java
-mvn clean package -DskipTests
+python_script_path=$root_dir/python/flink_agents/plan/tests/compatibility
 
-json_path=$root_path/e2e-test/python_agent.json
-echo $json_path
+data_path=$root_dir/e2e-test/test-scripts/test-data
 
-# generate python agent plan json file
-python python/flink_agents/plan/tests/compatibility/generate_agent_plan_json.py $json_path
+function test_create_java_agent_from_python_agent_json {
+  json_path=$data_path/python_agent.json
 
-# test create java agent plan from python agent plan json
-mvn exec:java -pl plan -Dexec.mainClass="org.apache.flink.agents.plan.compatibility.CreateJavaAgentPlanFromPython" -Dexec.classpathScope="test" -Dexec.args="${json_path}"
+  # generate python agent plan json file
+  python $python_script_path/generate_agent_plan_json.py $json_path
 
-if [ "$?" != "0" ]
-then
+  # test create java agent plan from python agent plan json
+  java -cp $jar_path org.apache.flink.agents.plan.compatibility.CreateJavaAgentPlanFromJson $json_path
+
+  ret=$?
+  if [ "$ret" != "0" ]
+  then
+    echo "There is failure when create java agent from python agent json, please check the log for details."
+    rm -f $json_path
+    exit $ret
+  fi
+
   rm -f $json_path
-  exit $?
-fi
+}
 
-rm -f $json_path
+function test_create_python_agent_from_java_agent_json {
+  json_path=$data_path/java_agent.json
 
-json_path=$root_path/e2e-test/java_agent.json
+  # generate java agent plan json file
+  java -cp $jar_path org.apache.flink.agents.plan.compatibility.GenerateAgentPlanJson $json_path
 
-# generate java agent plan json file
-mvn exec:java -pl plan -Dexec.mainClass="org.apache.flink.agents.plan.compatibility.GenerateAgentPlanJson" -Dexec.classpathScope="test" -Dexec.args="${json_path}"
+  # test create python agent plan from java agent plan json
+  python $python_script_path/create_python_agent_plan_from_json.py $json_path
 
-# test create python agent plan from java agent plan json
-python python/flink_agents/plan/tests/compatibility/create_python_agent_plan_from_java.py $json_path
+  ret=$?
+  if [ "$ret" != "0" ]
+  then
+    echo "There is failure when create python agent from java agent json, please check the log for details."
+    rm -f $json_path
+    exit $ret
+  fi
 
-if [ "$?" != "0" ]
-then
   rm -f $json_path
-  exit $?
-fi
+}
 
-rm -f $json_path
-
-
+test_create_java_agent_from_python_agent_json
+test_create_python_agent_from_java_agent_json
