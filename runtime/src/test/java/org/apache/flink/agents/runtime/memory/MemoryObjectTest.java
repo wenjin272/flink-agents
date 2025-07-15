@@ -26,66 +26,6 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Simple, non-serialized HashMap implementation. */
-class InMemoryMapState<V> implements MapState<String, V> {
-
-    private final Map<String, V> delegate = new HashMap<>();
-
-    @Override
-    public V get(String key) {
-        return delegate.get(key);
-    }
-
-    @Override
-    public void put(String key, V value) {
-        delegate.put(key, value);
-    }
-
-    @Override
-    public void putAll(Map<String, V> map) {
-        delegate.putAll(map);
-    }
-
-    @Override
-    public void remove(String key) {
-        delegate.remove(key);
-    }
-
-    @Override
-    public boolean contains(String key) {
-        return delegate.containsKey(key);
-    }
-
-    @Override
-    public Iterable<Map.Entry<String, V>> entries() {
-        return delegate.entrySet();
-    }
-
-    @Override
-    public Iterable<String> keys() {
-        return delegate.keySet();
-    }
-
-    @Override
-    public Iterable<V> values() {
-        return delegate.values();
-    }
-
-    @Override
-    public Iterator<Map.Entry<String, V>> iterator() {
-        return delegate.entrySet().iterator();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return delegate.isEmpty();
-    }
-
-    @Override
-    public void clear() {
-        delegate.clear();
-    }
-}
 
 /** Tests for {@link MemoryObject}. */
 public class MemoryObjectTest {
@@ -161,7 +101,6 @@ public class MemoryObjectTest {
         assertEquals(alice, memory.get("pojo").getValue());
     }
 
-    /* ---------- newObject ---------- */
     @Test
     public void testNewObject() throws Exception {
         // Test creating new object and retrieving
@@ -170,7 +109,6 @@ public class MemoryObjectTest {
         assertTrue(obj.isNestedObject());
     }
 
-    /* ---------- Deep Nested Objects ---------- */
     @Test
     void testDeepNestedObjects() throws Exception {
         Map<String, Object> meta = new HashMap<>();
@@ -187,7 +125,6 @@ public class MemoryObjectTest {
         assertTrue(levelB.getFieldNames().contains("c"));
     }
 
-    /* ---------- getFieldNames / getFields ---------- */
     @Test
     void testFieldNamesAndFields() throws Exception {
         memory.set("x", 1);
@@ -203,14 +140,11 @@ public class MemoryObjectTest {
         assertEquals("NestedObject", fields.get("obj"));
     }
 
-    /* ---------- Overwrite Rules ---------- */
     @Test
     void testOverwriteRules() throws Exception {
-        // create object first, then set value
         memory.newObject("conflict", false);
         assertThrows(IllegalArgumentException.class, () -> memory.set("conflict", 100));
 
-        // set value first, then create object overwrite=false
         memory.set("scalar", 5);
         assertThrows(IllegalArgumentException.class, () -> memory.newObject("scalar", false));
 
@@ -220,11 +154,71 @@ public class MemoryObjectTest {
         assertEquals("v", memory.get("scalar.k").getValue());
     }
 
-    /* ---------- isExist ---------- */
     @Test
     void testIsExist() throws Exception {
         memory.set("exist", 1);
         assertTrue(memory.isExist("exist"));
         assertFalse(memory.isExist("not.exist"));
+    }
+}
+
+/** Simple, non-serialized HashMap implementation. */
+class InMemoryMapState<V> implements MapState<String, V> {
+
+    private final Map<String, V> delegate = new HashMap<>();
+
+    @Override
+    public V get(String key) {
+        return delegate.get(key);
+    }
+
+    @Override
+    public void put(String key, V value) {
+        delegate.put(key, value);
+    }
+
+    @Override
+    public void putAll(Map<String, V> map) {
+        delegate.putAll(map);
+    }
+
+    @Override
+    public void remove(String key) {
+        delegate.remove(key);
+    }
+
+    @Override
+    public boolean contains(String key) {
+        return delegate.containsKey(key);
+    }
+
+    @Override
+    public Iterable<Map.Entry<String, V>> entries() {
+        return delegate.entrySet();
+    }
+
+    @Override
+    public Iterable<String> keys() {
+        return delegate.keySet();
+    }
+
+    @Override
+    public Iterable<V> values() {
+        return delegate.values();
+    }
+
+    @Override
+    public Iterator<Map.Entry<String, V>> iterator() {
+        return delegate.entrySet().iterator();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return delegate.isEmpty();
+    }
+
+    @Override
+    public void clear() {
+        delegate.clear();
     }
 }

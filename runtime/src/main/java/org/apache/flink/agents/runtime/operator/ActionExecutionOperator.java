@@ -101,7 +101,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 new MapStateDescriptor<>(
                         "shortTermMemory",
                         TypeInformation.of(String.class),
-                        TypeInformation.of(MemoryObjectImpl.MemoryIde vtem.class));
+                        TypeInformation.of(MemoryObjectImpl.MemoryItem.class));
         shortTermMemState = getRuntimeContext().getMapState(shortTermMemStateDescriptor);
         runnerContext = new RunnerContextImpl(shortTermMemState);
 
