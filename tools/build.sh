@@ -20,6 +20,6 @@ mvn clean package -DskipTests
 
 # build python
 cd python
-pip install -e .[dev]
-python -m build
-python -m pip install dist/*.whl
+uv sync --extra dev
+uv run python -m build
+uv pip install dist/*.whl
