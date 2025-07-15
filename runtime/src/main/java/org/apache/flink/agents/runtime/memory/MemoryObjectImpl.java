@@ -39,7 +39,7 @@ public class MemoryObjectImpl implements MemoryObject {
         this.store = store;
         this.prefix = prefix;
         if (!store.contains(ROOT_KEY)) {
-            store.put(ROOT_KEY, new MemoryItem(ItemType.OBJECT));
+            store.put(ROOT_KEY, new MemoryItem());
         }
     }
 
@@ -53,34 +53,25 @@ public class MemoryObjectImpl implements MemoryObject {
     }
 
     @Override
-    public Object getValue() throws Exception {
-        MemoryItem memItem = store.get(prefix);
-        if (memItem != null && memItem.getType() == ItemType.VALUE) {
-            return memItem.getValue();
-        }
-        return null;
-    }
-
-    @Override
     public void set(String path, Object value) throws Exception {
         String absPath = fullPath(path);
         String[] parts = absPath.split("\\.");
         fillParents(parts);
 
         String parent =
-                parts.length > 1
-                        ? String.join(SEPARATOR, Arrays.copyOf(parts, parts.length - 1))
+                absPath.contains(SEPARATOR)
+                        ? absPath.substring(0, absPath.lastIndexOf(SEPARATOR))
                         : ROOT_KEY;
         MemoryItem parentItem = store.get(parent);
         parentItem.getSubKeys().add(parts[parts.length - 1]);
+        store.put(parent, parentItem);
 
         MemoryItem existing = store.get(absPath);
         if (existing != null && existing.getType() == ItemType.OBJECT) {
             throw new IllegalArgumentException("Cannot overwrite object with value: " + absPath);
         }
 
-        MemoryItem val = new MemoryItem(ItemType.VALUE);
-        val.setValue(value);
+        MemoryItem val = new MemoryItem(value);
         store.put(absPath, val);
     }
 
@@ -98,18 +89,19 @@ public class MemoryObjectImpl implements MemoryObject {
                     throw new IllegalArgumentException(
                             "Field '" + absPath + "' exists but is not an object.");
                 }
-                store.put(absPath, new MemoryItem(ItemType.OBJECT));
+                store.put(absPath, new MemoryItem());
             }
         } else {
-            store.put(absPath, new MemoryItem(ItemType.OBJECT));
+            store.put(absPath, new MemoryItem());
         }
 
         String parent =
-                parts.length > 1
-                        ? String.join(SEPARATOR, Arrays.copyOf(parts, parts.length - 1))
+                absPath.contains(SEPARATOR)
+                        ? absPath.substring(0, absPath.lastIndexOf(SEPARATOR))
                         : ROOT_KEY;
         MemoryItem parentItem = store.get(parent);
         parentItem.getSubKeys().add(parts[parts.length - 1]);
+        store.put(parent, parentItem);
 
         return new MemoryObjectImpl(store, absPath);
     }
@@ -147,6 +139,21 @@ public class MemoryObjectImpl implements MemoryObject {
         return result;
     }
 
+    @Override
+    public boolean isNestedObject() throws Exception {
+        MemoryItem memItem = store.get(prefix);
+        return memItem != null && memItem.getType() == ItemType.OBJECT;
+    }
+
+    @Override
+    public Object getValue() throws Exception {
+        MemoryItem memItem = store.get(prefix);
+        if (memItem != null && memItem.getType() == ItemType.VALUE) {
+            return memItem.getValue();
+        }
+        return null;
+    }
+
     private String fullPath(String path) {
         return (prefix.isEmpty() ? path : prefix + SEPARATOR + path);
     }
@@ -166,20 +173,14 @@ public class MemoryObjectImpl implements MemoryObject {
             if (!store.contains(parent)) {
                 store.put(parent, new MemoryItem()); // make sure parent exists
             }
-            // 更新 parent.subKeys
+            // update parent.subKeys
             MemoryItem parentNode = store.get(parent);
             parentNode.getSubKeys().add(parts[i]);
             store.put(parent, parentNode);
         }
     }
 
-    @Override
-    public boolean isNestedObject() throws Exception {
-        MemoryItem memItem = store.get(prefix);
-        return memItem != null && memItem.getType() == ItemType.OBJECT;
-    }
-
-    /** Represents an entry (object or value) stored in the short-term memory. */
+    /** Represents an item (nested object or primitive value) stored in the short-term memory. */
     public static final class MemoryItem {
         private final ItemType type;
         private Object value;
@@ -203,10 +204,6 @@ public class MemoryObjectImpl implements MemoryObject {
 
         public Object getValue() {
             return value;
-        }
-
-        public void setValue(Object value) {
-            this.value = value;
         }
 
         public Set<String> getSubKeys() {

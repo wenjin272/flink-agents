@@ -75,7 +75,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     private transient MapState<String, MemoryObjectImpl.MemoryItem> shortTermMemState;
 
     // RunnerContext for Java actions
-    private final RunnerContextImpl runnerContext;
+    private transient RunnerContextImpl runnerContext;
 
     // PythonActionExecutor for Python actions
     private transient PythonActionExecutor pythonActionExecutor;
@@ -87,7 +87,6 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         this.workflowPlan = workflowPlan;
         this.inputIsJava = inputIsJava;
         this.processingTimeService = processingTimeService;
-        this.runnerContext = new RunnerContextImpl();
         this.chainingStrategy = ChainingStrategy.ALWAYS;
     }
 
@@ -102,9 +101,9 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 new MapStateDescriptor<>(
                         "shortTermMemory",
                         TypeInformation.of(String.class),
-                        TypeInformation.of(MemoryObjectImpl.MemoryItem.class));
+                        TypeInformation.of(MemoryObjectImpl.MemoryIde vtem.class));
         shortTermMemState = getRuntimeContext().getMapState(shortTermMemStateDescriptor);
-        runnerContext.setStore(shortTermMemState);
+        runnerContext = new RunnerContextImpl(shortTermMemState);
 
         // init PythonActionExecutor
         initPythonActionExecutor();

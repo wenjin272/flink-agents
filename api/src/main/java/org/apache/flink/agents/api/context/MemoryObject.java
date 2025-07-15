@@ -31,10 +31,10 @@ public interface MemoryObject {
      * Returns a MemoryObject that represents the given path.
      *
      * @param path relative path from the current object to the target field
-     * @return a MemoryObject instance pointing to the field If the field is a primitive value type,
-     *     the value of the returned MemoryObject can be exposed via {@link #getValue()}.If the
-     *     field is a nested object, the subfields of the returned MemoryObject can be exposed via
-     *     {@link #getFields()}.
+     * @return a MemoryObject instance pointing to the field. If the field is a primitive value
+     *     type, the value of the returned MemoryObject can be exposed via {@link #getValue()}.If
+     *     the field is a nested object, the subfields of the returned MemoryObject can be exposed
+     *     via {@link #getFields()}.
      * @throws Exception if the field does not exist
      */
     MemoryObject get(String path) throws Exception;
@@ -45,18 +45,18 @@ public interface MemoryObject {
      *
      * @param path relative path from the current object to the target field
      * @param value new value of the field
-     * @throws Exception if trying to overwrite an object with a primitive value or set a
+     * @throws Exception if trying to overwrite a nested object with a primitive value or set a
      *     MemoryObject directly
      */
     void set(String path, Object value) throws Exception;
 
     /**
-     * Creates a new object as an indirect field in the current object.
+     * Creates a new MemoryObject as an indirect field in the current object.
      *
      * @param path relative path from the current object to the target field
      * @param overwrite whether to overwrite existing field if it's not a nested object
      * @return the created object
-     * @throws Exception if field exists but is not an object and overwrite is false
+     * @throws Exception if field exists but is not a nested object and overwrite is false
      */
     MemoryObject newObject(String path, boolean overwrite) throws Exception;
 
@@ -87,16 +87,17 @@ public interface MemoryObject {
     /**
      * Gets the primitive value stored at the current path.
      *
-     * @return the primitive value if the current path is a value type, or null if this MemoryObject
-     *     represents a nested object (prefix).
+     * @return the primitive value if this MemoryObject stores primitive value directly, or null if
+     *     it represents a nested object
      * @throws Exception state-backend failure
      */
     Object getValue() throws Exception;
 
     /**
-     * Checks whether the current object is a nested object (prefix).
+     * Checks whether the current object is a nested object.
      *
-     * @return true if this MemoryObject is a prefix object, false if it is a value
+     * @return true if this MemoryObject is a nested object, false if it stores primitive value
+     *     directly
      * @throws Exception state-backend failure
      */
     boolean isNestedObject() throws Exception;

@@ -23,7 +23,8 @@ from typing import Any, Dict, List
 from typing_extensions import override
 
 from flink_agents.api.event import Event, InputEvent, OutputEvent
-from flink_agents.api.memoryobject import MemoryObject,LocalMemoryObject
+from flink_agents.api.memoryobject import MemoryObject
+from flink_agents.runtime.local_memory_object import LocalMemoryObject
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.api.workflow import Workflow
 from flink_agents.plan.workflow_plan import WorkflowPlan
@@ -54,7 +55,7 @@ class LocalRunnerContext(RunnerContext):
     __workflow_plan: WorkflowPlan
     __key: Any
     events: deque[Event]
-    _store: dict
+    _store: dict[str, Any]
     _short_term_memory: MemoryObject
 
 
@@ -72,9 +73,8 @@ class LocalRunnerContext(RunnerContext):
         self.__workflow_plan = workflow_plan
         self.__key = key
         self.events = deque()
-        self._store = {"": {"__OBJ__": set()}}
-        self._short_term_memory = LocalMemoryObject(self._store, "")
-
+        self._store = {}
+        self._short_term_memory = LocalMemoryObject(self._store, LocalMemoryObject.ROOT_KEY)
 
     @property
     def key(self) -> Any:

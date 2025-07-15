@@ -19,6 +19,9 @@ from typing import Any, Dict, List, Optional, Union
 
 from flink_agents.api.memoryobject import MemoryObject
 
+class MemoryObjectError(RuntimeError):
+    """All errors raised by FlinkMemoryObject wrapper are统一收敛到这里."""
+    pass
 
 class FlinkMemoryObject(MemoryObject):
     """
@@ -44,18 +47,20 @@ class FlinkMemoryObject(MemoryObject):
             j_result = self._j_memory_object.get(path)
             if j_result is None:
                 return None
-            if not j_result.isPrefix():
+            if not j_result.isNestedObject():
                 return j_result.getValue()
             return FlinkMemoryObject(j_result)
         except Exception as e:
-            raise RuntimeError(f"Failed to get field '{path}' from memory") from e
+            raise MemoryObjectError(
+                f"Failed to get field '{path}' from short-term memory"
+            ) from e
 
     def set(self, path: str, value: Any) -> None:
         """Set a value at the given path. Creates intermediate objects if needed."""
         try:
             self._j_memory_object.set(path, value)
         except Exception as e:
-            raise RuntimeError(f"Failed to set value at path '{path}'") from e
+            raise MemoryObjectError(f"Failed to set value at path '{path}'") from e
 
     def new_object(self, path: str, overwrite: bool = False) -> "FlinkMemoryObject":
         """Create a new object at the given path."""
@@ -64,25 +69,25 @@ class FlinkMemoryObject(MemoryObject):
                 self._j_memory_object.newObject(path, overwrite)
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to create new object at path '{path}'") from e
+            raise MemoryObjectError(f"Failed to create new object at path '{path}'") from e
 
     def is_exist(self, path: str) -> bool:
         """Check if a field exists at the given path."""
         try:
             return self._j_memory_object.isExist(path)
         except Exception as e:
-            raise RuntimeError(f"Failed to check existence of path '{path}'") from e
+            raise MemoryObjectError(f"Failed to check existence of '{path}'") from e
 
     def get_field_names(self) -> List[str]:
         """Get names of all direct fields in the current object."""
         try:
             return list(self._j_memory_object.getFieldNames())
         except Exception as e:
-            raise RuntimeError("Failed to get field names") from e
+            raise MemoryObjectError("Failed to get field names") from e
 
     def get_fields(self) -> Dict[str, Any]:
         """Get all direct fields and their values."""
         try:
             return dict(self._j_memory_object.getFields())
         except Exception as e:
-            raise RuntimeError("Failed to get fields") from e
+            raise MemoryObjectError("Failed to get fields") from e

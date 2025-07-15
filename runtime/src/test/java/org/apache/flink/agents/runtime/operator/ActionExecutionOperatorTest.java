@@ -20,10 +20,12 @@ package org.apache.flink.agents.runtime.operator;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
+import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.plan.Action;
 import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.agents.plan.WorkflowPlan;
+import org.apache.flink.agents.runtime.memory.MemoryObjectImpl;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -83,11 +85,23 @@ public class ActionExecutionOperatorTest {
 
         public static void processInputEvent(InputEvent event, RunnerContext context) {
             Long inputData = (Long) event.getInput();
-            context.sendEvent(new MiddleEvent(inputData + 1));
+            try {
+                MemoryObject mem = context.getShortTermMemory();
+                mem.set("tmp", inputData + 1);
+            } catch (Exception e) {
+                ExceptionUtils.rethrow(e);
+            }
+            context.sendEvent(new MiddleEvent(inputData));
         }
 
         public static void processMiddleEvent(MiddleEvent event, RunnerContext context) {
-            context.sendEvent(new OutputEvent(event.getNum() * 2));
+            try {
+                MemoryObject mem = context.getShortTermMemory();
+                Long tmp = (Long) mem.get("tmp").getValue();
+                context.sendEvent(new OutputEvent(tmp * 2));
+            } catch (Exception e) {
+                ExceptionUtils.rethrow(e);
+            }
         }
 
         public static WorkflowPlan getWorkflowPlan() {

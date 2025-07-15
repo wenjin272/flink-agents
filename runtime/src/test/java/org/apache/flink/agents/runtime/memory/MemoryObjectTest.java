@@ -22,87 +22,209 @@ import org.apache.flink.api.common.state.MapState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+/** Simple, non-serialized HashMap implementation. */
+class InMemoryMapState<V> implements MapState<String, V> {
+
+    private final Map<String, V> delegate = new HashMap<>();
+
+    @Override
+    public V get(String key) {
+        return delegate.get(key);
+    }
+
+    @Override
+    public void put(String key, V value) {
+        delegate.put(key, value);
+    }
+
+    @Override
+    public void putAll(Map<String, V> map) {
+        delegate.putAll(map);
+    }
+
+    @Override
+    public void remove(String key) {
+        delegate.remove(key);
+    }
+
+    @Override
+    public boolean contains(String key) {
+        return delegate.containsKey(key);
+    }
+
+    @Override
+    public Iterable<Map.Entry<String, V>> entries() {
+        return delegate.entrySet();
+    }
+
+    @Override
+    public Iterable<String> keys() {
+        return delegate.keySet();
+    }
+
+    @Override
+    public Iterable<V> values() {
+        return delegate.values();
+    }
+
+    @Override
+    public Iterator<Map.Entry<String, V>> iterator() {
+        return delegate.entrySet().iterator();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return delegate.isEmpty();
+    }
+
+    @Override
+    public void clear() {
+        delegate.clear();
+    }
+}
 
 /** Tests for {@link MemoryObject}. */
 public class MemoryObjectTest {
 
-    private MemoryObjectImpl memoryObjectImpl;
+    private MemoryObjectImpl memory;
+
+    // simple pojo example
+    static class Person {
+        String name;
+        int age;
+
+        Person(String n, int a) {
+            this.name = n;
+            this.age = a;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Person)) return false;
+            Person p = (Person) o;
+            return age == p.age && Objects.equals(name, p.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, age);
+        }
+    }
 
     @BeforeEach
-    public void setUp() {
-        // memoryObjectImpl = new MemoryObjectImpl(new MapState<>(), MemoryObjectImpl.ROOT_KEY);
+    void setUp() throws Exception {
+        InMemoryMapState<MemoryObjectImpl.MemoryItem> mapState = new InMemoryMapState<>();
+        memory = new MemoryObjectImpl(mapState, MemoryObjectImpl.ROOT_KEY);
     }
 
     @Test
     public void testSetAndGet() throws Exception {
-        // Test setting and getting a value
-        memoryObjectImpl.set("a", "value1");
-        assertEquals("value1", memoryObjectImpl.get("a").getValue());
+        memory.set("str", "hello");
+        assertEquals("hello", memory.get("str").getValue());
 
-        memoryObjectImpl.set("b", 10);
-        assertEquals(10, memoryObjectImpl.get("b").getValue());
+        memory.set("int", 42);
+        assertEquals(42, memory.get("int").getValue());
+
+        memory.set("float", 3.14f);
+        assertEquals(3.14f, memory.get("float").getValue());
+
+        memory.set("double", 1.618);
+        assertEquals(1.618, memory.get("double").getValue());
+
+        memory.set("bool", true);
+        assertEquals(true, memory.get("bool").getValue());
+
+        byte[] bytes = {1, 2, 3};
+        memory.set("bytes", bytes);
+        assertArrayEquals(bytes, (byte[]) memory.get("bytes").getValue());
+
+        // List
+        List<String> list = Arrays.asList("x", "y", "z");
+        memory.set("list", list);
+        assertEquals(list, memory.get("list").getValue());
+
+        // Map (dict)
+        Map<String, Integer> dict = new HashMap<>();
+        dict.put("k1", 1);
+        dict.put("k2", 2);
+        memory.set("dict", dict);
+        assertEquals(dict, memory.get("dict").getValue());
+
+        // Custom POJO
+        Person alice = new Person("Alice", 23);
+        memory.set("pojo", alice);
+        assertEquals(alice, memory.get("pojo").getValue());
     }
 
+    /* ---------- newObject ---------- */
     @Test
     public void testNewObject() throws Exception {
-        // Test creating new objects and retrieving them
-        MemoryObject newObj = memoryObjectImpl.newObject("obj1", false);
-        assertNotNull(newObj);
-        assertTrue(newObj.isNestedObject());
+        // Test creating new object and retrieving
+        MemoryObject obj = memory.newObject("level1", false);
+        assertNotNull(obj);
+        assertTrue(obj.isNestedObject());
     }
 
+    /* ---------- Deep Nested Objects ---------- */
     @Test
-    public void testSetAndGetNestedObjects() throws Exception {
-        // Test setting and getting nested objects
-        memoryObjectImpl.set("a.b.c", "nestedValue");
-        assertEquals("nestedValue", memoryObjectImpl.get("a.b.c").getValue());
+    void testDeepNestedObjects() throws Exception {
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("id", 123);
+        meta.put("tags", Arrays.asList("flink", "ai"));
+
+        memory.set("a.b.c.d.e", meta);
+        assertEquals(meta, memory.get("a.b.c.d.e").getValue());
+
+        // Check the parent node fields
+        MemoryObject levelA = memory.get("a");
+        assertTrue(levelA.getFieldNames().contains("b"));
+        MemoryObject levelB = levelA.get("b");
+        assertTrue(levelB.getFieldNames().contains("c"));
     }
 
+    /* ---------- getFieldNames / getFields ---------- */
     @Test
-    public void testGetFieldNames() throws Exception {
-        // Test retrieving field names
-        memoryObjectImpl.set("a", "value1");
-        memoryObjectImpl.set("b", "value2");
+    void testFieldNamesAndFields() throws Exception {
+        memory.set("x", 1);
+        memory.set("y", 2);
+        memory.newObject("obj", false).set("inner", 3);
 
-        // Get all field names under current prefix
-        assertTrue(memoryObjectImpl.getFieldNames().contains("a"));
-        assertTrue(memoryObjectImpl.getFieldNames().contains("b"));
+        List<String> names = memory.getFieldNames();
+        assertTrue(names.containsAll(Arrays.asList("x", "y", "obj")));
+
+        Map<String, Object> fields = memory.getFields();
+        assertEquals(1, fields.get("x"));
+        assertEquals(2, fields.get("y"));
+        assertEquals("NestedObject", fields.get("obj"));
     }
 
+    /* ---------- Overwrite Rules ---------- */
     @Test
-    public void testGetFields() throws Exception {
-        // Test getting fields (both primitive and nested objects)
-        memoryObjectImpl.set("a", "value1");
-        memoryObjectImpl.set("b", "value2");
+    void testOverwriteRules() throws Exception {
+        // create object first, then set value
+        memory.newObject("conflict", false);
+        assertThrows(IllegalArgumentException.class, () -> memory.set("conflict", 100));
 
-        Map<String, Object> fields = memoryObjectImpl.getFields();
-        assertEquals("value1", fields.get("a"));
-        assertEquals("value2", fields.get("b"));
+        // set value first, then create object overwrite=false
+        memory.set("scalar", 5);
+        assertThrows(IllegalArgumentException.class, () -> memory.newObject("scalar", false));
+
+        // overwrite=true
+        MemoryObject obj = memory.newObject("scalar", true);
+        obj.set("k", "v");
+        assertEquals("v", memory.get("scalar.k").getValue());
     }
 
+    /* ---------- isExist ---------- */
     @Test
-    public void testOverwriteObject() throws Exception {
-        // Test overwriting object behavior
-        MemoryObject newObj = memoryObjectImpl.newObject("obj", false);
-        newObj.set("x", "value");
-
-        assertEquals("value", newObj.get("x").getValue());
-
-        // Now try overwriting the object
-        MemoryObject overwriteObj = memoryObjectImpl.newObject("obj", true);
-        overwriteObj.set("y", "newValue");
-
-        assertEquals("newValue", overwriteObj.get("y").getValue());
-    }
-
-    @Test
-    public void testIsExist() throws Exception {
-        // Test checking if fields exist
-        memoryObjectImpl.set("a", "value1");
-        assertTrue(memoryObjectImpl.isExist("a"));
-        assertFalse(memoryObjectImpl.isExist("nonexistentField"));
+    void testIsExist() throws Exception {
+        memory.set("exist", 1);
+        assertTrue(memory.isExist("exist"));
+        assertFalse(memory.isExist("not.exist"));
     }
 }

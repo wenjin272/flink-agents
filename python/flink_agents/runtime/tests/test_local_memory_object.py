@@ -15,62 +15,106 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+from typing import List, Set, Dict
+
 from flink_agents.runtime.local_memory_object import LocalMemoryObject
 
 
 def create_memory():
-    return LocalMemoryObject({"": {"__OBJ__": set()}})
+    return LocalMemoryObject({})
 
+class User:
+    def __init__(self, name: str, age: int):
+        self.name, self.age = name, age
 
-def test_basic_set_get():
+    def __eq__(self, o):
+        return isinstance(o, User) and o.name == self.name and o.age == self.age
+
+def test_basic_set_get_various_types():
     mem = create_memory()
-    mem.set("count", 1)
-    assert mem.get("count") == 1
-    assert mem.get_field_names() == ["count"]
-    assert mem.get_fields() == {"count": 1}
+
+    # int / float / str
+    mem.set("int", 1)
+    mem.set("float", 3.14)
+    mem.set("str", "hello")
+    assert mem.get("int") == 1
+    assert mem.get("float") == 3.14
+    assert mem.get("str") == "hello"
+
+    # list
+    lst: List[str] = ["a", "b"]
+    mem.set("list", lst)
+    assert mem.get("list") == lst
+
+    # dict
+    d: Dict[str, int] = {"x": 10}
+    mem.set("dict", d)
+    assert mem.get("dict") == d
+
+    # set
+    s: Set[int] = {1, 2, 3}
+    mem.set("set", s)
+    assert mem.get("set") == s
+
+    # custom object
+    user = User("Alice", 20)
+    mem.set("user", user)
+    assert mem.get("user") == user
+
+    # 字段枚举 & get_fields
+    names = mem.get_field_names()
+    for k in ["int", "float", "str", "list", "dict", "set", "user"]:
+        assert k in names
+        assert mem.get_fields()[k] == mem.get(k)
 
 
 def test_nested_set_and_get():
     mem = create_memory()
     mem.set("a.b.c", True)
+
     assert mem.get("a").get("b").get("c") is True
     assert "b" in mem.get("a").get_field_names()
-    assert mem.get("a").get_fields()["b"].startswith("__OBJ__")
+    assert mem.get("a").get_fields()["b"] == "NestedObject"
     assert mem.get("a.b.c") is True
-    assert mem.get("a.b").get("c") == True
+    assert mem.get("a.b").get("c") is True
 
 
 def test_new_object_and_is_exist():
     mem = create_memory()
     mem.new_object("foo.bar")
-    assert mem.is_exist("foo") is True
-    assert mem.is_exist("foo.bar") is True
+    assert mem.is_exist("foo")
+    assert mem.is_exist("foo.bar")
+
     fields = mem.get("foo").get_fields()
-    assert "bar" in fields
+    assert fields["bar"] == "NestedObject"
 
 
 def test_overwrite_behavior():
     mem = create_memory()
     mem.set("profile", "active")
+
+    # 不能在标量上创建对象
     try:
         mem.new_object("profile")
-        assert False, "Should raise error when creating object on primitive"
+        assert False, "Should raise when creating object on primitive"
     except ValueError:
         pass
-    mem.new_object("profile", overwrite=True)
-    mem.get("profile").set("status", "ok")
-    assert mem.get("profile").get("status") == "ok"
+
+    # overwrite = True
+    mem.new_object("profile", overwrite=True).set("status", "ok")
+    assert mem.get("profile.status") == "ok"
 
 
 def test_auto_parent_fill_and_children():
     mem = create_memory()
     mem.new_object("x.y.z")
-    assert mem.is_exist("x") is True
-    assert mem.is_exist("x.y") is True
-    assert mem.is_exist("x.y.z") is True
-    assert "x" in mem.get_field_names()
-    fields = mem.get_fields()
-    assert fields["x"].startswith("__OBJ__")
+
+    assert mem.is_exist("x")
+    assert mem.is_exist("x.y")
+    assert mem.is_exist("x.y.z")
+
+    root_fields = mem.get_fields()
+    assert root_fields["x"] == "NestedObject"
 
 
 def test_disallow_overwrite_object_with_primitive():
@@ -78,7 +122,6 @@ def test_disallow_overwrite_object_with_primitive():
     mem.new_object("obj")
     try:
         mem.set("obj", 123)
-        assert False, "Should raise error when overwriting object with primitive"
+        assert False, "Should raise when overwriting object with primitive"
     except ValueError:
         pass
-
