@@ -35,10 +35,12 @@ function run_test {
   fi
 }
 
-if [ ! -d "e2e-test/target" ]; then
+if [[ ! -d "e2e-test/target" || ! -d "python/.venv" ]]; then
   echo "Build flink-agents before run e2e tests."
   bash tools/build.sh
 fi
+
+source python/.venv/bin/activate
 
 export TOTAL=0
 export PASSED=0
