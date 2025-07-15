@@ -18,75 +18,45 @@
 
 package org.apache.flink.agents.plan.compatibility;
 
+import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.context.RunnerContext;
-import org.apache.flink.agents.plan.Action;
 import org.apache.flink.agents.plan.AgentPlan;
-import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
-/** Utils for generating agent plan json. */
+/**
+ * Utils for generating agent plan json.
+ *
+ * <p>The agent plan json will be checked by
+ * flink-agents/python/flink_agents/plan/tests/compatibility/create_python_agent_plan_from_json.py,
+ * correspond modification should be applied to it when modify this file.
+ */
 public class GenerateAgentPlanJson {
     private static class MyEvent extends Event {}
 
-    private static class MyAction extends Action {
+    /** Agent class for generating java agent plan json. */
+    public static class JavaAgentPlanCompatibilityTestAgent extends Agent {
 
-        public static void doNothing(Event event, RunnerContext context) {
-            // No operation
+        @org.apache.flink.agents.api.Action(listenEvents = {InputEvent.class})
+        public void firstAction(InputEvent event, RunnerContext context) {
+            // Test action implementation
         }
 
-        public MyAction() throws Exception {
-            super(
-                    "MyAction",
-                    new JavaFunction(
-                            MyAction.class.getName(),
-                            "doNothing",
-                            new Class[] {Event.class, RunnerContext.class}),
-                    List.of(InputEvent.class.getName(), MyEvent.class.getName()));
+        @org.apache.flink.agents.api.Action(listenEvents = {InputEvent.class, MyEvent.class})
+        public void secondAction(Event event, RunnerContext context) {
+            // Test action implementation
         }
     }
 
     /** Generate agent plan json. */
     public static void main(String[] args) throws Exception {
         String jsonPath = args[0];
-        JavaFunction function1 =
-                new JavaFunction(
-                        "org.apache.flink.agents.plan.TestAction",
-                        "legal",
-                        new Class[] {InputEvent.class, RunnerContext.class});
-        JavaFunction function2 =
-                new JavaFunction(
-                        MyAction.class.getName(),
-                        "doNothing",
-                        new Class[] {Event.class, RunnerContext.class});
 
-        // Create Actions
-        Action action1 = new Action("first_action", function1, List.of(InputEvent.class.getName()));
-        Action action2 =
-                new Action(
-                        "second_action",
-                        function2,
-                        List.of(InputEvent.class.getName(), MyEvent.class.getName()));
-
-        // Create a map of actions
-        Map<String, Action> actions = new HashMap<>();
-        actions.put(action1.getName(), action1);
-        actions.put(action2.getName(), action2);
-
-        // Create a map of event trigger actions
-        Map<String, List<Action>> actionsByEvent = new HashMap<>();
-        actionsByEvent.put(InputEvent.class.getName(), List.of(action1, action2));
-        actionsByEvent.put(MyEvent.class.getName(), List.of(action2));
-
-        // Create a AgentPlan with both actions and event trigger actions
-        AgentPlan agentPlan = new AgentPlan(actions, actionsByEvent);
+        AgentPlan agentPlan = new AgentPlan(new JavaAgentPlanCompatibilityTestAgent());
 
         // Serialize the agent plan to JSON
         String json = new ObjectMapper().writeValueAsString(agentPlan);

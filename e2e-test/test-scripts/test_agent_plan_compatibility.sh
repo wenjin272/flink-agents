@@ -21,14 +21,15 @@ root_dir=$(pwd)
 
 echo $root_dir
 
-jar_path=$root_dir/e2e-test/agent-plan-compatibility-test/target/flink-agents-agent-plan-compatibility-tests-0.1-SNAPSHOT.jar
+tempdir=$1
+mkdir $tempdir/agent
+data_dir=$tempdir/agent
+jar_path=$2
 
 python_script_path=$root_dir/python/flink_agents/plan/tests/compatibility
 
-data_path=$root_dir/e2e-test/test-scripts/test-data
-
 function test_create_java_agent_from_python_agent_json {
-  json_path=$data_path/python_agent.json
+  json_path=$data_dir/python_agent.json
 
   # generate python agent plan json file
   python $python_script_path/generate_agent_plan_json.py $json_path
@@ -48,7 +49,7 @@ function test_create_java_agent_from_python_agent_json {
 }
 
 function test_create_python_agent_from_java_agent_json {
-  json_path=$data_path/java_agent.json
+  json_path=$data_dir/java_agent.json
 
   # generate java agent plan json file
   java -cp $jar_path org.apache.flink.agents.plan.compatibility.GenerateAgentPlanJson $json_path

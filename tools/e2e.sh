@@ -35,10 +35,21 @@ function run_test {
   fi
 }
 
+if [[ ! -d "e2e-test/target" || ! -d "python/.venv" ]]; then
+  echo "Build flink-agents before run e2e tests."
+  bash tools/build.sh
+fi
+
+source python/.venv/bin/activate
+
 export TOTAL=0
 export PASSED=0
 
-run_test "Agent plan compatibility end-to-end test" "bash e2e-test/test-scripts/test_agent_plan_compatibility.sh"
+tempdir=$(mktemp -d)
+echo "tmpdir：$tempdir"
+
+jar_path=e2e-test/agent-plan-compatibility-test/target/flink-agents*.jar
+run_test "Agent plan compatibility end-to-end test" "bash e2e-test/test-scripts/test_agent_plan_compatibility.sh $tempdir $jar_path"
 
 printf "\n$PASSED/$TOTAL bash e2e-tests passed\n"
 

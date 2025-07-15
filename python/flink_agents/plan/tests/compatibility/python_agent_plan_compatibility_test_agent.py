@@ -15,22 +15,25 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-import sys
-from pathlib import Path
+from flink_agents.api.agent import Agent
+from flink_agents.api.decorators import action
+from flink_agents.api.event import Event, InputEvent
+from flink_agents.api.runner_context import RunnerContext
 
-from flink_agents.plan.agent_plan import AgentPlan
-from flink_agents.plan.tests.compatibility.python_agent_plan_compatibility_test_agent import (
-    PythonAgentPlanCompatibilityTestAgent,
-)
 
-# The agent plan json will be checked by
-# flink-agents/plan/src/test/java/org/apache/flink/agents/plan
-# /compatibility/GenerateAgentPlanJson.java
-# correspond modification should be applied to it when modify this file.
-if __name__ == "__main__":
-    json_path = sys.argv[1]
-    agent_plan = AgentPlan.from_agent(PythonAgentPlanCompatibilityTestAgent())
-    json_value = agent_plan.model_dump_json(serialize_as_any=True, indent=4)
+class MyEvent(Event):
+    """Test event."""
 
-    with Path(json_path).open("w") as f:
-        f.write(json_value)
+
+class PythonAgentPlanCompatibilityTestAgent(Agent):
+    """Agent for generating python agent plan json."""
+
+    @action(InputEvent)
+    @staticmethod
+    def first_action(event: InputEvent, ctx: RunnerContext) -> None:
+        """Test implementation."""
+
+    @action(InputEvent, MyEvent)
+    @staticmethod
+    def second_action(event: InputEvent, ctx: RunnerContext) -> None:
+        """Test implementation."""
