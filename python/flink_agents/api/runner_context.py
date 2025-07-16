@@ -18,6 +18,7 @@
 from abc import ABC, abstractmethod
 
 from flink_agents.api.event import Event
+from flink_agents.api.resource import Resource, ResourceType
 
 
 class RunnerContext(ABC):
@@ -34,4 +35,16 @@ class RunnerContext(ABC):
         ----------
         event : Event
             The event to be processed by the agent system.
+        """
+
+    @abstractmethod
+    def get_resource(self, name: str, type: ResourceType) -> Resource:
+        """Get resource from context.
+
+        Parameters
+        ----------
+        name : str
+            The name of the resource.
+        type : ResourceType
+            The type of the resource.
         """

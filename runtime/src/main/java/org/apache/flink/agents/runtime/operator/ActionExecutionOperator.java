@@ -30,6 +30,7 @@ import org.apache.flink.agents.runtime.python.event.PythonEvent;
 import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
 import org.apache.flink.agents.runtime.utils.EventUtil;
 import org.apache.flink.python.env.PythonDependencyInfo;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -172,7 +173,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                                     .getTmpDirectories(),
                             new HashMap<>(System.getenv()),
                             getRuntimeContext().getJobInfo().getJobId());
-            pythonActionExecutor = new PythonActionExecutor(pythonEnvironmentManager);
+            pythonActionExecutor =
+                    new PythonActionExecutor(
+                            pythonEnvironmentManager,
+                            new ObjectMapper().writeValueAsString(agentPlan));
             pythonActionExecutor.open();
         }
     }
