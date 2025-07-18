@@ -47,12 +47,14 @@ public class PythonActionExecutor {
     private static final String FLINK_RUNNER_CONTEXT_VAR_NAME = "flink_runner_context";
 
     private final PythonEnvironmentManager environmentManager;
+    private final String agentPlanJson;
     private final PythonRunnerContextImpl runnerContext;
 
     private PythonInterpreter interpreter;
 
-    public PythonActionExecutor(PythonEnvironmentManager environmentManager) {
+    public PythonActionExecutor(PythonEnvironmentManager environmentManager, String agentPlanJson) {
         this.environmentManager = environmentManager;
+        this.agentPlanJson = agentPlanJson;
         this.runnerContext = new PythonRunnerContextImpl();
     }
 
@@ -65,7 +67,7 @@ public class PythonActionExecutor {
 
         // TODO: remove the set and get runner context after updating pemja to version 0.5.3
         Object pythonRunnerContextObject =
-                interpreter.invoke(CREATE_FLINK_RUNNER_CONTEXT, runnerContext);
+                interpreter.invoke(CREATE_FLINK_RUNNER_CONTEXT, runnerContext, agentPlanJson);
         interpreter.set(FLINK_RUNNER_CONTEXT_VAR_NAME, pythonRunnerContextObject);
     }
 

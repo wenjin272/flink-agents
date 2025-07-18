@@ -15,36 +15,21 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from abc import ABC, abstractmethod
+from abc import ABC
 
-from flink_agents.api.event import Event
+from typing_extensions import override
+
 from flink_agents.api.resource import Resource, ResourceType
 
 
-class RunnerContext(ABC):
-    """Abstract base class providing context for agent execution.
+#TODO: Complete BaseChatModel
+class BaseChatModel(Resource, ABC):
+    """Base abstract class of all kinds of chat models.
 
-    This context provides access to event handling.
+    Currently, this class is empty just for testing purposes.
     """
 
-    @abstractmethod
-    def send_event(self, event: Event) -> None:
-        """Send an event to the agent for processing.
-
-        Parameters
-        ----------
-        event : Event
-            The event to be processed by the agent system.
-        """
-
-    @abstractmethod
-    def get_resource(self, name: str, type: ResourceType) -> Resource:
-        """Get resource from context.
-
-        Parameters
-        ----------
-        name : str
-            The name of the resource.
-        type : ResourceType
-            The type of the resource.
-        """
+    @classmethod
+    @override
+    def resource_type(cls) -> ResourceType:
+        return ResourceType.CHAT_MODEL

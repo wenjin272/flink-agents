@@ -15,36 +15,3 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from abc import ABC, abstractmethod
-
-from flink_agents.api.event import Event
-from flink_agents.api.resource import Resource, ResourceType
-
-
-class RunnerContext(ABC):
-    """Abstract base class providing context for agent execution.
-
-    This context provides access to event handling.
-    """
-
-    @abstractmethod
-    def send_event(self, event: Event) -> None:
-        """Send an event to the agent for processing.
-
-        Parameters
-        ----------
-        event : Event
-            The event to be processed by the agent system.
-        """
-
-    @abstractmethod
-    def get_resource(self, name: str, type: ResourceType) -> Resource:
-        """Get resource from context.
-
-        Parameters
-        ----------
-        name : str
-            The name of the resource.
-        type : ResourceType
-            The type of the resource.
-        """

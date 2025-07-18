@@ -15,36 +15,19 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from abc import ABC, abstractmethod
+from typing import Any, Dict, Tuple
 
-from flink_agents.api.event import Event
-from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.tools.tool import BaseTool
+from flink_agents.plan.function import Function
 
 
-class RunnerContext(ABC):
-    """Abstract base class providing context for agent execution.
+#TODO: Complete FunctionTool
+class FunctionTool(BaseTool):
+    """Function tool.
 
-    This context provides access to event handling.
+    Currently, this class is just for testing purposes.
     """
-
-    @abstractmethod
-    def send_event(self, event: Event) -> None:
-        """Send an event to the agent for processing.
-
-        Parameters
-        ----------
-        event : Event
-            The event to be processed by the agent system.
-        """
-
-    @abstractmethod
-    def get_resource(self, name: str, type: ResourceType) -> Resource:
-        """Get resource from context.
-
-        Parameters
-        ----------
-        name : str
-            The name of the resource.
-        type : ResourceType
-            The type of the resource.
-        """
+    func: Function
+    def call(self, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> Any:
+        """Call function."""
+        return self.func(*args, **kwargs)

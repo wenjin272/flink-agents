@@ -24,6 +24,7 @@ from typing_extensions import override
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.event import Event, InputEvent, OutputEvent
+from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.plan.agent_plan import AgentPlan
 from flink_agents.runtime.agent_runner import AgentRunner
@@ -90,6 +91,10 @@ class LocalRunnerContext(RunnerContext):
         """
         logger.info("key: %s, send_event: %s", self.__key, event)
         self.events.append(event)
+
+    @override
+    def get_resource(self, name: str, type: ResourceType) -> Resource:
+        return self.__agent_plan.get_resource(name, type)
 
 
 class LocalRunner(AgentRunner):
