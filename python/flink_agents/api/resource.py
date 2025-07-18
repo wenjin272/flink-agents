@@ -22,19 +22,22 @@ from pydantic import BaseModel, model_validator
 
 
 class ResourceType(Enum):
-    """Type enum of resource."""
+    """Type enum of resource.
+
+    Currently, only support chat_models and tools.
+    """
 
     CHAT_MODEL = "chat_model"
-    EMBEDDING_MODEL = "embedding_model"
-    PROMPT = "prompt"
     TOOL = "tool"
-    VECTOR_STORE = "vector_store"
-    MCP_SERVER = "mcp_server"
+    # EMBEDDING_MODEL = "embedding_model"
+    # PROMPT = "prompt"
+    # VECTOR_STORE = "vector_store"
+    # MCP_SERVER = "mcp_server"
 
 
 class Resource(BaseModel, ABC):
     """Base abstract class of all kinds of resources, includes chat model,
-    prompt, tool and so on.
+    prompt, tools and so on.
 
     Resource extends BaseModel only for decreasing the complexity of attribute
     declaration of subclasses, this not represents Resource object is serializable.
@@ -50,6 +53,7 @@ class Resource(BaseModel, ABC):
     name: str
 
     @classmethod
+    @abstractmethod
     def resource_type(cls) -> ResourceType:
         """Return resource type of class."""
 
@@ -62,27 +66,3 @@ class SerializableResource(Resource, ABC):
         """Ensure resource is serializable."""
         self.model_dump_json()
         return self
-
-
-class ResourceProvider(BaseModel, ABC):
-    """Resource provider that carries resource meta to crate
-     Resource object in runtime.
-
-    Attributes:
-    ----------
-    name : str
-        The name of the resource
-    type : ResourceType
-        The type of the resource
-    """
-
-    name: str
-    type: ResourceType
-
-    @abstractmethod
-    def provide(self) -> Resource:
-        """Create resource in runtime."""
-
-
-class SerializableResourceProvider(ResourceProvider, ABC):
-    """Resource Provider that carries Resource object or serialized object."""

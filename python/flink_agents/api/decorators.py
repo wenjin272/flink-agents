@@ -52,8 +52,8 @@ def action(*listen_events: Tuple[Type[Event], ...]) -> Callable:
     return decorator
 
 
-def resource(func: Callable) -> Callable:
-    """Decorator for marking a function as an agent resource.
+def chat_model(func: Callable) -> Callable:
+    """Decorator for marking a function declaring a chat model.
 
     Parameters
     ----------
@@ -63,7 +63,24 @@ def resource(func: Callable) -> Callable:
     Returns:
     -------
     Callable
-        Decorator function that marks the target function as resource.
+        Decorator function that marks the target function declare a chat model.
     """
-    func._is_resource = True
+    func._is_chat_model = True
+    return func
+
+
+def tool(func: Callable) -> Callable:
+    """Decorator for marking a function declaring a chat model.
+
+    Parameters
+    ----------
+    func : Callable
+        Function to be decorated.
+
+    Returns:
+    -------
+    Callable
+        Decorator function that marks the target function declare a tools.
+    """
+    func._is_tool = True
     return func

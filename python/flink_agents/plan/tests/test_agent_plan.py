@@ -22,7 +22,7 @@ from typing import Any, Dict, Tuple, Type
 import pytest
 
 from flink_agents.api.agent import Agent
-from flink_agents.api.decorators import action, resource
+from flink_agents.api.decorators import action, chat_model
 from flink_agents.api.event import Event, InputEvent, OutputEvent
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.runner_context import RunnerContext
@@ -71,7 +71,7 @@ class MyEvent(Event):
     """Event for testing purposes."""
 
 
-class MockResourceImpl(Resource):  # noqa: D101
+class MockChatModelImpl(Resource):  # noqa: D101
     host: str
     desc: str
 
@@ -79,15 +79,15 @@ class MockResourceImpl(Resource):  # noqa: D101
     def resource_type(cls) -> ResourceType: # noqa: D102
         return ResourceType.CHAT_MODEL
 
-    def test(self) -> str:
+    def chat(self) -> str:
         """For testing purposes."""
         return self.host + " " + self.desc
 
 class MyAgent(Agent):  # noqa: D101
-    @resource
+    @chat_model
     @staticmethod
     def mock() -> Tuple[Type[Resource], Dict[str, Any]]: # noqa: D102
-        return MockResourceImpl, {
+        return MockChatModelImpl, {
             "name": "mock",
             "host": "8.8.8.8",
             "desc": "mock resource just for testing.",
@@ -130,4 +130,4 @@ def test_agent_plan_deserialize(agent_plan: AgentPlan) -> None:  # noqa: D103
 def test_get_resource() -> None:  # noqa: D103
     agent_plan = AgentPlan.from_agent(MyAgent())
     mock = agent_plan.get_resource("mock", ResourceType.CHAT_MODEL)
-    assert mock.test() == "8.8.8.8 mock resource just for testing."
+    assert mock.chat() == "8.8.8.8 mock resource just for testing."

@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, field_serializer, model_validator
 
 from flink_agents.api.agent import Agent
-from flink_agents.api.resource import Resource, ResourceProvider, ResourceType
+from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.plan.action import Action
 from flink_agents.plan.function import PythonFunction
 from flink_agents.plan.resource_provider import (
@@ -28,7 +28,9 @@ from flink_agents.plan.resource_provider import (
     JavaSerializableResourceProvider,
     PythonResourceProvider,
     PythonSerializableResourceProvider,
+    ResourceProvider,
 )
+from flink_agents.plan.tools.function_tool import FunctionTool
 
 
 class AgentPlan(BaseModel):
@@ -214,7 +216,7 @@ def _get_actions(agent: Agent) -> List[Action]:
 def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
     resource_providers = []
     for name, value in agent.__class__.__dict__.items():
-        if hasattr(value, "_is_resource"):
+        if hasattr(value, "_is_chat_model"):
             if isinstance(value, staticmethod):
                 value = value.__func__
 
@@ -227,6 +229,23 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
                     module=module,
                     clazz=clazz.__name__,
                     kwargs=kwargs,
+                )
+                resource_providers.append(provider)
+        if hasattr(value, "_is_tool"):
+            if isinstance(value, staticmethod):
+                value = value.__func__
+
+            if callable(value):
+                # TODO: support other tool type.
+                func = PythonFunction.from_callable(value)
+                tool = FunctionTool(name=name, func=func)
+                provider = PythonSerializableResourceProvider(
+                    name=tool.name,
+                    type=tool.resource_type(),
+                    serialized=tool.model_dump(),
+                    module=tool.__module__,
+                    clazz=tool.__class__.__name__,
+                    resource=tool,
                 )
                 resource_providers.append(provider)
     return resource_providers

@@ -18,44 +18,62 @@
 from typing import Any, Dict, Tuple, Type
 
 from flink_agents.api.agent import Agent
-from flink_agents.api.decorators import action, resource
+from flink_agents.api.chat_models.chat_model import BaseChatModel
+from flink_agents.api.decorators import action, chat_model, tool
 from flink_agents.api.event import InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.runner_context import RunnerContext
 
 
-class MockResourceImpl(Resource):  # noqa: D101
+class MockChatModelImpl(BaseChatModel):  # noqa: D101
     host: str
     desc: str
 
     @classmethod
-    def resource_type(cls) -> ResourceType: # noqa: D102
+    def resource_type(cls) -> ResourceType:  # noqa: D102
         return ResourceType.CHAT_MODEL
 
-    def test(self) -> str:
+    def chat(self) -> str:
         """For testing purposes."""
         return self.host + " " + self.desc
 
+
 class MyAgent(Agent):  # noqa: D101
-    @resource
+    @chat_model
     @staticmethod
-    def mock() -> Tuple[Type[Resource], Dict[str, Any]]: # noqa: D102
-        return MockResourceImpl, {
-            "name": "mock",
+    def mock_chat_model() -> Tuple[Type[Resource], Dict[str, Any]]:  # noqa: D102
+        return MockChatModelImpl, {
+            "name": "mock_chat_model",
             "host": "8.8.8.8",
-            "desc": "mock resource just for testing.",
+            "desc": "mock chat model just for testing.",
         }
+
+    @tool
+    @staticmethod
+    def mock_tool(input: str) -> str:  # noqa: D102
+        return input + " mock tools just for testing."
 
     @action(InputEvent)
     @staticmethod
     def mock_action(event: InputEvent, ctx: RunnerContext) -> None:  # noqa: D102
         input = event.input
-        print(input)
-        mock = ctx.get_resource(type=ResourceType.CHAT_MODEL, name="mock")
-        ctx.send_event(OutputEvent(output=input + " " + mock.test()))
+        mock_chat_model = ctx.get_resource(
+            type=ResourceType.CHAT_MODEL, name="mock_chat_model"
+        )
+        mock_tool = ctx.get_resource(type=ResourceType.TOOL, name="mock_tool")
+        ctx.send_event(
+            OutputEvent(
+                output=input
+                + " "
+                + mock_chat_model.chat()
+                + " "
+                + mock_tool.call("call")
+            )
+        )
 
-def test_get_resource_in_action() -> None: # noqa: D103
+
+def test_get_resource_in_action() -> None:  # noqa: D103
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
@@ -63,10 +81,13 @@ def test_get_resource_in_action() -> None: # noqa: D103
 
     output_list = env.from_list(input_list).apply(agent).to_list()
 
-    input_list.append({'key': 'bob', 'value': "the first message"})
+    input_list.append({"key": "bob", "value": "the first message."})
 
     env.execute()
 
-    assert output_list == [{'bob': 'the first message 8.8.8.8 mock resource just for testing.'}]
-
-
+    assert output_list == [
+        {
+            "bob": "the first message. 8.8.8.8 mock chat model "
+            "just for testing. call mock tools just for testing."
+        }
+    ]

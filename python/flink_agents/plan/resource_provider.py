@@ -16,14 +16,51 @@
 # limitations under the License.
 #################################################################################
 import importlib
+from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
+
+from pydantic import BaseModel
 
 from flink_agents.api.resource import (
     Resource,
-    ResourceProvider,
+    ResourceType,
     SerializableResource,
-    SerializableResourceProvider,
 )
+
+
+class ResourceProvider(BaseModel, ABC):
+    """Resource provider that carries resource meta to crate
+     Resource object in runtime.
+
+    Attributes:
+    ----------
+    name : str
+        The name of the resource
+    type : ResourceType
+        The type of the resource
+    """
+
+    name: str
+    type: ResourceType
+
+    @abstractmethod
+    def provide(self) -> Resource:
+        """Create resource in runtime."""
+
+
+class SerializableResourceProvider(ResourceProvider, ABC):
+    """Resource Provider that carries Resource object or serialized object.
+
+    Attributes:
+    ----------
+    module : str
+        The module name of the resource.
+    clazz : str
+        The class name of the resource.
+    """
+
+    module: str
+    clazz: str
 
 
 class PythonResourceProvider(ResourceProvider):
@@ -50,6 +87,7 @@ class PythonResourceProvider(ResourceProvider):
         cls = getattr(module, self.clazz)
         return cls(**self.kwargs)
 
+
 class PythonSerializableResourceProvider(SerializableResourceProvider):
     """Resource Provider that carries Resource object or serialized object.
 
@@ -72,17 +110,22 @@ class PythonSerializableResourceProvider(SerializableResourceProvider):
             self.resource = clazz.model_validate(**self.serialized)
         return self.resource
 
+
 # TODO: implementation
 class JavaResourceProvider(ResourceProvider):
     """Represent Resource Provider declared by Java.
 
     Currently, this class only used for deserializing Java agent plan json
     """
+
     def provide(self) -> Resource:
         """Create resource in runtime."""
-        err_msg = ("Currently, flink-agents doesn't support create resource "
-                   "by JavaResourceProvider in python.")
+        err_msg = (
+            "Currently, flink-agents doesn't support create resource "
+            "by JavaResourceProvider in python."
+        )
         raise NotImplementedError(err_msg)
+
 
 # TODO: implementation
 class JavaSerializableResourceProvider(SerializableResourceProvider):
@@ -90,9 +133,11 @@ class JavaSerializableResourceProvider(SerializableResourceProvider):
 
     Currently, this class only used for deserializing Java agent plan json
     """
+
     def provide(self) -> Resource:
         """Get or deserialize resource in runtime."""
-        err_msg = ("Currently, flink-agents doesn't support create resource "
-                   "by JavaSerializableResourceProvider in python.")
+        err_msg = (
+            "Currently, flink-agents doesn't support create resource "
+            "by JavaSerializableResourceProvider in python."
+        )
         raise NotImplementedError(err_msg)
-
