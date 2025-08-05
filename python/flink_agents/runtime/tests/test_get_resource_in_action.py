@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Type
+from typing import Any, Dict, Sequence, Tuple, Type
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -31,11 +31,7 @@ class MockChatModelImpl(BaseChatModel):  # noqa: D101
     host: str
     desc: str
 
-    def chat(  # noqa: D102
-        self,
-        messages: Sequence[ChatMessage],
-        chat_history: Optional[List[ChatMessage]] = None,
-    ) -> ChatMessage:
+    def chat(self, messages: Sequence[ChatMessage]) -> ChatMessage: # noqa: D102
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=f"{messages[0].content} {self.host} {self.desc}",

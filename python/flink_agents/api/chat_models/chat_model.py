@@ -47,19 +47,13 @@ class BaseChatModel(Resource, ABC):
         return ResourceType.CHAT_MODEL
 
     @abstractmethod
-    def chat(
-        self,
-        messages: Sequence[ChatMessage],
-        chat_history: Optional[List[ChatMessage]] = None,
-    ) -> ChatMessage:
+    def chat(self, messages: Sequence[ChatMessage]) -> ChatMessage:
         """Process a sequence of messages, and return a response.
 
         Parameters
         ----------
         messages : Sequence[ChatMessage]
             Sequence of chat messages.
-        chat_history : Optional[List[ChatMessage]]
-            History of chat conversation.
 
         Returns:
         -------

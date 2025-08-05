@@ -16,7 +16,7 @@
 # limitations under the License.
 #################################################################################
 import uuid
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Type
+from typing import Any, Dict, List, Sequence, Tuple, Type
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -53,11 +53,7 @@ class MockChatModel(BaseChatModel):
         if self.prompt is not None and isinstance(self.prompt, str):
             self.prompt = self.get_resource(self.prompt, ResourceType.PROMPT)
 
-    def chat(
-        self,
-        messages: Sequence[ChatMessage],
-        chat_history: Optional[List[ChatMessage]] = None,
-    ) -> ChatMessage:
+    def chat(self, messages: Sequence[ChatMessage]) -> ChatMessage:
         """Generate tool call or response according to input."""
         # generate tool call
         if "sum" in messages[-1].content:
