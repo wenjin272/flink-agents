@@ -19,7 +19,7 @@ from typing import List
 
 from pydantic import BaseModel, field_serializer, model_validator
 
-from flink_agents.api.event import Event
+from flink_agents.api.events.event import Event
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.plan.function import Function, JavaFunction, PythonFunction
 
