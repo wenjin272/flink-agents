@@ -17,7 +17,7 @@
 #################################################################################
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Type
+from typing import Any, Dict, Sequence, Tuple, Type
 
 import pytest
 
@@ -81,11 +81,7 @@ class MockChatModelImpl(BaseChatModel):  # noqa: D101
     def resource_type(cls) -> ResourceType:  # noqa: D102
         return ResourceType.CHAT_MODEL
 
-    def chat(
-        self,
-        messages: Sequence[ChatMessage],
-        chat_history: Optional[List[ChatMessage]] = None,
-    ) -> ChatMessage:
+    def chat(self, messages: Sequence[ChatMessage]) -> ChatMessage:
         """Testing Implementation."""
         return ChatMessage(
             role=MessageRole.ASSISTANT, content=self.host + " " + self.desc
