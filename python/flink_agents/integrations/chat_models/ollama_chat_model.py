@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 from ollama import Client, Message
 from pydantic import Field
 
-from flink_agents.api.chat_message import ChatMessage
+from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.chat_models.chat_model import BaseChatModel
 from flink_agents.api.resource import ResourceType
 
@@ -68,7 +68,7 @@ class OllamaChatModel(BaseChatModel):
         description="controls how long the model will stay loaded into memory following the request(default: 5m)",
     )
 
-    __client: Client
+    __client: Client = None
     __tools: Sequence[Mapping[str, Any]] = []
 
     def __init__(
@@ -95,7 +95,6 @@ class OllamaChatModel(BaseChatModel):
             keep_alive=keep_alive,
             **kwargs,
         )
-        self.__client = Client(host=self.base_url, timeout=self.request_timeout)
         # bind tools
         if self.tools is not None:
             tools = [
@@ -142,8 +141,10 @@ class OllamaChatModel(BaseChatModel):
             options=self.model_kwargs,
             keep_alive=self.keep_alive,
         )
-        response = dict(response)
-        ollama_tool_calls = response["message"].get("tool_calls", [])
+
+        ollama_tool_calls = response.message.tool_calls
+        if ollama_tool_calls is None:
+            ollama_tool_calls = []
         tool_calls = []
         for ollama_tool_call in ollama_tool_calls:
             tool_call = {
@@ -156,8 +157,8 @@ class OllamaChatModel(BaseChatModel):
             }
             tool_calls.append(tool_call)
         return ChatMessage(
-            role=response["message"]["role"],
-            content=response["message"]["content"],
+            role=MessageRole(response.message.role),
+            content=response.message.content,
             tool_calls=tool_calls,
         )
 

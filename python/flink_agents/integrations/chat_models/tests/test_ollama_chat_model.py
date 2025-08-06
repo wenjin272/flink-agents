@@ -16,6 +16,9 @@
 # limitations under the License.
 #################################################################################
 import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from ollama import Client
@@ -25,8 +28,13 @@ from flink_agents.api.resource import ResourceType
 from flink_agents.integrations.chat_models.ollama_chat_model import OllamaChatModel
 from flink_agents.plan.tools.function_tool import FunctionTool, from_callable
 
-test_model = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:8b")
+test_model = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:0.6b")
+current_dir = Path(__file__).parent
+
 try:
+    # only auto setup ollama in ci with python3.9 to reduce ci cost.
+    if "3.9" in sys.version:
+        subprocess.run(["bash", f"{current_dir}/start_ollama_server.sh"], check=True)
     client = Client()
     models = client.list()
 
