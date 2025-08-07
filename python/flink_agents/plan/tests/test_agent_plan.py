@@ -140,3 +140,17 @@ def test_get_resource() -> None:  # noqa: D103
         mock.chat(ChatMessage(role=MessageRole.USER, content="")).content
         == "8.8.8.8 mock resource just for testing."
     )
+
+def test_add_action_and_resource_to_agent() -> None: # noqa: D103
+    my_agent = Agent()
+    my_agent.add_action(name="first_action", events=[InputEvent], func=MyAgent.first_action)
+    my_agent.add_action(name="second_action", events=[InputEvent, MyEvent], func=MyAgent.second_action)
+    my_agent.add_chat_model(name="mock", chat_model=MockChatModelImpl,
+                            host="8.8.8.8", desc="mock resource just for testing.")
+    agent_plan = AgentPlan.from_agent(my_agent)
+    json_value = agent_plan.model_dump_json(serialize_as_any=True, indent=4)
+    with Path.open(Path(f"{current_dir}/resources/agent_plan.json")) as f:
+        expected_json = f.read()
+    actual = json.loads(json_value)
+    expected = json.loads(expected_json)
+    assert actual == expected
