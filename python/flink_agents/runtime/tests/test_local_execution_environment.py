@@ -26,7 +26,7 @@ from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.runner_context import RunnerContext
 
 
-class TestAgent1(Agent):  # noqa: D101
+class Agent1(Agent):  # noqa: D101
     @action(InputEvent)
     @staticmethod
     def increment(event: Event, ctx: RunnerContext):  # noqa D102
@@ -35,7 +35,7 @@ class TestAgent1(Agent):  # noqa: D101
         ctx.send_event(OutputEvent(output=value))
 
 
-class TestAgent1WithAsync(Agent):  # noqa: D101
+class Agent1WithAsync(Agent):  # noqa: D101
     @action(InputEvent)
     @staticmethod
     def increment(event: Event, ctx: RunnerContext):  # noqa D102
@@ -48,7 +48,7 @@ class TestAgent1WithAsync(Agent):  # noqa: D101
         ctx.send_event(OutputEvent(output=value))
 
 
-class TestAgent2(Agent):  # noqa: D101
+class Agent2(Agent):  # noqa: D101
     @action(InputEvent)
     @staticmethod
     def decrease(event: Event, ctx: RunnerContext):  # noqa D102
@@ -61,7 +61,7 @@ def test_local_execution_environment() -> None:  # noqa: D103
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
-    agent = TestAgent1()
+    agent = Agent1()
 
     output_list = env.from_list(input_list).apply(agent).to_list()
 
@@ -77,7 +77,7 @@ def test_local_execution_environment_with_async() -> None:  # noqa: D103
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
-    agent = TestAgent1WithAsync()
+    agent = Agent1WithAsync()
 
     output_list = env.from_list(input_list).apply(agent).to_list()
 
@@ -93,8 +93,8 @@ def test_local_execution_environment_apply_multi_agents() -> None:  # noqa: D103
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
-    agent1 = TestAgent1()
-    agent2 = TestAgent2()
+    agent1 = Agent1()
+    agent2 = Agent2()
 
     with pytest.raises(RuntimeError):
         env.from_list(input_list).apply(agent1).apply(agent2).to_list()
@@ -104,7 +104,7 @@ def test_local_execution_environment_execute_multi_times() -> None:  # noqa: D10
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
-    agent = TestAgent1()
+    agent = Agent1()
 
     env.from_list(input_list).apply(agent).to_list()
 

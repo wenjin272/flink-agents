@@ -32,7 +32,7 @@ from flink_agents.plan.agent_plan import AgentPlan
 from flink_agents.plan.function import PythonFunction
 
 
-class TestAgent(Agent):  # noqa D101
+class AgentForTest(Agent):  # noqa D101
     @action(InputEvent)
     @staticmethod
     def increment(event: Event, ctx: RunnerContext) -> None:  # noqa D102
@@ -42,7 +42,7 @@ class TestAgent(Agent):  # noqa D101
 
 
 def test_from_agent():  # noqa D102
-    agent = TestAgent()
+    agent = AgentForTest()
     agent_plan = AgentPlan.from_agent(agent)
     event_type = f"{InputEvent.__module__}.{InputEvent.__name__}"
     actions = agent_plan.get_actions(event_type)
@@ -52,7 +52,7 @@ def test_from_agent():  # noqa D102
     func = action.exec
     assert isinstance(func, PythonFunction)
     assert func.module == "flink_agents.plan.tests.test_agent_plan"
-    assert func.qualname == "TestAgent.increment"
+    assert func.qualname == "AgentForTest.increment"
     assert action.listen_event_types == [event_type]
 
 
