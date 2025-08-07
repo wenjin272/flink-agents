@@ -215,6 +215,11 @@ def _get_actions(agent: Agent) -> List[Action]:
                     ],
                 )
             )
+    for name, action in agent._actions.items():
+        actions.append(Action(name=name,
+                              exec=PythonFunction.from_callable(action[1]),
+                              listen_event_types=[f"{event_type.__module__}.{event_type.__name__}"
+                                                  for event_type in action[0]],))
     return actions
 
 
@@ -256,4 +261,31 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
                     name=name, resource=prompt
                 )
             )
+
+    for name, prompt in agent._prompts.items():
+        resource_providers.append(
+            PythonSerializableResourceProvider.from_resource(
+                name=name, resource=prompt
+            )
+        )
+
+    for name, func in agent._tools.items():
+        tool = from_callable(name=name, func=func)
+        resource_providers.append(
+            PythonSerializableResourceProvider.from_resource(
+                name=name, resource=tool
+            )
+        )
+
+    for name, chat_model in agent._chat_models.items():
+        clazz, kwargs = chat_model
+        provider = PythonResourceProvider(
+            name=name,
+            type=clazz.resource_type(),
+            module=clazz.__module__,
+            clazz=clazz.__name__,
+            kwargs=kwargs,
+        )
+        resource_providers.append(provider)
+
     return resource_providers
