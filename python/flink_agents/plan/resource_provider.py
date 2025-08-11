@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from flink_agents.api.resource import (
     Resource,
@@ -108,7 +108,7 @@ class PythonSerializableResourceProvider(SerializableResourceProvider):
     """
 
     serialized: Dict[str, Any]
-    resource: Optional[SerializableResource] = None
+    resource: Optional[SerializableResource] = Field(exclude=True, default=None)
 
     @staticmethod
     def from_resource(
@@ -129,7 +129,7 @@ class PythonSerializableResourceProvider(SerializableResourceProvider):
         if self.resource is None:
             module = importlib.import_module(self.module)
             clazz = getattr(module, self.clazz)
-            self.resource = clazz.model_validate(**self.serialized)
+            self.resource = clazz.model_validate(self.serialized)
         return self.resource
 
 
