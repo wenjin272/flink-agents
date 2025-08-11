@@ -18,14 +18,19 @@
 
 package org.apache.flink.agents.plan.compatibility;
 
+import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.plan.Action;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.plan.PythonFunction;
+import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
+import org.apache.flink.agents.plan.resourceprovider.PythonSerializableResourceProvider;
+import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -114,5 +119,73 @@ public class CreateJavaAgentPlanFromJson {
         assertEquals(List.of(chatModelAction), actionsByEvent.get(chatRequestEvent));
         assertEquals(List.of(toolCallAction), actionsByEvent.get(toolRequestEvent));
         assertEquals(List.of(chatModelAction), actionsByEvent.get(toolResponseEvent));
+
+        // Check resource providers
+        Map<String, Object> kwargs = new HashMap<>();
+        kwargs.put("name", "chat_model");
+        kwargs.put("prompt", "prompt");
+        kwargs.put("tools", List.of("add"));
+        PythonResourceProvider resourceProvider =
+                new PythonResourceProvider(
+                        "chat_model",
+                        ResourceType.CHAT_MODEL,
+                        "flink_agents.plan.tests.compatibility.python_agent_plan_compatibility_test_agent",
+                        "MockChatModel",
+                        kwargs);
+
+        Map<String, Object> serialized = new HashMap<>();
+        serialized.put("name", "add");
+
+        // construct arguments schema
+        Map<String, String> a = new HashMap<>();
+        a.put("description", "The first operand");
+        a.put("title", "A");
+        a.put("type", "integer");
+
+        Map<String, String> b = new HashMap<>();
+        b.put("description", "The second operand");
+        b.put("title", "B");
+        b.put("type", "integer");
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("a", a);
+        properties.put("b", b);
+
+        Map<String, Object> argsSchema = new HashMap<>();
+        argsSchema.put("properties", properties);
+        argsSchema.put("required", List.of("a", "b"));
+        argsSchema.put("title", "add");
+        argsSchema.put("type", "object");
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("name", "add");
+        metadata.put("description", "Calculate the sum of a and b.\n");
+        metadata.put("args_schema", argsSchema);
+
+        serialized.put("metadata", metadata);
+
+        Map<String, String> func = new HashMap<>();
+        func.put("func_type", "PythonFunction");
+        func.put(
+                "module",
+                "flink_agents.plan.tests.compatibility.python_agent_plan_compatibility_test_agent");
+        func.put("qualname", "PythonAgentPlanCompatibilityTestAgent.add");
+        serialized.put("func", func);
+        PythonSerializableResourceProvider serializableResourceProvider =
+                new PythonSerializableResourceProvider(
+                        "add",
+                        ResourceType.TOOL,
+                        "flink_agents.plan.tools.function_tool",
+                        "FunctionTool",
+                        serialized);
+
+        Map<ResourceType, Map<String, ResourceProvider>> resourceProviders = new HashMap<>();
+        Map<String, ResourceProvider> chatModels = new HashMap<>();
+        Map<String, ResourceProvider> tools = new HashMap<>();
+        chatModels.put("chat_model", resourceProvider);
+        tools.put("add", serializableResourceProvider);
+        resourceProviders.put(ResourceType.CHAT_MODEL, chatModels);
+        resourceProviders.put(ResourceType.TOOL, tools);
+        assertEquals(resourceProviders, agentPlan.getResourceProviders());
     }
 }

@@ -21,6 +21,7 @@ package org.apache.flink.agents.plan.resourceprovider;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
 
+import java.util.Map;
 import java.util.concurrent.Callable;
 
 /**
@@ -30,9 +31,32 @@ import java.util.concurrent.Callable;
  * class, and initialization arguments.
  */
 public class PythonResourceProvider extends ResourceProvider {
+    private final String module;
+    private final String clazz;
+    private final Map<String, Object> kwargs;
 
-    public PythonResourceProvider(String name, ResourceType type) {
+    public PythonResourceProvider(
+            String name,
+            ResourceType type,
+            String module,
+            String clazz,
+            Map<String, Object> kwargs) {
         super(name, type);
+        this.module = module;
+        this.clazz = clazz;
+        this.kwargs = kwargs;
+    }
+
+    public String getModule() {
+        return module;
+    }
+
+    public String getClazz() {
+        return clazz;
+    }
+
+    public Map<String, Object> getKwargs() {
+        return kwargs;
     }
 
     @Override
@@ -42,5 +66,23 @@ public class PythonResourceProvider extends ResourceProvider {
         // resource
         throw new UnsupportedOperationException(
                 "Python resource creation not yet implemented in Java runtime");
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        PythonResourceProvider that = (PythonResourceProvider) o;
+        return this.getName().equals(that.getName())
+                && this.getType().equals(that.getType())
+                && this.module.equals(that.module)
+                && this.clazz.equals(that.clazz)
+                && this.kwargs.equals(that.kwargs);
     }
 }

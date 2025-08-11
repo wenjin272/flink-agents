@@ -20,7 +20,9 @@ package org.apache.flink.agents.plan.resourceprovider;
 
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.resource.SerializableResource;
 
+import java.util.Map;
 import java.util.concurrent.Callable;
 
 /**
@@ -30,10 +32,36 @@ import java.util.concurrent.Callable;
  * resource for later deserialization.
  */
 public class PythonSerializableResourceProvider extends SerializableResourceProvider {
+    private final Map<String, Object> serialized;
+    private SerializableResource resource;
 
     public PythonSerializableResourceProvider(
-            String name, ResourceType type, String module, String clazz) {
+            String name,
+            ResourceType type,
+            String module,
+            String clazz,
+            Map<String, Object> serialized) {
         super(name, type, module, clazz);
+        this.serialized = serialized;
+    }
+
+    public PythonSerializableResourceProvider(
+            String name,
+            ResourceType type,
+            String module,
+            String clazz,
+            Map<String, Object> serialized,
+            SerializableResource resource) {
+        this(name, type, module, clazz, serialized);
+        this.resource = resource;
+    }
+
+    public Map<String, Object> getSerialized() {
+        return serialized;
+    }
+
+    public SerializableResource getResource() {
+        return resource;
     }
 
     @Override
@@ -43,5 +71,23 @@ public class PythonSerializableResourceProvider extends SerializableResourceProv
         // resource
         throw new UnsupportedOperationException(
                 "Python resource deserialization not yet implemented in Java runtime");
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        PythonSerializableResourceProvider that = (PythonSerializableResourceProvider) o;
+        return this.getName().equals(that.getName())
+                && this.getType().equals(that.getType())
+                && this.getModule().equals(that.getModule())
+                && this.getClazz().equals(that.getClazz())
+                && this.serialized.equals(that.serialized);
     }
 }

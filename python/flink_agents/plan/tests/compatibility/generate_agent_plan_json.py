@@ -31,6 +31,5 @@ if __name__ == "__main__":
     json_path = sys.argv[1]
     agent_plan = AgentPlan.from_agent(PythonAgentPlanCompatibilityTestAgent())
     json_value = agent_plan.model_dump_json(serialize_as_any=True, indent=4)
-
     with Path(json_path).open("w") as f:
         f.write(json_value)
