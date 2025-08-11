@@ -23,8 +23,9 @@ from typing import Any, Optional
 from pydantic import BaseModel
 
 from flink_agents.api.agent import Agent
-from flink_agents.api.decorators import action
+from flink_agents.api.decorators import action, tool
 from flink_agents.api.events.event import Event, InputEvent, OutputEvent
+from flink_agents.api.resource import ResourceType
 from flink_agents.api.runner_context import RunnerContext
 
 
@@ -58,6 +59,23 @@ class DataStreamAgent(Agent):
     define this class directly in example.py for module name will be set
     to __main__.
     """
+
+    @tool
+    @staticmethod
+    def my_tool(input: str) -> str:
+        """Mark call tool.
+
+        Parameters
+        ----------
+        input : str
+            The input string
+
+        Returns:
+        -------
+        str:
+            The return string
+        """
+        return input + " call my tool"
 
     @action(InputEvent)
     @staticmethod
@@ -97,6 +115,8 @@ class DataStreamAgent(Agent):
 
         content = copy.deepcopy(input)
         content.review += " second action"
+        tool = ctx.get_resource("my_tool", ResourceType.TOOL)
+        content.review = tool.call(content.review)
         content.memory_info = memory_info
         ctx.send_event(OutputEvent(output=content))
 

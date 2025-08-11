@@ -27,9 +27,6 @@ import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,7 +37,7 @@ public class AgentPlanJsonDeserializerTest {
     @Test
     public void testDeserialize() throws Exception {
         // Read JSON for an Action with JavaFunction from resource file
-        String json = readJsonFromResource("agent_plans/agent_plan.json");
+        String json = Utils.readJsonFromResource("agent_plans/agent_plan.json");
         AgentPlan agentPlan = new ObjectMapper().readValue(json, AgentPlan.class);
         assertEquals(2, agentPlan.getActions().size());
 
@@ -66,24 +63,6 @@ public class AgentPlanJsonDeserializerTest {
                 agentPlan.getActionsByEvent().get(InputEvent.class.getName()));
         assertEquals(
                 List.of(secondAction), agentPlan.getActionsByEvent().get(MyEvent.class.getName()));
-    }
-
-    /**
-     * Reads a JSON file from the resources directory.
-     *
-     * @param resourcePath the path to the resource file
-     * @return the content of the file as a string
-     * @throws IOException if an I/O error occurs
-     */
-    private String readJsonFromResource(String resourcePath) throws IOException {
-        try (InputStream inputStream =
-                getClass().getClassLoader().getResourceAsStream(resourcePath)) {
-            if (inputStream == null) {
-                throw new IOException("Resource not found: " + resourcePath);
-            }
-            byte[] bytes = inputStream.readAllBytes();
-            return new String(bytes, StandardCharsets.UTF_8);
-        }
     }
 
     private static class MyEvent extends Event {}

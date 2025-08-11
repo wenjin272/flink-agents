@@ -20,6 +20,10 @@ package org.apache.flink.agents.plan.resourceprovider;
 
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.plan.serializer.ResourceProviderJsonDeserializer;
+import org.apache.flink.agents.plan.serializer.ResourceProviderJsonSerializer;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 import java.util.concurrent.Callable;
 
@@ -29,6 +33,8 @@ import java.util.concurrent.Callable;
  * <p>Resource providers are responsible for creating resources during agent execution. They carry
  * the necessary metadata and configuration to instantiate resources.
  */
+@JsonSerialize(using = ResourceProviderJsonSerializer.class)
+@JsonDeserialize(using = ResourceProviderJsonDeserializer.class)
 public abstract class ResourceProvider implements java.io.Serializable {
 
     private final String name;

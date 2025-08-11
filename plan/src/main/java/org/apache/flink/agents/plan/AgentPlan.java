@@ -71,6 +71,16 @@ public class AgentPlan implements Serializable {
         this.resourceCache = new ConcurrentHashMap<>();
     }
 
+    public AgentPlan(
+            Map<String, Action> actions,
+            Map<String, List<Action>> actionsByEvent,
+            Map<ResourceType, Map<String, ResourceProvider>> resourceProviders) {
+        this.actions = actions;
+        this.actionsByEvent = actionsByEvent;
+        this.resourceProviders = resourceProviders;
+        this.resourceCache = new ConcurrentHashMap<>();
+    }
+
     /**
      * Constructor that creates an AgentPlan from an Agent instance by scanning for all types of
      * annotations.
