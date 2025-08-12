@@ -27,7 +27,7 @@ public interface Message {
      *
      * @return the message type
      */
-    MessageType getMessageType();
+    MessageRole getMessageType();
 
     String getText();
 

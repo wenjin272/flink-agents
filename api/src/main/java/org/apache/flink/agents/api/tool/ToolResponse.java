@@ -155,38 +155,6 @@ public class ToolResponse {
         return result.toString();
     }
 
-    /**
-     * Legacy method for backward compatibility.
-     *
-     * @deprecated Use getResultAsString() instead
-     */
-    @Deprecated
-    public String responseData() {
-        return getResultAsString();
-    }
-
-    /**
-     * Legacy method for backward compatibility.
-     *
-     * @deprecated Use getToolName() instead
-     */
-    @Deprecated
-    public String name() {
-        return toolName;
-    }
-
-    /**
-     * Legacy method for backward compatibility.
-     *
-     * @deprecated No direct replacement - use success/error status
-     */
-    @Deprecated
-    public String id() {
-        return toolName != null
-                ? toolName + "_" + System.currentTimeMillis()
-                : String.valueOf(System.currentTimeMillis());
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

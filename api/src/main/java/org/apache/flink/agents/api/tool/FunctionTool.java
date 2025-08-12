@@ -25,10 +25,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Function-based tool implementation that wraps annotated methods. Now uses the merged design with
- * ToolMetadata.
- */
+/** Function-based tool implementation that wraps annotated methods. */
 public class FunctionTool extends BaseTool {
 
     private final Method method;
@@ -53,7 +50,7 @@ public class FunctionTool extends BaseTool {
         String description = toolAnnotation.description();
         String inputSchema = ToolSchema.createSchemaFromMethod(method);
 
-        // Create ToolDefinition - you'll need to add the import or create this class
+        // Create ToolDefinition
         ToolDefinition definition = new ToolDefinition(toolName, description, inputSchema);
 
         // Create parameter info
@@ -73,7 +70,6 @@ public class FunctionTool extends BaseTool {
         for (java.lang.reflect.Parameter param : methodParams) {
             ToolParam paramAnnotation = param.getAnnotation(ToolParam.class);
 
-            // Use parameter name directly since ToolParam doesn't have value()
             String paramName = param.getName();
 
             String description = paramAnnotation != null ? paramAnnotation.description() : "";
@@ -106,7 +102,6 @@ public class FunctionTool extends BaseTool {
 
                 String paramName = param.getName();
 
-                // Assuming ToolParameters has contains() and get() methods
                 if (parameters.hasParameter(paramName)) {
                     args[i] = parameters.getParameter(paramName, param.getType());
                 } else if (paramAnnotation != null && !paramAnnotation.required()) {

@@ -19,7 +19,7 @@
 package org.apache.flink.agents.api.tool;
 
 /**
- * Base abstract class for all kinds of tools. Corresponds to the Python BaseTool class.
+ * Base abstract class for all kinds of tools
  *
  * <p>Attributes: ---------- metadata : ToolMetadata The metadata of the tools, includes name,
  * description and arguments schema.

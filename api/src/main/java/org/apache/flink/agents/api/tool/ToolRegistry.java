@@ -24,10 +24,7 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Registry for managing tools available to agents. Works with the merged design where BaseTool
- * contains ToolMetadata.
- */
+/** Registry for managing tools available to agents */
 public class ToolRegistry {
 
     private final Map<String, BaseTool> tools = new ConcurrentHashMap<>();

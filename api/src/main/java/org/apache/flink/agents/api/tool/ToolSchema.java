@@ -30,10 +30,7 @@ import java.lang.reflect.Parameter;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Utility class for generating JSON schemas from tool methods. Corresponds to the Python schema
- * utilities in utils.py.
- */
+/** Utility class for generating JSON schemas from tool methods */
 public class ToolSchema {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();

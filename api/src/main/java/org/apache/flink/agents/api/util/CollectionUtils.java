@@ -24,9 +24,7 @@ import java.util.Map;
 /** Utility methods for Collection operations in the Flink Agents framework. */
 public final class CollectionUtils {
 
-    private CollectionUtils() {
-        // Prevent instantiation
-    }
+    private CollectionUtils() {}
 
     /**
      * Return true if the supplied Collection is null or empty.

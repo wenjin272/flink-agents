@@ -22,10 +22,7 @@ import org.apache.flink.agents.api.tool.*;
 import org.apache.flink.agents.api.tool.annotation.Tool;
 import org.apache.flink.agents.api.tool.annotation.ToolParam;
 
-/**
- * Example demonstrating how to create and use tools This corresponds to the usage patterns shown in
- * the Python implementation.
- */
+/** Example demonstrating how to create and use tools */
 public class ToolExample {
 
     /** Example tool for mathematical calculations. */

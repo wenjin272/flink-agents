@@ -21,9 +21,7 @@ package org.apache.flink.agents.api.util;
 /** Utility methods for String operations in the Flink Agents framework. */
 public final class StringUtils {
 
-    private StringUtils() {
-        // Prevent instantiation
-    }
+    private StringUtils() {}
 
     /**
      * Check whether the given String contains actual text.

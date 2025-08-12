@@ -18,14 +18,22 @@
 
 package org.apache.flink.agents.api.chat.model;
 
+import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.prompt.Prompt;
+import org.apache.flink.agents.api.resource.Resource;
+import org.apache.flink.agents.api.resource.ResourceType;
 
-public interface BaseChatModel {
+public abstract class BaseChatModel extends Resource {
     /**
      * Process a chat request and return a chat response.
      *
      * @param request the chat request containing messages, options, etc.
      * @return the chat response containing model outputs
      */
-    ChatResponse call(Prompt request);
+    public abstract ChatMessage chat(Prompt request);
+
+    @Override
+    public ResourceType getResourceType() {
+        return ResourceType.CHAT_MODEL;
+    }
 }
