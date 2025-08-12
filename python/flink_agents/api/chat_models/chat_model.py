@@ -27,6 +27,9 @@ from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.tools.tool import BaseTool
 
+if TYPE_CHECKING:
+    from flink_agents.api.tools.mcp import MCPServer
+
 
 class BaseChatModelConnection(Resource, ABC):
     """Base abstract class for chat model connection.
@@ -136,6 +139,7 @@ class BaseChatModelSetup(Resource):
     connection: str = Field(description="Name of the referenced connection.")
     prompt: Optional[Union[Prompt, str]] = None
     tools: Optional[List[str]] = None
+    mcp_servers: Optional[List["MCPServer"]] = None
 
     @property
     @abstractmethod
