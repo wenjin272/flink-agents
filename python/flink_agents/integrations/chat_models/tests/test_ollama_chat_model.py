@@ -25,8 +25,11 @@ import pytest
 from ollama import Client
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.resource import ResourceType
-from flink_agents.integrations.chat_models.ollama_chat_model import OllamaChatModel
+from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.integrations.chat_models.ollama_chat_model import (
+    OllamaChatModel,
+    OllamaChatModelServer,
+)
 from flink_agents.plan.tools.function_tool import FunctionTool, from_callable
 
 test_model = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:0.6b")
@@ -35,8 +38,9 @@ current_dir = Path(__file__).parent
 try:
     # only auto setup ollama in ci with python3.9 to reduce ci cost.
     if "3.9" in sys.version:
-        subprocess.run(["bash", f"{current_dir}/start_ollama_server.sh"],
-                       timeout=300, check=True)
+        subprocess.run(
+            ["bash", f"{current_dir}/start_ollama_server.sh"], timeout=300, check=True
+        )
     client = Client()
     models = client.list()
 
@@ -56,8 +60,8 @@ except Exception:
     client is None, reason="Ollama client is not available or test model is missing"
 )
 def test_ollama_chat() -> None:  # noqa :D103
-    llm = OllamaChatModel(name="ollama", model=test_model)
-    response = llm.chat([ChatMessage(role=MessageRole.USER, content="Hello!")])
+    server = OllamaChatModelServer(name="ollama", model=test_model)
+    response = server.chat([ChatMessage(role=MessageRole.USER, content="Hello!")])
     assert response is not None
     assert str(response).strip() != ""
 
@@ -88,15 +92,25 @@ def get_tool(name: str, type: ResourceType) -> FunctionTool:  # noqa :D103
     client is None, reason="Ollama client is not available or test model is missing"
 )
 def test_ollama_chat_with_tools() -> None:  # noqa :D103
+    server = OllamaChatModelServer(name="ollama", model=test_model)
+
+    def get_resource(name: str, type: ResourceType) -> Resource:
+        if type == ResourceType.TOOL:
+            return get_tool(name=name, type=ResourceType.TOOL)
+        else:
+            return server
+
     llm = OllamaChatModel(
-        name="ollama", model=test_model, tools=["add"], get_resource=get_tool
+        name="ollama", server="ollama", tools=["add"], get_resource=get_resource
     )
-    response = llm.chat([
-        ChatMessage(
-            role=MessageRole.USER,
-            content="Could you help me calculate the sum of 1 and 2?",
-        )
-    ])
+    response = llm.chat(
+        [
+            ChatMessage(
+                role=MessageRole.USER,
+                content="Could you help me calculate the sum of 1 and 2?",
+            )
+        ]
+    )
 
     tool_calls = response.tool_calls
     assert len(tool_calls) == 1
@@ -108,18 +122,27 @@ def test_extract_think_tags() -> None:
     """Test the static method that extracts content from <think></think> tags."""
     # Test with a think tag at the beginning (most common case)
     content = "<think>First, I need to understand the question.\nThen I need to formulate an answer.</think>The answer is 42."
-    cleaned, reasoning = OllamaChatModel._OllamaChatModel__extract_think_tags(content)
+    cleaned, reasoning = (
+        OllamaChatModelServer._OllamaChatModelServer__extract_think_tags(content)
+    )
     assert cleaned == "The answer is 42."
-    assert reasoning == "First, I need to understand the question.\nThen I need to formulate an answer."
+    assert (
+        reasoning
+        == "First, I need to understand the question.\nThen I need to formulate an answer."
+    )
     # Test with a think tag only
     content = "<think>This is just my thought process.</think>"
-    cleaned, reasoning = OllamaChatModel._OllamaChatModel__extract_think_tags(content)
+    cleaned, reasoning = (
+        OllamaChatModelServer._OllamaChatModelServer__extract_think_tags(content)
+    )
     assert cleaned == ""
     assert reasoning == "This is just my thought process."
 
     # Test with no think tags
     content = "This is a regular response without any thinking tags."
-    cleaned, reasoning = OllamaChatModel._OllamaChatModel__extract_think_tags(content)
+    cleaned, reasoning = (
+        OllamaChatModelServer._OllamaChatModelServer__extract_think_tags(content)
+    )
     assert cleaned == content
     assert reasoning is None
 
@@ -137,28 +160,39 @@ def test_ollama_chat_with_extract_reasoning() -> None:
     # Configure mock client to return our mock response
     mock_client.chat.return_value = mock_response
     # Create model with mocked client
+    server = OllamaChatModelServer(name="ollama", model=test_model)
+
+    def get_resource(name: str, type: ResourceType) -> Resource:
+        return server
+
     llm = OllamaChatModel(
         name="ollama",
-        model=test_model,
-        extract_reasoning=True
+        server="ollama",
+        extract_reasoning=True,
+        get_resource=get_resource,
     )
 
     # Replace the real client with our mock client
-    llm._OllamaChatModel__client = mock_client
+    server._OllamaChatModelServer__client = mock_client
 
     # Call the chat method
-    response = llm.chat([
-        ChatMessage(
-            role=MessageRole.USER,
-            content="What's the meaning of life?",
-        )
-    ])
+    response = llm.chat(
+        [
+            ChatMessage(
+                role=MessageRole.USER,
+                content="What's the meaning of life?",
+            )
+        ]
+    )
 
     # Verify our mock was called correctly
     mock_client.chat.assert_called_once()
 
     # Check that the response content has been cleaned
-    assert response.content == "The meaning of life is often considered to be 42, according to the Hitchhiker's Guide to the Galaxy."
+    assert (
+        response.content
+        == "The meaning of life is often considered to be 42, according to the Hitchhiker's Guide to the Galaxy."
+    )
     # Check that the reasoning has been extracted and stored
     assert "reasoning" in response.extra_args
     assert "philosophical perspectives" in response.extra_args["reasoning"]
