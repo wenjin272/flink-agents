@@ -1,4 +1,5 @@
 /*
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,19 +8,20 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
-package org.apache.flink.agents.api.tool;
+package org.apache.flink.agents.api.tools;
 
-import org.apache.flink.agents.api.tool.annotation.Tool;
-import org.apache.flink.agents.api.tool.annotation.ToolParam;
+import org.apache.flink.agents.api.annotation.Tool;
+import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.JsonNode;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.node.ArrayNode;
@@ -28,11 +30,10 @@ import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.node.Obje
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-/** Utility class for generating JSON schemas from tool methods */
-public class ToolSchema {
-
+public class SchemaUtils {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final Map<Class<?>, String> TYPE_MAPPING = new HashMap<>();
@@ -204,5 +205,55 @@ public class ToolSchema {
             default:
                 return true; // Unknown types pass validation
         }
+    }
+
+    /** Generate JSON schema from method signature for tool parameters. */
+    public static JsonNode generateSchema(Method method) {
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> schema = new HashMap<>();
+        schema.put("type", "object");
+
+        Map<String, Object> properties = new HashMap<>();
+        List<String> required = new java.util.ArrayList<>();
+
+        Parameter[] parameters = method.getParameters();
+        for (Parameter param : parameters) {
+            String paramName = param.getName();
+
+            // Check for custom parameter name from annotation
+            if (param.isAnnotationPresent(ToolParam.class)) {
+                ToolParam toolParam = param.getAnnotation(ToolParam.class);
+                if (!toolParam.name().isEmpty()) {
+                    paramName = toolParam.name();
+                }
+                if (toolParam.required()) {
+                    required.add(paramName);
+                }
+            }
+
+            Map<String, Object> paramSchema = new HashMap<>();
+            Class<?> paramType = param.getType();
+
+            if (paramType == String.class) {
+                paramSchema.put("type", "string");
+            } else if (paramType == int.class || paramType == Integer.class) {
+                paramSchema.put("type", "integer");
+            } else if (paramType == double.class || paramType == Double.class) {
+                paramSchema.put("type", "number");
+            } else if (paramType == boolean.class || paramType == Boolean.class) {
+                paramSchema.put("type", "boolean");
+            } else {
+                paramSchema.put("type", "object");
+            }
+
+            properties.put(paramName, paramSchema);
+        }
+
+        schema.put("properties", properties);
+        if (!required.isEmpty()) {
+            schema.put("required", required);
+        }
+
+        return mapper.valueToTree(schema);
     }
 }

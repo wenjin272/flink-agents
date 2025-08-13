@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.agents.api.tool;
+package org.apache.flink.agents.api.tools;
 
 import java.util.Objects;
 

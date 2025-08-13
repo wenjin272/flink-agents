@@ -20,10 +20,10 @@ package org.apache.flink.agents.api.chat.model;
 
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.prompt.Prompt;
-import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.resource.SerializableResource;
 
-public abstract class BaseChatModel extends Resource {
+public abstract class BaseChatModel extends SerializableResource {
     /**
      * Process a chat request and return a chat response.
      *

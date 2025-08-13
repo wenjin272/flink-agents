@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.agents.api.tool;
+package org.apache.flink.agents.api.tools;
 
 /**
  * Exception thrown when tool operations fail. Provides specific error handling for tool-related

@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.flink.agents.api.tool.event;
+package org.apache.flink.agents.api.tools.event;
 
 import java.util.Objects;
 
-/** Event representing a result from tool call. Corresponds to the Python ToolResponseEvent. */
+/** Event representing a result from tool call */
 public class ToolResponseEvent {
 
     private final ToolRequestEvent request;
