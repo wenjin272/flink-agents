@@ -216,10 +216,16 @@ def _get_actions(agent: Agent) -> List[Action]:
                 )
             )
     for name, action in agent._actions.items():
-        actions.append(Action(name=name,
-                              exec=PythonFunction.from_callable(action[1]),
-                              listen_event_types=[f"{event_type.__module__}.{event_type.__name__}"
-                                                  for event_type in action[0]],))
+        actions.append(
+            Action(
+                name=name,
+                exec=PythonFunction.from_callable(action[1]),
+                listen_event_types=[
+                    f"{event_type.__module__}.{event_type.__name__}"
+                    for event_type in action[0]
+                ],
+            )
+        )
     return actions
 
 
@@ -227,6 +233,20 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
     resource_providers = []
     for name, value in agent.__class__.__dict__.items():
         if hasattr(value, "_is_chat_model"):
+            if isinstance(value, staticmethod):
+                value = value.__func__
+
+            if callable(value):
+                clazz, kwargs = value()
+                provider = PythonResourceProvider(
+                    name=name,
+                    type=clazz.resource_type(),
+                    module=clazz.__module__,
+                    clazz=clazz.__name__,
+                    kwargs=kwargs,
+                )
+                resource_providers.append(provider)
+        elif hasattr(value, "_is_chat_model_server"):
             if isinstance(value, staticmethod):
                 value = value.__func__
 
@@ -264,21 +284,28 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
 
     for name, prompt in agent._prompts.items():
         resource_providers.append(
-            PythonSerializableResourceProvider.from_resource(
-                name=name, resource=prompt
-            )
+            PythonSerializableResourceProvider.from_resource(name=name, resource=prompt)
         )
 
     for name, func in agent._tools.items():
         tool = from_callable(name=name, func=func)
         resource_providers.append(
-            PythonSerializableResourceProvider.from_resource(
-                name=name, resource=tool
-            )
+            PythonSerializableResourceProvider.from_resource(name=name, resource=tool)
         )
 
     for name, chat_model in agent._chat_models.items():
         clazz, kwargs = chat_model
+        provider = PythonResourceProvider(
+            name=name,
+            type=clazz.resource_type(),
+            module=clazz.__module__,
+            clazz=clazz.__name__,
+            kwargs=kwargs,
+        )
+        resource_providers.append(provider)
+
+    for name, connection in agent._chat_model_servers.items():
+        clazz, kwargs = connection
         provider = PythonResourceProvider(
             name=name,
             type=clazz.resource_type(),

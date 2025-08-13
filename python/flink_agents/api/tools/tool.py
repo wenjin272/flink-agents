@@ -98,16 +98,14 @@ class ToolMetadata(BaseModel):
         }
         return parameters
 
-    def to_openai_tool(self, skip_length_check: bool = False) -> typing.Dict[str, Any]: # noqa:FBT001
+    def to_openai_tool(self, skip_length_check: bool = False) -> typing.Dict[str, Any]:  # noqa:FBT001
         """To OpenAI tool."""
         if not skip_length_check and len(self.description) > 1024:
             msg = (
                 "Tool description exceeds maximum length of 1024 characters. "
                 "Please shorten your description or move it to the prompt."
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         return {
             "type": "function",
             "function": {

@@ -18,7 +18,10 @@
 from abc import ABC
 from typing import Any, Callable, Dict, List, Tuple, Type
 
-from flink_agents.api.chat_models.chat_model import BaseChatModel
+from flink_agents.api.chat_models.chat_model import (
+    BaseChatModelServer,
+    ChatModel,
+)
 from flink_agents.api.events.event import Event
 from flink_agents.api.prompts.prompt import Prompt
 
@@ -39,10 +42,17 @@ class Agent(ABC):
                 def my_action(event: Event, ctx: RunnerContext) -> None:
                     action logic
 
+                @chat_model_server
+                @staticmethod
+                def my_server() -> Tuple[Type[BaseChatModelServer], Dict[str, Any]]:
+                    return OllamaChatModelServer, {"name": "my_server",
+                                                   "model": "qwen2:7b",
+                                                   "base_url": "http://localhost:11434"}
+
                 @chat_model
                 @staticmethod
-                def my_chat_model() -> Tuple[Type[BaseChatModel], Dict[str, Any]]:
-                    return ChatModel, {"name": xxx, "arg1": xxx}
+                def my_chat_model() -> Tuple[Type[ChatModel], Dict[str, Any]]:
+                    return OllamaChatModel, {"name": "model", "server": "my_server"}
         * Add actions and resources to an Agent instance
         ::
 
@@ -50,23 +60,31 @@ class Agent(ABC):
             my_agent.add_action(name="my_action",
                                 events=[InputEvent],
                                 func=action_function)
+                    .add_chat_model_server(name="my_server",
+                                              server=OllamaChatModelServer,
+                                              arg1=xxx)
                     .add_chat_model(name="my_chat_model",
-                                    chat_model=ChatModel
-                                    arg1=xxx)
+                                    chat_model=OllamaChatModel,
+                                    server="my_server")
     """
+
     _actions: Dict[str, Tuple[List[Type[Event]], Callable]]
     _prompts: Dict[str, Prompt]
     _tools: Dict[str, Callable]
-    _chat_models: Dict[str, Tuple[Type[BaseChatModel], Dict[str, Any]]]
+    _chat_model_servers: Dict[str, Tuple[Type[BaseChatModelServer], Dict[str, Any]]]
+    _chat_models: Dict[str, Tuple[Type[ChatModel], Dict[str, Any]]]
 
     def __init__(self) -> None:
         """Init method."""
         self._actions = {}
         self._prompts = {}
         self._tools = {}
+        self._chat_model_servers = {}
         self._chat_models = {}
 
-    def add_action(self, name: str, events: List[Type[Event]], func: Callable) -> "Agent":
+    def add_action(
+        self, name: str, events: List[Type[Event]], func: Callable
+    ) -> "Agent":
         """Add action to agent.
 
         Parameters
@@ -131,7 +149,35 @@ class Agent(ABC):
         self._tools[name] = func
         return self
 
-    def add_chat_model(self, name: str, chat_model: Type[BaseChatModel], **kwargs: Any) -> "Agent":
+    def add_chat_model_server(
+        self, name: str, server: Type[BaseChatModelServer], **kwargs: Any
+    ) -> "Agent":
+        """Add chat model server to agent.
+
+        Parameters
+        ----------
+        name : str
+            The name of the chat model server, should be unique in the same Agent.
+        server: Type[BaseChatModelServer]
+            The type of chat model server.
+        **kwargs: Any
+            Initialize keyword arguments passed to the chat model server.
+
+        Returns:
+        -------
+        Agent
+            The modified Agent instance.
+        """
+        if name in self._chat_model_servers:
+            msg = f"Chat model server {name} already defined"
+            raise ValueError(msg)
+        kwargs["name"] = name
+        self._chat_model_servers[name] = (server, kwargs)
+        return self
+
+    def add_chat_model(
+        self, name: str, chat_model: Type[ChatModel], **kwargs: Any
+    ) -> "Agent":
         """Add chat model to agent.
 
         Parameters

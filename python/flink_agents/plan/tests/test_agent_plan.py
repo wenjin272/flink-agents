@@ -23,7 +23,7 @@ import pytest
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import BaseChatModel
+from flink_agents.api.chat_models.chat_model import ChatModel
 from flink_agents.api.decorators import action, chat_model
 from flink_agents.api.events.event import Event, InputEvent, OutputEvent
 from flink_agents.api.resource import Resource, ResourceType
@@ -73,15 +73,19 @@ class MyEvent(Event):
     """Event for testing purposes."""
 
 
-class MockChatModelImpl(BaseChatModel):  # noqa: D101
+class MockChatModelImpl(ChatModel):  # noqa: D101
     host: str
     desc: str
+
+    @property
+    def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
+        return {}
 
     @classmethod
     def resource_type(cls) -> ResourceType:  # noqa: D102
         return ResourceType.CHAT_MODEL
 
-    def chat(self, messages: Sequence[ChatMessage]) -> ChatMessage:
+    def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
         """Testing Implementation."""
         return ChatMessage(
             role=MessageRole.ASSISTANT, content=self.host + " " + self.desc
@@ -96,6 +100,7 @@ class MyAgent(Agent):  # noqa: D101
             "name": "mock",
             "host": "8.8.8.8",
             "desc": "mock resource just for testing.",
+            "server": "mock",
         }
 
     @action(InputEvent)
@@ -141,12 +146,22 @@ def test_get_resource() -> None:  # noqa: D103
         == "8.8.8.8 mock resource just for testing."
     )
 
-def test_add_action_and_resource_to_agent() -> None: # noqa: D103
+
+def test_add_action_and_resource_to_agent() -> None:  # noqa: D103
     my_agent = Agent()
-    my_agent.add_action(name="first_action", events=[InputEvent], func=MyAgent.first_action)
-    my_agent.add_action(name="second_action", events=[InputEvent, MyEvent], func=MyAgent.second_action)
-    my_agent.add_chat_model(name="mock", chat_model=MockChatModelImpl,
-                            host="8.8.8.8", desc="mock resource just for testing.")
+    my_agent.add_action(
+        name="first_action", events=[InputEvent], func=MyAgent.first_action
+    )
+    my_agent.add_action(
+        name="second_action", events=[InputEvent, MyEvent], func=MyAgent.second_action
+    )
+    my_agent.add_chat_model(
+        name="mock",
+        chat_model=MockChatModelImpl,
+        host="8.8.8.8",
+        desc="mock resource just for testing.",
+        server="mock",
+    )
     agent_plan = AgentPlan.from_agent(my_agent)
     json_value = agent_plan.model_dump_json(serialize_as_any=True, indent=4)
     with Path.open(Path(f"{current_dir}/resources/agent_plan.json")) as f:

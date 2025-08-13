@@ -19,7 +19,7 @@ from typing import Any, Dict, Sequence, Tuple, Type
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage
-from flink_agents.api.chat_models.chat_model import BaseChatModel
+from flink_agents.api.chat_models.chat_model import ChatModel
 from flink_agents.api.decorators import action, chat_model, tool
 from flink_agents.api.events.event import Event, InputEvent
 from flink_agents.api.runner_context import RunnerContext
@@ -28,10 +28,15 @@ from flink_agents.api.runner_context import RunnerContext
 class MyEvent(Event):
     """Test event."""
 
-class MockChatModel(BaseChatModel):
+class MockChatModel(ChatModel):
     """Mock ChatModel for testing integrating prompt and tool."""
 
-    def chat(self, messages: Sequence[ChatMessage]) -> ChatMessage:
+    @property
+    def model_kwargs(self) -> Dict[str, Any]:
+        """Only for testing."""
+        return {}
+
+    def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
         """Only for test plan compatibility."""
 
 class PythonAgentPlanCompatibilityTestAgent(Agent):
@@ -49,7 +54,7 @@ class PythonAgentPlanCompatibilityTestAgent(Agent):
 
     @chat_model
     @staticmethod
-    def chat_model() -> Tuple[Type[BaseChatModel], Dict[str, Any]]:
+    def chat_model() -> Tuple[Type[ChatModel], Dict[str, Any]]:
         """ChatModel can be used in action."""
         return MockChatModel, {
             "name": "chat_model",
