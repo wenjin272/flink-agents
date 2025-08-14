@@ -27,8 +27,8 @@ from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.tools.tool import BaseTool
 
 
-class BaseChatModelServer(Resource, ABC):
-    """Base abstract class for chat model server.
+class BaseChatModelConnection(Resource, ABC):
+    """Base abstract class for chat model connection.
 
     Responsible for managing model service connection configurations, such as:
     - Service address (base_url)
@@ -39,14 +39,14 @@ class BaseChatModelServer(Resource, ABC):
 
     Provides the basic chat interface for direct communication with model services.
 
-    One server can be shared in multiple chat models.
+    One connection can be shared in multiple chat model setup.
     """
 
     @classmethod
     @override
     def resource_type(cls) -> ResourceType:
         """Return resource type of class."""
-        return ResourceType.CHAT_MODEL_SERVER
+        return ResourceType.CHAT_MODEL_CONNECTION
 
     @abstractmethod
     def chat(
@@ -74,8 +74,8 @@ class BaseChatModelServer(Resource, ABC):
         """
 
 
-class ChatModel(Resource):
-    """Chat model implementation.
+class BaseChatModelSetup(Resource):
+    """Base abstract class for chat model setup.
 
     Responsible for managing chat configurations, such as:
     - Prompt templates (prompt)
@@ -83,13 +83,13 @@ class ChatModel(Resource):
     - Generation parameters (temperature, max_tokens, etc.)
     - Context management
 
-    Internally calls ChatModelServer to perform actual communication with llm.
+    Internally calls ChatModelConnection to perform actual communication with llm.
 
-    Different chat models can call the same chat model server with different chat
-    arguments.
+    Different chat model setups can share the same chat model connection and contains
+    different chat configurations.
     """
 
-    server: str = Field(description="Name of the referenced server.")
+    connection: str = Field(description="Name of the referenced connection.")
     prompt: Optional[Union[Prompt, str]] = None
     tools: Optional[List[str]] = None
 
@@ -125,7 +125,9 @@ class ChatModel(Resource):
             Model response message
         """
         # Get model connection
-        server = self.get_resource(self.server, ResourceType.CHAT_MODEL_SERVER)
+        connection = self.get_resource(
+            self.connection, ResourceType.CHAT_MODEL_CONNECTION
+        )
 
         # Apply prompt template
         if self.prompt is not None:
@@ -148,7 +150,7 @@ class ChatModel(Resource):
                 for tool_name in self.tools
             ]
 
-        # Call server to execute chat
+        # Call chat model connection to execute chat
         merged_kwargs = self.model_kwargs.copy()
         merged_kwargs.update(kwargs)
-        return server.chat(messages, tools=tools, **merged_kwargs)
+        return connection.chat(messages, tools=tools, **merged_kwargs)

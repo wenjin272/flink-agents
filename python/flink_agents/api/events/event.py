@@ -54,8 +54,8 @@ class Event(BaseModel, ABC, extra="allow"):
     def model_dump_json(self, **kwargs: Any) -> str:
         """Override model_dump_json to handle Row objects using fallback."""
         # Set fallback if not provided in kwargs
-        if 'fallback' not in kwargs:
-            kwargs['fallback'] = self.__serialize_unknown
+        if "fallback" not in kwargs:
+            kwargs["fallback"] = self.__serialize_unknown
         return super().model_dump_json(**kwargs)
 
     @model_validator(mode="after")

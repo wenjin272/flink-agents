@@ -20,7 +20,10 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Type
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import BaseChatModelServer, ChatModel
+from flink_agents.api.chat_models.chat_model import (
+    BaseChatModelConnection,
+    BaseChatModelSetup,
+)
 from flink_agents.api.decorators import (
     action,
     chat_model,
@@ -37,7 +40,7 @@ from flink_agents.api.runner_context import RunnerContext
 from flink_agents.api.tools.tool import ToolType
 
 
-class MockChatModelServer(BaseChatModelServer):
+class MockChatModelConnection(BaseChatModelConnection):
     """Mock ChatModel for testing integrating prompt and tool."""
 
     def chat(
@@ -67,7 +70,7 @@ class MockChatModelServer(BaseChatModelServer):
             return ChatMessage(role=MessageRole.ASSISTANT, content=content)
 
 
-class MockChatModel(ChatModel):
+class MockChatModel(BaseChatModelSetup):
     """Mock ChatModel for testing integrating prompt and tool."""
 
     @property
@@ -78,7 +81,7 @@ class MockChatModel(ChatModel):
     def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
         """Execute chat conversation."""
         # Get model connection
-        server = self.get_resource(self.server, ResourceType.CHAT_MODEL_SERVER)
+        server = self.get_resource(self.connection, ResourceType.CHAT_MODEL_CONNECTION)
 
         # Apply prompt template
         if self.prompt is not None:
@@ -120,19 +123,19 @@ class MyAgent(Agent):
 
     @chat_model_server
     @staticmethod
-    def mock_server() -> Tuple[Type[BaseChatModelServer], Dict[str, Any]]:
+    def mock_connection() -> Tuple[Type[BaseChatModelConnection], Dict[str, Any]]:
         """Chat model server can be used by ChatModel."""
-        return MockChatModelServer, {
-            "name": "mock_server",
+        return MockChatModelConnection, {
+            "name": "mock_connection",
         }
 
     @chat_model
     @staticmethod
-    def mock_chat_model() -> Tuple[Type[ChatModel], Dict[str, Any]]:
+    def mock_chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
         """Chat model can be used in action."""
         return MockChatModel, {
             "name": "mock_chat_model",
-            "server": "mock_server",
+            "connection": "mock_connection",
             "prompt": "prompt",
             "tools": ["add"],
         }

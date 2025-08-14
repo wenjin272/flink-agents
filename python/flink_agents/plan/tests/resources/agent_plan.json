@@ -76,7 +76,7 @@
                     "name": "mock",
                     "host": "8.8.8.8",
                     "desc": "mock resource just for testing.",
-                    "server": "mock"
+                    "connection": "mock"
                 },
                 "__resource_provider_type__": "PythonResourceProvider"
             }

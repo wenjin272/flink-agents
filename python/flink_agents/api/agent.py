@@ -19,8 +19,8 @@ from abc import ABC
 from typing import Any, Callable, Dict, List, Tuple, Type
 
 from flink_agents.api.chat_models.chat_model import (
-    BaseChatModelServer,
-    ChatModel,
+    BaseChatModelConnection,
+    BaseChatModelSetup,
 )
 from flink_agents.api.events.event import Event
 from flink_agents.api.prompts.prompt import Prompt
@@ -71,8 +71,8 @@ class Agent(ABC):
     _actions: Dict[str, Tuple[List[Type[Event]], Callable]]
     _prompts: Dict[str, Prompt]
     _tools: Dict[str, Callable]
-    _chat_model_servers: Dict[str, Tuple[Type[BaseChatModelServer], Dict[str, Any]]]
-    _chat_models: Dict[str, Tuple[Type[ChatModel], Dict[str, Any]]]
+    _chat_model_servers: Dict[str, Tuple[Type[BaseChatModelConnection], Dict[str, Any]]]
+    _chat_models: Dict[str, Tuple[Type[BaseChatModelSetup], Dict[str, Any]]]
 
     def __init__(self) -> None:
         """Init method."""
@@ -150,7 +150,7 @@ class Agent(ABC):
         return self
 
     def add_chat_model_server(
-        self, name: str, server: Type[BaseChatModelServer], **kwargs: Any
+        self, name: str, server: Type[BaseChatModelConnection], **kwargs: Any
     ) -> "Agent":
         """Add chat model server to agent.
 
@@ -158,7 +158,7 @@ class Agent(ABC):
         ----------
         name : str
             The name of the chat model server, should be unique in the same Agent.
-        server: Type[BaseChatModelServer]
+        server: Type[BaseChatModelConnection]
             The type of chat model server.
         **kwargs: Any
             Initialize keyword arguments passed to the chat model server.
@@ -176,7 +176,7 @@ class Agent(ABC):
         return self
 
     def add_chat_model(
-        self, name: str, chat_model: Type[ChatModel], **kwargs: Any
+        self, name: str, chat_model: Type[BaseChatModelSetup], **kwargs: Any
     ) -> "Agent":
         """Add chat model to agent.
 

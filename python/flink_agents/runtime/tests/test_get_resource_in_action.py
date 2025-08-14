@@ -19,7 +19,7 @@ from typing import Any, Dict, Sequence, Tuple, Type
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import ChatModel
+from flink_agents.api.chat_models.chat_model import BaseChatModelSetup
 from flink_agents.api.decorators import action, chat_model, tool
 from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
@@ -27,7 +27,7 @@ from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.runner_context import RunnerContext
 
 
-class MockChatModelImpl(ChatModel):  # noqa: D101
+class MockChatModelImpl(BaseChatModelSetup):  # noqa: D101
     host: str
     desc: str
 
@@ -50,7 +50,7 @@ class MyAgent(Agent):  # noqa: D101
             "name": "mock_chat_model",
             "host": "8.8.8.8",
             "desc": "mock chat model just for testing.",
-            "server": "mock",
+            "connection": "mock",
         }
 
     @tool

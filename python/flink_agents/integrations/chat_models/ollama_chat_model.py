@@ -23,21 +23,33 @@ from ollama import Client, Message
 from pydantic import Field
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import BaseChatModelServer, ChatModel
+from flink_agents.api.chat_models.chat_model import (
+    BaseChatModelConnection,
+    BaseChatModelSetup,
+)
 from flink_agents.api.tools.tool import BaseTool
 
 DEFAULT_CONTEXT_WINDOW = 2048
 DEFAULT_REQUEST_TIMEOUT = 30.0
 
 
-class OllamaChatModelServer(BaseChatModelServer):
-    """Ollama ChatModelServer whichs manage the connection to the Ollama server.
+class OllamaChatModelConnection(BaseChatModelConnection):
+    """Ollama ChatModelServer which manage the connection to the Ollama server.
 
     Visit https://ollama.com/ to download and install Ollama.
 
     Run `ollama serve` to start a server.
 
     Run `ollama pull <name>` to download a model to run.
+
+    Attributes:
+    ----------
+    base_url : str
+        Base url the model is hosted under.
+    model : str
+        Model name to use.
+    request_timeout : float
+        The timeout for making http request to Ollama API server.
     """
 
     base_url: str = Field(
@@ -47,7 +59,7 @@ class OllamaChatModelServer(BaseChatModelServer):
     model: str = Field(description="Model name to use.")
     request_timeout: float = Field(
         default=DEFAULT_REQUEST_TIMEOUT,
-        description="The timeout for making http request to Ollama API server",
+        description="The timeout for making http request to Ollama API server.",
     )
 
     __client: Client = None
@@ -178,9 +190,24 @@ class OllamaChatModelServer(BaseChatModelServer):
         return ollama_messages
 
 
-class OllamaChatModel(ChatModel):
-    """Ollama chat model which manages chat configuration and will internally
-    call ollama chat model server to do chat.
+class OllamaChatModelSetup(BaseChatModelSetup):
+    """Ollama chat model setup which manages chat configuration and will internally
+    call ollama chat model connection to do chat.
+
+    Attributes:
+    ----------
+    temperature : float
+        The temperature to use for sampling.
+    num_ctx : int
+        The maximum number of context tokens for the model.
+    additional_kwargs : Dict[str, Any]
+        Additional model parameters for the Ollama API.
+    keep_alive : Optional[Union[float, str]]
+        Controls how long the model will stay loaded into memory following the
+        request(default: 5m)
+    extract_reasoning : bool
+        If True, extracts content within <think></think> tags from the response and
+        stores it in additional_kwargs.
     """
 
     temperature: float = Field(
@@ -201,16 +228,18 @@ class OllamaChatModel(ChatModel):
     )
     keep_alive: Optional[Union[float, str]] = Field(
         default="5m",
-        description="controls how long the model will stay loaded into memory following the request(default: 5m)",
+        description="Controls how long the model will stay loaded into memory following the "
+        "request(default: 5m)",
     )
     extract_reasoning: bool = Field(
         default=False,
-        description="If True, extracts content within <think></think> tags from the response and stores it in additional_kwargs.",
+        description="If True, extracts content within <think></think> tags from the response and "
+        "stores it in additional_kwargs.",
     )
 
     def __init__(
         self,
-        server: str,
+        connection: str,
         temperature: float = 0.75,
         num_ctx: int = DEFAULT_CONTEXT_WINDOW,
         request_timeout: Optional[float] = DEFAULT_REQUEST_TIMEOUT,
@@ -223,7 +252,7 @@ class OllamaChatModel(ChatModel):
         if additional_kwargs is None:
             additional_kwargs = {}
         super().__init__(
-            server=server,
+            connection=connection,
             temperature=temperature,
             num_ctx=num_ctx,
             request_timeout=request_timeout,

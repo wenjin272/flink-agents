@@ -29,7 +29,7 @@ class ResourceType(Enum):
     """
 
     CHAT_MODEL = "chat_model"
-    CHAT_MODEL_SERVER = "chat_model_server"
+    CHAT_MODEL_CONNECTION = "chat_model_connection"
     TOOL = "tool"
     # EMBEDDING_MODEL = "embedding_model"
     PROMPT = "prompt"

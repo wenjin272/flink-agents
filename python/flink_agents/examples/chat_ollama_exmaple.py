@@ -21,8 +21,8 @@ from typing import Any, Dict, Tuple, Type
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.chat_models.chat_model import (
-    BaseChatModelServer,
-    ChatModel,
+    BaseChatModelConnection,
+    BaseChatModelSetup,
 )
 from flink_agents.api.decorators import action, chat_model, chat_model_server, tool
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
@@ -33,8 +33,8 @@ from flink_agents.api.events.event import (
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.integrations.chat_models.ollama_chat_model import (
-    OllamaChatModel,
-    OllamaChatModelServer,
+    OllamaChatModelConnection,
+    OllamaChatModelSetup,
 )
 
 model = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:8b")
@@ -45,18 +45,18 @@ class MyAgent(Agent):
 
     @chat_model_server
     @staticmethod
-    def ollama_server() -> Tuple[Type[BaseChatModelServer], Dict[str, Any]]:
+    def ollama_server() -> Tuple[Type[BaseChatModelConnection], Dict[str, Any]]:
         """ChatModelServer responsible for model service connection."""
-        return OllamaChatModelServer, {
+        return OllamaChatModelConnection, {
             "name": "ollama_server",
             "model": model,
         }
 
     @chat_model
     @staticmethod
-    def math_chat_model() -> Tuple[Type[ChatModel], Dict[str, Any]]:
+    def math_chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
         """ChatModel which focus on math, and reuse ChatModelServer."""
-        return OllamaChatModel, {
+        return OllamaChatModelSetup, {
             "name": "math_chat_model",
             "server": "ollama_server",
             "tools": ["add"],
@@ -64,9 +64,9 @@ class MyAgent(Agent):
 
     @chat_model
     @staticmethod
-    def creative_chat_model() -> Tuple[Type[ChatModel], Dict[str, Any]]:
+    def creative_chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
         """ChatModel which focus on text generate, and reuse ChatModelServer."""
-        return OllamaChatModel, {
+        return OllamaChatModelSetup, {
             "name": "creative_chat_model",
             "server": "ollama_server",
         }

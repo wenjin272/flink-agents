@@ -23,7 +23,7 @@ import pytest
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import ChatModel
+from flink_agents.api.chat_models.chat_model import BaseChatModelSetup
 from flink_agents.api.decorators import action, chat_model
 from flink_agents.api.events.event import Event, InputEvent, OutputEvent
 from flink_agents.api.resource import Resource, ResourceType
@@ -73,7 +73,7 @@ class MyEvent(Event):
     """Event for testing purposes."""
 
 
-class MockChatModelImpl(ChatModel):  # noqa: D101
+class MockChatModelImpl(BaseChatModelSetup):  # noqa: D101
     host: str
     desc: str
 
@@ -100,7 +100,7 @@ class MyAgent(Agent):  # noqa: D101
             "name": "mock",
             "host": "8.8.8.8",
             "desc": "mock resource just for testing.",
-            "server": "mock",
+            "connection": "mock",
         }
 
     @action(InputEvent)
@@ -160,7 +160,7 @@ def test_add_action_and_resource_to_agent() -> None:  # noqa: D103
         chat_model=MockChatModelImpl,
         host="8.8.8.8",
         desc="mock resource just for testing.",
-        server="mock",
+        connection="mock",
     )
     agent_plan = AgentPlan.from_agent(my_agent)
     json_value = agent_plan.model_dump_json(serialize_as_any=True, indent=4)

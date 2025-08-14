@@ -27,8 +27,8 @@ from ollama import Client
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.integrations.chat_models.ollama_chat_model import (
-    OllamaChatModel,
-    OllamaChatModelServer,
+    OllamaChatModelConnection,
+    OllamaChatModelSetup,
 )
 from flink_agents.plan.tools.function_tool import FunctionTool, from_callable
 
@@ -60,7 +60,7 @@ except Exception:
     client is None, reason="Ollama client is not available or test model is missing"
 )
 def test_ollama_chat() -> None:  # noqa :D103
-    server = OllamaChatModelServer(name="ollama", model=test_model)
+    server = OllamaChatModelConnection(name="ollama", model=test_model)
     response = server.chat([ChatMessage(role=MessageRole.USER, content="Hello!")])
     assert response is not None
     assert str(response).strip() != ""
@@ -92,16 +92,16 @@ def get_tool(name: str, type: ResourceType) -> FunctionTool:  # noqa :D103
     client is None, reason="Ollama client is not available or test model is missing"
 )
 def test_ollama_chat_with_tools() -> None:  # noqa :D103
-    server = OllamaChatModelServer(name="ollama", model=test_model)
+    connection = OllamaChatModelConnection(name="ollama", model=test_model)
 
     def get_resource(name: str, type: ResourceType) -> Resource:
         if type == ResourceType.TOOL:
             return get_tool(name=name, type=ResourceType.TOOL)
         else:
-            return server
+            return connection
 
-    llm = OllamaChatModel(
-        name="ollama", server="ollama", tools=["add"], get_resource=get_resource
+    llm = OllamaChatModelSetup(
+        name="ollama", connection="ollama", tools=["add"], get_resource=get_resource
     )
     response = llm.chat(
         [
@@ -123,7 +123,7 @@ def test_extract_think_tags() -> None:
     # Test with a think tag at the beginning (most common case)
     content = "<think>First, I need to understand the question.\nThen I need to formulate an answer.</think>The answer is 42."
     cleaned, reasoning = (
-        OllamaChatModelServer._OllamaChatModelServer__extract_think_tags(content)
+        OllamaChatModelConnection._OllamaChatModelConnection__extract_think_tags(content)
     )
     assert cleaned == "The answer is 42."
     assert (
@@ -133,7 +133,7 @@ def test_extract_think_tags() -> None:
     # Test with a think tag only
     content = "<think>This is just my thought process.</think>"
     cleaned, reasoning = (
-        OllamaChatModelServer._OllamaChatModelServer__extract_think_tags(content)
+        OllamaChatModelConnection._OllamaChatModelConnection__extract_think_tags(content)
     )
     assert cleaned == ""
     assert reasoning == "This is just my thought process."
@@ -141,7 +141,7 @@ def test_extract_think_tags() -> None:
     # Test with no think tags
     content = "This is a regular response without any thinking tags."
     cleaned, reasoning = (
-        OllamaChatModelServer._OllamaChatModelServer__extract_think_tags(content)
+        OllamaChatModelConnection._OllamaChatModelConnection__extract_think_tags(content)
     )
     assert cleaned == content
     assert reasoning is None
@@ -160,20 +160,20 @@ def test_ollama_chat_with_extract_reasoning() -> None:
     # Configure mock client to return our mock response
     mock_client.chat.return_value = mock_response
     # Create model with mocked client
-    server = OllamaChatModelServer(name="ollama", model=test_model)
+    connection = OllamaChatModelConnection(name="ollama", model=test_model)
 
     def get_resource(name: str, type: ResourceType) -> Resource:
-        return server
+        return connection
 
-    llm = OllamaChatModel(
+    llm = OllamaChatModelSetup(
         name="ollama",
-        server="ollama",
+        connection="ollama",
         extract_reasoning=True,
         get_resource=get_resource,
     )
 
     # Replace the real client with our mock client
-    server._OllamaChatModelServer__client = mock_client
+    connection._OllamaChatModelConnection__client = mock_client
 
     # Call the chat method
     response = llm.chat(
