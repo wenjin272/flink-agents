@@ -131,18 +131,25 @@ class ToolsMethodToolsPlanTest {
     @DisplayName("Retrieve tool and call with parameters")
     void retrieveAndCallTool() throws Exception {
         BaseTool calculator = (BaseTool) agentPlan.getResource("calculator", ResourceType.TOOL);
-        ToolParameters tp = new ToolParameters(new HashMap<>(Map.of(
-                "a", 15.0,
-                "b", 3.0,
-                "operation", "multiply")));
+        ToolParameters tp =
+                new ToolParameters(
+                        new HashMap<>(
+                                Map.of(
+                                        "a", 15.0,
+                                        "b", 3.0,
+                                        "operation", "multiply")));
         ToolResponse r = calculator.call(tp);
         assertTrue(r.isSuccess());
         assertEquals(45.0, (Double) r.getResult(), 0.001);
 
         BaseTool weather = (BaseTool) agentPlan.getResource("get_weather", ResourceType.TOOL);
-        ToolResponse wr = weather.call(new ToolParameters(new HashMap<>(Map.of(
-                "location", "London",
-                "units", "fahrenheit"))));
+        ToolResponse wr =
+                weather.call(
+                        new ToolParameters(
+                                new HashMap<>(
+                                        Map.of(
+                                                "location", "London",
+                                                "units", "fahrenheit"))));
         assertTrue(wr.isSuccess());
         assertTrue(wr.getResultAsString().contains("London"));
         assertTrue(wr.getResultAsString().contains("72,0°F"));
@@ -153,33 +160,52 @@ class ToolsMethodToolsPlanTest {
     void paramConversionAndErrors() throws Exception {
         BaseTool calculator = (BaseTool) agentPlan.getResource("calculator", ResourceType.TOOL);
 
-        ToolResponse r = calculator.call(new ToolParameters(new HashMap<>(Map.of(
-                "a", 10, // int
-                "b", 2.5, // double
-                "operation", "divide"))));
+        ToolResponse r =
+                calculator.call(
+                        new ToolParameters(
+                                new HashMap<>(
+                                        Map.of(
+                                                "a",
+                                                10, // int
+                                                "b",
+                                                2.5, // double
+                                                "operation",
+                                                "divide"))));
         assertTrue(r.isSuccess());
         assertEquals(4.0, (Double) r.getResult(), 0.001);
 
-        r = calculator.call(new ToolParameters(new HashMap<>(Map.of(
-                "a", "20",
-                "b", "4",
-                "operation", "subtract"))));
+        r =
+                calculator.call(
+                        new ToolParameters(
+                                new HashMap<>(
+                                        Map.of(
+                                                "a", "20",
+                                                "b", "4",
+                                                "operation", "subtract"))));
         assertTrue(r.isSuccess());
         assertEquals(16.0, (Double) r.getResult(), 0.001);
 
         // Division by zero
-        r = calculator.call(new ToolParameters(new HashMap<>(Map.of(
-                "a", 10.0,
-                "b", 0.0,
-                "operation", "divide"))));
+        r =
+                calculator.call(
+                        new ToolParameters(
+                                new HashMap<>(
+                                        Map.of(
+                                                "a", 10.0,
+                                                "b", 0.0,
+                                                "operation", "divide"))));
         assertFalse(r.isSuccess());
         assertNotNull(r.getError());
 
         // Invalid operation
-        r = calculator.call(new ToolParameters(new HashMap<>(Map.of(
-                "a", 1.0,
-                "b", 1.0,
-                "operation", "noop"))));
+        r =
+                calculator.call(
+                        new ToolParameters(
+                                new HashMap<>(
+                                        Map.of(
+                                                "a", 1.0,
+                                                "b", 1.0,
+                                                "operation", "noop"))));
         assertFalse(r.isSuccess());
         assertNotNull(r.getError());
     }
@@ -205,10 +231,14 @@ class ToolsMethodToolsPlanTest {
         String json = mapper.writeValueAsString(agentPlan);
         AgentPlan restored = mapper.readValue(json, AgentPlan.class);
         BaseTool calculator = (BaseTool) restored.getResource("calculator", ResourceType.TOOL);
-        ToolResponse r = calculator.call(new ToolParameters(new HashMap<>(Map.of(
-                "a", 6.0,
-                "b", 7.0,
-                "operation", "multiply"))));
+        ToolResponse r =
+                calculator.call(
+                        new ToolParameters(
+                                new HashMap<>(
+                                        Map.of(
+                                                "a", 6.0,
+                                                "b", 7.0,
+                                                "operation", "multiply"))));
         assertTrue(r.isSuccess());
         assertEquals(42.0, (Double) r.getResult(), 0.001);
     }

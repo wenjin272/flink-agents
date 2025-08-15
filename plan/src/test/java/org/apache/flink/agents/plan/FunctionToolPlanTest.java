@@ -70,10 +70,10 @@ class FunctionToolPlanTest {
 
         TestAgent() {
             try {
-                Method m = FunctionToolPlanTest.class.getMethod(
-                        "calc", double.class, double.class, String.class);
-                this.javaTool = FunctionTool.fromStaticMethod(
-                        "java_calc", "java calculator", m);
+                Method m =
+                        FunctionToolPlanTest.class.getMethod(
+                                "calc", double.class, double.class, String.class);
+                this.javaTool = FunctionTool.fromStaticMethod("java_calc", "java calculator", m);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -93,31 +93,34 @@ class FunctionToolPlanTest {
         AgentPlan plan = new AgentPlan(new TestAgent());
 
         FunctionTool javaTool = (FunctionTool) plan.getResource("java_calc", ResourceType.TOOL);
-        ToolResponse ok = javaTool.call(new ToolParameters(new HashMap<>(Map.of(
-                "a", 12.0,
-                "b", 3.0,
-                "operation", "mul"))));
+        ToolResponse ok =
+                javaTool.call(
+                        new ToolParameters(
+                                new HashMap<>(
+                                        Map.of(
+                                                "a", 12.0,
+                                                "b", 3.0,
+                                                "operation", "mul"))));
         assertTrue(ok.isSuccess());
         assertEquals(36.0, (Double) ok.getResult(), 1e-9);
 
         FunctionTool pyTool = (FunctionTool) plan.getResource("py_tool", ResourceType.TOOL);
-        ToolResponse err = pyTool.call(new ToolParameters(new HashMap<>(Map.of(
-                "x", 1))));
+        ToolResponse err = pyTool.call(new ToolParameters(new HashMap<>(Map.of("x", 1))));
         assertFalse(err.isSuccess());
     }
 
     @Test
     @DisplayName("FunctionTool.fromStaticMethod maps @ToolParam by name")
     void javaFunctionMapping() throws Exception {
-        Method m = FunctionToolPlanTest.class.getMethod(
-                "calc", double.class, double.class, String.class);
+        Method m =
+                FunctionToolPlanTest.class.getMethod(
+                        "calc", double.class, double.class, String.class);
         FunctionTool tool = FunctionTool.fromStaticMethod("java_calc", "desc", m);
-        ToolResponse ok = tool.call(new ToolParameters(new HashMap<>(Map.of(
-                "a", 10,
-                "b", 2.5,
-                "operation", "div"))));
+        ToolResponse ok =
+                tool.call(
+                        new ToolParameters(
+                                new HashMap<>(Map.of("a", 10, "b", 2.5, "operation", "div"))));
         assertTrue(ok.isSuccess());
         assertEquals(4.0, (Double) ok.getResult(), 1e-9);
     }
 }
-

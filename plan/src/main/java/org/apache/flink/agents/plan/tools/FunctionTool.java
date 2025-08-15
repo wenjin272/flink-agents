@@ -50,9 +50,7 @@ public class FunctionTool extends BaseTool {
         this.function = function;
     }
 
-    /**
-     * Create a FunctionTool from a static method annotated with @Tool
-     */
+    /** Create a FunctionTool from a static method annotated with @Tool */
     public static FunctionTool fromStaticMethod(Method method) throws Exception {
         if (!Modifier.isStatic(method.getModifiers())) {
             throw new IllegalArgumentException(
@@ -134,5 +132,4 @@ public class FunctionTool extends BaseTool {
             return ToolResponse.error(e);
         }
     }
-
 }

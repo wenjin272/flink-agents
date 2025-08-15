@@ -48,9 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Field-based FunctionTool extraction and invocation tests.
- */
+/** Field-based FunctionTool extraction and invocation tests. */
 class ToolsFieldToolsPlanTest {
 
     private AgentPlan agentPlan;
@@ -92,12 +90,15 @@ class ToolsFieldToolsPlanTest {
         private final BaseTool weather = createWeatherTool();
 
         @Action(listenEvents = {InputEvent.class})
-        public void onInput(Event e, RunnerContext ctx) { /* no-op */ }
+        public void onInput(Event e, RunnerContext ctx) {
+            /* no-op */
+        }
 
         private static BaseTool createCalculatorTool() {
             try {
-                Method m = ToolsFieldToolsPlanTest.class.getMethod(
-                        "calculate", double.class, double.class, String.class);
+                Method m =
+                        ToolsFieldToolsPlanTest.class.getMethod(
+                                "calculate", double.class, double.class, String.class);
                 return FunctionTool.fromStaticMethod(
                         "calculator", "Performs basic arithmetic operations", m);
             } catch (Exception e) {
@@ -107,8 +108,9 @@ class ToolsFieldToolsPlanTest {
 
         private static BaseTool createWeatherTool() {
             try {
-                Method m = ToolsFieldToolsPlanTest.class.getMethod(
-                        "getWeather", String.class, String.class);
+                Method m =
+                        ToolsFieldToolsPlanTest.class.getMethod(
+                                "getWeather", String.class, String.class);
                 return FunctionTool.fromStaticMethod(
                         "get_weather", "Get weather information for a location", m);
             } catch (Exception e) {
@@ -206,5 +208,5 @@ class ToolsFieldToolsPlanTest {
         assertFalse(r.isSuccess());
     }
 
-    //add test to field based tools JavaFuntion
+    // add test to field based tools JavaFuntion
 }

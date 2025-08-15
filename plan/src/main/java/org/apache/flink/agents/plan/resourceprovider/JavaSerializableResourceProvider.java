@@ -44,7 +44,8 @@ public class JavaSerializableResourceProvider extends SerializableResourceProvid
         // Instantiate the resource reflectively to avoid recursion back into AgentPlan.getResource
         Class<?> resourceClass = Class.forName(getClazz());
         Constructor<?> ctor = resourceClass.getDeclaredConstructor();
-        if (!Modifier.isPublic(resourceClass.getModifiers()) || !Modifier.isPublic(ctor.getModifiers())) {
+        if (!Modifier.isPublic(resourceClass.getModifiers())
+                || !Modifier.isPublic(ctor.getModifiers())) {
             ctor.setAccessible(true);
         }
         Object instance = ctor.newInstance();

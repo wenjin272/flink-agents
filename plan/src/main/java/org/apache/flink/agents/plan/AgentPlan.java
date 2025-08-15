@@ -258,7 +258,8 @@ public class AgentPlan implements Serializable {
 
             // Scan static methods annotated with @Tool (method-based tools)
             for (Method method : agentClass.getDeclaredMethods()) {
-                if (method.isAnnotationPresent(Tool.class) && Modifier.isStatic(method.getModifiers())) {
+                if (method.isAnnotationPresent(Tool.class)
+                        && Modifier.isStatic(method.getModifiers())) {
                     Tool toolAnn = method.getAnnotation(Tool.class);
                     String name = toolAnn.name().isEmpty() ? method.getName() : toolAnn.name();
 

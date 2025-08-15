@@ -80,7 +80,8 @@ class ChatModelAgentPlanTest {
     @Test
     @DisplayName("Discover @ChatModel in AgentPlan resource providers")
     void discoverChatModel() {
-        Map<ResourceType, Map<String, ResourceProvider>> providers = agentPlan.getResourceProviders();
+        Map<ResourceType, Map<String, ResourceProvider>> providers =
+                agentPlan.getResourceProviders();
         assertTrue(providers.containsKey(ResourceType.CHAT_MODEL));
         Map<String, ResourceProvider> cm = providers.get(ResourceType.CHAT_MODEL);
         assertTrue(cm.containsKey("testChatModel"));
@@ -89,7 +90,8 @@ class ChatModelAgentPlanTest {
     @Test
     @DisplayName("Retrieve chat model and invoke chat(Prompt)")
     void retrieveAndChat() throws Exception {
-        BaseChatModel model = (BaseChatModel) agentPlan.getResource("testChatModel", ResourceType.CHAT_MODEL);
+        BaseChatModel model =
+                (BaseChatModel) agentPlan.getResource("testChatModel", ResourceType.CHAT_MODEL);
         assertNotNull(model);
 
         Prompt prompt = new Prompt("testPrompt", "Hello world");
@@ -106,9 +108,9 @@ class ChatModelAgentPlanTest {
         String json = mapper.writeValueAsString(agentPlan);
         AgentPlan restored = mapper.readValue(json, AgentPlan.class);
 
-        BaseChatModel model = (BaseChatModel) restored.getResource("testChatModel", ResourceType.CHAT_MODEL);
+        BaseChatModel model =
+                (BaseChatModel) restored.getResource("testChatModel", ResourceType.CHAT_MODEL);
         ChatMessage reply = model.chat(new Prompt("afterRoundtrip", "Hi"));
         assertEquals("ok:afterRoundtrip", reply.getContent());
     }
 }
-
