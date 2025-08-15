@@ -24,23 +24,24 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation to mark a field as a tool resource that should be managed by the agent plan.
+ * Annotation to mark a field or method as a tool resource that should be managed by the agent plan.
  *
  * <p>Fields annotated with @Tool will be scanned during agent plan creation and corresponding
- * resource providers will be created to manage the tool instances.
+ * resource providers will be created to manage the tool instances. Methods annotated with @Tool
+ * must be static and will be wrapped as FunctionTool resources.
  */
-@Target(ElementType.FIELD)
+@Target({ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Tool {
     /**
-     * The name of the tool resource. If not specified, the field name will be used.
+     * The name of the tool resource. If not specified, the field/method name will be used.
      *
      * @return the resource name
      */
     String name() default "";
 
     /**
-     * The description of the tool. If not provided, the method name will be used.
+     * The description of the tool. If not provided, the field/method name will be used.
      *
      * @return the description of the tool
      */
