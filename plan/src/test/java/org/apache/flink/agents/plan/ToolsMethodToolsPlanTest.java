@@ -152,7 +152,7 @@ class ToolsMethodToolsPlanTest {
                                                 "units", "fahrenheit"))));
         assertTrue(wr.isSuccess());
         assertTrue(wr.getResultAsString().contains("London"));
-        assertTrue(wr.getResultAsString().contains("72,0°F"));
+        assertTrue(wr.getResultAsString().contains("72.0°F"));
     }
 
     @Test
