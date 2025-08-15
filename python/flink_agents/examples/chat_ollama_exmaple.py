@@ -20,8 +20,11 @@ from typing import Any, Dict, Tuple, Type
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import BaseChatModel
-from flink_agents.api.decorators import action, chat_model, tool
+from flink_agents.api.chat_models.chat_model import (
+    BaseChatModelConnection,
+    BaseChatModelSetup,
+)
+from flink_agents.api.decorators import action, chat_model, chat_model_server, tool
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.event import (
     InputEvent,
@@ -29,22 +32,43 @@ from flink_agents.api.events.event import (
 )
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.runner_context import RunnerContext
-from flink_agents.integrations.chat_models.ollama_chat_model import OllamaChatModel
+from flink_agents.integrations.chat_models.ollama_chat_model import (
+    OllamaChatModelConnection,
+    OllamaChatModelSetup,
+)
 
 model = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:8b")
 
 
 class MyAgent(Agent):
-    """Mock agent for testing chat ollama in agent."""
+    """Example agent demonstrating the new ChatModel architecture."""
+
+    @chat_model_server
+    @staticmethod
+    def ollama_server() -> Tuple[Type[BaseChatModelConnection], Dict[str, Any]]:
+        """ChatModelServer responsible for model service connection."""
+        return OllamaChatModelConnection, {
+            "name": "ollama_server",
+            "model": model,
+        }
 
     @chat_model
     @staticmethod
-    def chat_model() -> Tuple[Type[BaseChatModel], Dict[str, Any]]:
-        """ChatModel can be used in action."""
-        return OllamaChatModel, {
-            "name": "chat_model",
-            "model": model,
+    def math_chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
+        """ChatModel which focus on math, and reuse ChatModelServer."""
+        return OllamaChatModelSetup, {
+            "name": "math_chat_model",
+            "server": "ollama_server",
             "tools": ["add"],
+        }
+
+    @chat_model
+    @staticmethod
+    def creative_chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
+        """ChatModel which focus on text generate, and reuse ChatModelServer."""
+        return OllamaChatModelSetup, {
+            "name": "creative_chat_model",
+            "server": "ollama_server",
         }
 
     @tool
@@ -73,11 +97,20 @@ class MyAgent(Agent):
 
         In this action, we will send ChatRequestEvent to trigger built-in actions.
         """
-        input = event.input
+        """Choose different sessions based on input content."""
+        input_text = event.input.lower()
+
+        if "calculate" in input_text or "sum" in input_text:
+            # Use math_session for calculations
+            model_name = "math_chat_model"
+        else:
+            # Use creative_session for other tasks
+            model_name = "creative_chat_model"
+
         ctx.send_event(
             ChatRequestEvent(
-                model="chat_model",
-                messages=[ChatMessage(role=MessageRole.USER, content=input)],
+                model=model_name,
+                messages=[ChatMessage(role=MessageRole.USER, content=event.input)],
             )
         )
 
@@ -88,18 +121,21 @@ class MyAgent(Agent):
         input = event.response
         ctx.send_event(OutputEvent(output=input.content))
 
+
 # Should manually start ollama server before run this example.
 if __name__ == "__main__":
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
-    agent = MyAgent()
+    agent = MyAgent()  # Or use NewArchitectureAgent() to test new architecture
 
     output_list = env.from_list(input_list).apply(agent).to_list()
 
     input_list.append({"key": "0001", "value": "calculate the sum of 1 and 2."})
+    input_list.append({"key": "0002", "value": "Can you tell a joke about cat."})
 
     env.execute()
 
-    for key, value in output_list[0].items():
-        print(f"{key}: {value}")
+    for output in output_list:
+        for key, value in output.items():
+            print(f"{key}: {value}")

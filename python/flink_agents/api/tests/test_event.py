@@ -77,6 +77,7 @@ def test_efficient_row_serialization_with_fallback() -> None:
 
     json_str = event.model_dump_json()
     import json
+
     parsed = json.loads(json_str)
 
     assert parsed["input"]["type"] == "Row"
@@ -98,16 +99,19 @@ def test_efficient_row_serialization_with_fallback() -> None:
 
 def test_event_with_mixed_serializable_types() -> None:
     """Test event with mix of normal and Row types."""
-    event = InputEvent(input={
-        "normal_data": {"key": "value"},
-        "row_data": Row({"test": "data"}),
-        "list_data": [1, 2, 3],
-        "nested_row": {"inner": Row({"nested": True})}
-    })
+    event = InputEvent(
+        input={
+            "normal_data": {"key": "value"},
+            "row_data": Row({"test": "data"}),
+            "list_data": [1, 2, 3],
+            "nested_row": {"inner": Row({"nested": True})},
+        }
+    )
 
     json_str = event.model_dump_json()
 
     import json
+
     parsed = json.loads(json_str)
 
     # Normal data should be serialized normally
@@ -121,4 +125,3 @@ def test_event_with_mixed_serializable_types() -> None:
 
 def test_input_event_ignore_row_unserializable() -> None:  # noqa D103
     InputEvent(input=Row({"a": 1}))
-

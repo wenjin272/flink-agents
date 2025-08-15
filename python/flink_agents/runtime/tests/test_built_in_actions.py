@@ -16,50 +16,45 @@
 # limitations under the License.
 #################################################################################
 import uuid
-from typing import Any, Dict, List, Sequence, Tuple, Type
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Type
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import BaseChatModel
-from flink_agents.api.decorators import action, chat_model, prompt, tool
-from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
-from flink_agents.api.events.event import (
-    InputEvent,
-    OutputEvent,
+from flink_agents.api.chat_models.chat_model import (
+    BaseChatModelConnection,
+    BaseChatModelSetup,
 )
+from flink_agents.api.decorators import (
+    action,
+    chat_model,
+    chat_model_server,
+    prompt,
+    tool,
+)
+from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
+from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import ResourceType
 from flink_agents.api.runner_context import RunnerContext
-from flink_agents.api.tools.tool import ToolMetadata, ToolType
+from flink_agents.api.tools.tool import ToolType
 
 
-class MockChatModel(BaseChatModel):
+class MockChatModelConnection(BaseChatModelConnection):
     """Mock ChatModel for testing integrating prompt and tool."""
 
-    __tools: List[ToolMetadata]
-
-    def __init__(self, /, **kwargs: Any) -> None:
-        """Init method of MockChatModel."""
-        super().__init__(**kwargs)
-        # bind tools
-        if self.tools is not None:
-            tools = [
-                self.get_resource(tool_name, ResourceType.TOOL)
-                for tool_name in self.tools
-            ]
-            self.__tools = [tool.metadata for tool in tools]
-        # bind prompt
-        if self.prompt is not None and isinstance(self.prompt, str):
-            self.prompt = self.get_resource(self.prompt, ResourceType.PROMPT)
-
-    def chat(self, messages: Sequence[ChatMessage]) -> ChatMessage:
+    def chat(
+        self,
+        messages: Sequence[ChatMessage],
+        tools: Optional[List] = None,
+        **kwargs: Any,
+    ) -> ChatMessage:
         """Generate tool call or response according to input."""
-        # generate tool call
+        # Generate tool call
         if "sum" in messages[-1].content:
-            input = self.prompt.format_string(**messages[-1].extra_args)
-            # validate bind_tools
-            assert self.__tools[0].name == "add"
+            input = messages[-1].content
+            # Validate bind_tools
+            assert tools[0].name == "add"
             function = {"name": "add", "arguments": {"a": 1, "b": 2}}
             tool_call = {
                 "id": uuid.uuid4(),
@@ -69,10 +64,49 @@ class MockChatModel(BaseChatModel):
             return ChatMessage(
                 role=MessageRole.ASSISTANT, content=input, tool_calls=[tool_call]
             )
-        # generate response including tool call context
+        # Generate response including tool call context
         else:
             content = "\n".join([message.content for message in messages])
             return ChatMessage(role=MessageRole.ASSISTANT, content=content)
+
+
+class MockChatModel(BaseChatModelSetup):
+    """Mock ChatModel for testing integrating prompt and tool."""
+
+    @property
+    def model_kwargs(self) -> Dict[str, Any]:
+        """Return model kwargs."""
+        return {}
+
+    def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
+        """Execute chat conversation."""
+        # Get model connection
+        server = self.get_resource(self.connection, ResourceType.CHAT_MODEL_CONNECTION)
+
+        # Apply prompt template
+        if self.prompt is not None:
+            if isinstance(self.prompt, str):
+                # Get prompt resource if it's a string
+                prompt = self.get_resource(self.prompt, ResourceType.PROMPT)
+            else:
+                prompt = self.prompt
+
+            if "sum" in messages[-1].content:
+                input_variable = {}
+                for msg in messages:
+                    input_variable.update(msg.extra_args)
+                messages = prompt.format_messages(**input_variable)
+
+        # Bind tools
+        tools = None
+        if self.tools is not None:
+            tools = [
+                self.get_resource(tool_name, ResourceType.TOOL)
+                for tool_name in self.tools
+            ]
+
+        # Call server to execute chat
+        return server.chat(messages, tools=tools, **kwargs)
 
 
 class MyAgent(Agent):
@@ -87,12 +121,21 @@ class MyAgent(Agent):
             text="Please call the appropriate tool to do the following task: {task}",
         )
 
+    @chat_model_server
+    @staticmethod
+    def mock_connection() -> Tuple[Type[BaseChatModelConnection], Dict[str, Any]]:
+        """Chat model server can be used by ChatModel."""
+        return MockChatModelConnection, {
+            "name": "mock_connection",
+        }
+
     @chat_model
     @staticmethod
-    def chat_model() -> Tuple[Type[BaseChatModel], Dict[str, Any]]:
-        """ChatModel can be used in action."""
+    def mock_chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
+        """Chat model can be used in action."""
         return MockChatModel, {
-            "name": "chat_model",
+            "name": "mock_chat_model",
+            "connection": "mock_connection",
             "prompt": "prompt",
             "tools": ["add"],
         }
@@ -126,7 +169,7 @@ class MyAgent(Agent):
         input = event.input
         ctx.send_event(
             ChatRequestEvent(
-                model="chat_model",
+                model="mock_chat_model",
                 messages=[
                     ChatMessage(
                         role=MessageRole.USER, content=input, extra_args={"task": input}
