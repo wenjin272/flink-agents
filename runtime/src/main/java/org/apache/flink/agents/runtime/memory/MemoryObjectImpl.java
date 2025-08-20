@@ -18,8 +18,10 @@
 package org.apache.flink.agents.runtime.memory;
 
 import org.apache.flink.agents.api.context.MemoryObject;
+import org.apache.flink.agents.api.context.MemoryRef;
 import org.apache.flink.api.common.state.MapState;
 
+import java.io.Serializable;
 import java.util.*;
 
 public class MemoryObjectImpl implements MemoryObject {
@@ -62,7 +64,12 @@ public class MemoryObjectImpl implements MemoryObject {
     }
 
     @Override
-    public void set(String path, Object value) throws Exception {
+    public MemoryObject get(MemoryRef ref) throws Exception {
+        return get(ref.getPath());
+    }
+
+    @Override
+    public MemoryRef set(String path, Object value) throws Exception {
         mailboxThreadChecker.run();
         String absPath = fullPath(path);
         String[] parts = absPath.split("\\.");
@@ -83,6 +90,8 @@ public class MemoryObjectImpl implements MemoryObject {
 
         MemoryItem val = new MemoryItem(value);
         store.put(absPath, val);
+
+        return MemoryRef.create(absPath);
     }
 
     @Override
@@ -197,7 +206,7 @@ public class MemoryObjectImpl implements MemoryObject {
     }
 
     /** Represents an item (nested object or primitive value) stored in the short-term memory. */
-    public static final class MemoryItem {
+    public static final class MemoryItem implements Serializable {
         private final ItemType type;
         private final Object value;
         private final Set<String> subKeys;
