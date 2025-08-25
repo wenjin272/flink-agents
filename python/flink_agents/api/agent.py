@@ -42,17 +42,19 @@ class Agent(ABC):
                 def my_action(event: Event, ctx: RunnerContext) -> None:
                     action logic
 
-                @chat_model_server
+                @chat_model_connection
                 @staticmethod
-                def my_server() -> Tuple[Type[BaseChatModelServer], Dict[str, Any]]:
-                    return OllamaChatModelServer, {"name": "my_server",
-                                                   "model": "qwen2:7b",
-                                                   "base_url": "http://localhost:11434"}
+                def my_connection() -> Tuple[Type[BaseChatModelConnection],
+                                       Dict[str, Any]]:
+                    return OllamaChatModelConnection, {"name": "my_connection",
+                                                       "model": "qwen2:7b",
+                                                       "base_url": "http://localhost:11434"}
 
-                @chat_model
+                @chat_model_setup
                 @staticmethod
                 def my_chat_model() -> Tuple[Type[ChatModel], Dict[str, Any]]:
-                    return OllamaChatModel, {"name": "model", "server": "my_server"}
+                    return OllamaChatModel, {"name": "model",
+                                             "connection": "my_connection"}
         * Add actions and resources to an Agent instance
         ::
 
@@ -60,27 +62,29 @@ class Agent(ABC):
             my_agent.add_action(name="my_action",
                                 events=[InputEvent],
                                 func=action_function)
-                    .add_chat_model_server(name="my_server",
-                                              server=OllamaChatModelServer,
-                                              arg1=xxx)
-                    .add_chat_model(name="my_chat_model",
-                                    chat_model=OllamaChatModel,
-                                    server="my_server")
+                    .add_chat_model_connection(name="my_connection",
+                                               connection=OllamaChatModelConnection,
+                                               arg1=xxx)
+                    .add_chat_model_setup(name="my_chat_model",
+                                          chat_model=OllamaChatModelSetup,
+                                          connection="my_connection")
     """
 
     _actions: Dict[str, Tuple[List[Type[Event]], Callable]]
     _prompts: Dict[str, Prompt]
     _tools: Dict[str, Callable]
-    _chat_model_servers: Dict[str, Tuple[Type[BaseChatModelConnection], Dict[str, Any]]]
-    _chat_models: Dict[str, Tuple[Type[BaseChatModelSetup], Dict[str, Any]]]
+    _chat_model_connections: Dict[
+        str, Tuple[Type[BaseChatModelConnection], Dict[str, Any]]
+    ]
+    _chat_model_setups: Dict[str, Tuple[Type[BaseChatModelSetup], Dict[str, Any]]]
 
     def __init__(self) -> None:
         """Init method."""
         self._actions = {}
         self._prompts = {}
         self._tools = {}
-        self._chat_model_servers = {}
-        self._chat_models = {}
+        self._chat_model_connections = {}
+        self._chat_model_setups = {}
 
     def add_action(
         self, name: str, events: List[Type[Event]], func: Callable
@@ -149,36 +153,36 @@ class Agent(ABC):
         self._tools[name] = func
         return self
 
-    def add_chat_model_server(
-        self, name: str, server: Type[BaseChatModelConnection], **kwargs: Any
+    def add_chat_model_connection(
+        self, name: str, connection: Type[BaseChatModelConnection], **kwargs: Any
     ) -> "Agent":
-        """Add chat model server to agent.
+        """Add chat model connection to agent.
 
         Parameters
         ----------
         name : str
-            The name of the chat model server, should be unique in the same Agent.
-        server: Type[BaseChatModelConnection]
-            The type of chat model server.
+            The name of the chat model connection, should be unique in the same Agent.
+        connection: Type[BaseChatModelConnection]
+            The type of chat model connection.
         **kwargs: Any
-            Initialize keyword arguments passed to the chat model server.
+            Initialize keyword arguments passed to the chat model connection.
 
         Returns:
         -------
         Agent
             The modified Agent instance.
         """
-        if name in self._chat_model_servers:
-            msg = f"Chat model server {name} already defined"
+        if name in self._chat_model_connections:
+            msg = f"Chat model connection {name} already defined"
             raise ValueError(msg)
         kwargs["name"] = name
-        self._chat_model_servers[name] = (server, kwargs)
+        self._chat_model_connections[name] = (connection, kwargs)
         return self
 
-    def add_chat_model(
+    def add_chat_model_setup(
         self, name: str, chat_model: Type[BaseChatModelSetup], **kwargs: Any
     ) -> "Agent":
-        """Add chat model to agent.
+        """Add chat model setup to agent.
 
         Parameters
         ----------
@@ -194,9 +198,9 @@ class Agent(ABC):
         Agent
             The modified Agent instance.
         """
-        if name in self._chat_models:
-            msg = f"Chat model {name} already defined"
+        if name in self._chat_model_setups:
+            msg = f"Chat model setup {name} already defined"
             raise ValueError(msg)
         kwargs["name"] = name
-        self._chat_models[name] = (chat_model, kwargs)
+        self._chat_model_setups[name] = (chat_model, kwargs)
         return self
