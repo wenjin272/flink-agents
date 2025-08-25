@@ -232,7 +232,7 @@ def _get_actions(agent: Agent) -> List[Action]:
 def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
     resource_providers = []
     for name, value in agent.__class__.__dict__.items():
-        if hasattr(value, "_is_chat_model"):
+        if hasattr(value, "_is_chat_model_setup"):
             if isinstance(value, staticmethod):
                 value = value.__func__
 
@@ -246,7 +246,7 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
                     kwargs=kwargs,
                 )
                 resource_providers.append(provider)
-        elif hasattr(value, "_is_chat_model_server"):
+        elif hasattr(value, "_is_chat_model_connection"):
             if isinstance(value, staticmethod):
                 value = value.__func__
 
@@ -293,7 +293,7 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
             PythonSerializableResourceProvider.from_resource(name=name, resource=tool)
         )
 
-    for name, chat_model in agent._chat_models.items():
+    for name, chat_model in agent._chat_model_setups.items():
         clazz, kwargs = chat_model
         provider = PythonResourceProvider(
             name=name,
@@ -304,7 +304,7 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
         )
         resource_providers.append(provider)
 
-    for name, connection in agent._chat_model_servers.items():
+    for name, connection in agent._chat_model_connections.items():
         clazz, kwargs = connection
         provider = PythonResourceProvider(
             name=name,
