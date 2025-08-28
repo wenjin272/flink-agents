@@ -25,14 +25,12 @@ from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageParam
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 
 DEFAULT_OPENAI_API_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_OPENAI_API_VERSION = ""
 
 
 def resolve_openai_credentials(
     api_key: Optional[str] = None,
     api_base_url: Optional[str] = None,
-    api_version: Optional[str] = None,
-) -> Tuple[Optional[str], str, str]:
+) -> Tuple[Optional[str], str]:
     """Resolve OpenAI credentials.
 
     The order of precedence is:
@@ -42,40 +40,42 @@ def resolve_openai_credentials(
     4. default
     """
     # resolve from param or env
-    api_key = get_from_param_or_env("api_key", api_key, "OPENAI_API_KEY", "")
-    api_base_url = get_from_param_or_env(
-        "api_base", api_base_url, "OPENAI_API_BASE", ""
-    )
-    api_version = get_from_param_or_env(
-        "api_version", api_version, "OPENAI_API_VERSION", ""
+    api_key = _get_from_param_or_env("api_key", api_key, "OPENAI_API_KEY", "")
+    api_base_url = _get_from_param_or_env(
+        "api_base_url", api_base_url, "OPENAI_API_BASE_URL", ""
     )
 
     # resolve from openai module or default
     final_api_key = api_key or openai.api_key or ""
     final_api_base_url = api_base_url or openai.base_url or DEFAULT_OPENAI_API_BASE_URL
-    final_api_version = api_version or openai.api_version or DEFAULT_OPENAI_API_VERSION
 
-    return final_api_key, str(final_api_base_url), final_api_version
+    return final_api_key, str(final_api_base_url)
 
 
-def get_from_param_or_env(
-    key: str,
-    param: Optional[str] = None,
-    env_key: Optional[str] = None,
-    default: Optional[str] = None,
+def _get_from_param_or_env(
+    param_name: str,
+    value_from_args: Optional[str] = None,
+    env_var_name: Optional[str] = None,
+    default_value: Optional[str] = None,
 ) -> str:
-    """Get a value from a param or an environment variable."""
-    if param is not None:
-        return param
-    elif env_key and env_key in os.environ and os.environ[env_key]:
-        return os.environ[env_key]
-    elif default is not None:
-        return default
+    """Get a value from a param or an environment variable.
+
+    The order of precedence is:
+    1. param
+    2. env
+    3. default
+    """
+    if value_from_args is not None:
+        return value_from_args
+    elif env_var_name and env_var_name in os.environ and os.environ[env_var_name]:
+        return os.environ[env_var_name]
+    elif default_value is not None:
+        return default_value
     else:
         msg = (
-            f"Did not find {key}, please add an environment variable"
-            f" `{env_key}` which contains it, or pass"
-            f"  `{key}` as a named parameter."
+            f"Did not find {param_name}, please add an environment variable"
+            f" `{env_var_name}` which contains it, or pass"
+            f"  `{param_name}` as a named parameter."
         )
         raise ValueError(msg)
 

@@ -27,12 +27,12 @@ from flink_agents.api.chat_models.chat_model import (
     BaseChatModelSetup,
 )
 from flink_agents.api.tools.tool import BaseTool
-from flink_agents.integrations.chat_models.openai.utils import (
+from flink_agents.integrations.chat_models.chat_model_utils import to_openai_tool
+from flink_agents.integrations.chat_models.openai.openai_utils import (
     convert_from_openai_message,
     convert_to_openai_messages,
     resolve_openai_credentials,
 )
-from flink_agents.integrations.chat_models.utils import to_openai_tool
 
 DEFAULT_OPENAI_MODEL = "gpt-3.5-turbo"
 
@@ -46,8 +46,6 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
         The OpenAI API key.
     api_base_url : str
         The base URL for OpenAI API.
-    api_version : str
-        The API version for OpenAI API.
     max_retries : int
         The maximum number of API retries.
     timeout : float
@@ -60,7 +58,6 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
 
     api_key: str = Field(default=None, description="The OpenAI API key.")
     api_base_url: str = Field(description="The base URL for OpenAI API.")
-    api_version: str = Field(description="The API version for OpenAI API.")
     max_retries: int = Field(
         default=3,
         description="The maximum number of API retries.",
@@ -90,7 +87,6 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
         *,
         api_key: Optional[str] = None,
         api_base_url: Optional[str] = None,
-        api_version: Optional[str] = None,
         max_retries: int = 3,
         timeout: float = 60.0,
         reuse_client: bool = True,
@@ -99,15 +95,13 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
         **kwargs: Any,
     ) -> None:
         """Init method."""
-        api_key, api_base_url, api_version = resolve_openai_credentials(
+        api_key, api_base_url = resolve_openai_credentials(
             api_key=api_key,
             api_base_url=api_base_url,
-            api_version=api_version,
         )
         super().__init__(
             api_key=api_key,
             api_base_url=api_base_url,
-            api_version=api_version,
             max_retries=max_retries,
             timeout=timeout,
             reuse_client=reuse_client,
@@ -120,7 +114,7 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
     @property
     def client(self) -> OpenAI:
         """Get OpenAI client."""
-        config = self.__get_credential_kwargs()
+        config = self.__get_client_kwargs()
 
         if not self.reuse_client:
             return OpenAI(**config)
@@ -129,7 +123,7 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
             self._client = OpenAI(**config)
         return self._client
 
-    def __get_credential_kwargs(self) -> Dict[str, Any]:
+    def __get_client_kwargs(self) -> Dict[str, Any]:
         return {
             "api_key": self.api_key,
             "base_url": self.api_base_url,
@@ -192,7 +186,7 @@ class OpenAIChatModelSetup(BaseChatModelSetup):
     ----------
     model : str
         The OpenAI model to use.
-    temperature : str
+    temperature : float
         The temperature to use during generation.
     max_tokens : Optional[int]
         The maximum number of tokens to generate.

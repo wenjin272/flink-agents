@@ -27,7 +27,7 @@ from flink_agents.api.chat_models.chat_model import (
     BaseChatModelSetup,
 )
 from flink_agents.api.tools.tool import BaseTool
-from flink_agents.integrations.chat_models.utils import to_openai_tool
+from flink_agents.integrations.chat_models.chat_model_utils import to_openai_tool
 
 DEFAULT_CONTEXT_WINDOW = 2048
 DEFAULT_REQUEST_TIMEOUT = 30.0
