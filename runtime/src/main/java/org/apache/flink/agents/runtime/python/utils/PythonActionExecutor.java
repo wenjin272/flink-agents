@@ -169,8 +169,10 @@ public class PythonActionExecutor {
     }
 
     public void close() throws Exception {
-        interpreter.invoke(
-                CLOSE_ASYNC_THREAD_POOL, interpreter.get(pythonAsyncThreadPoolObjectName));
+        if (pythonAsyncThreadPoolObjectName != null) {
+            interpreter.invoke(
+                    CLOSE_ASYNC_THREAD_POOL, interpreter.get(pythonAsyncThreadPoolObjectName));
+        }
     }
 
     /** Failed to execute Python action. */
