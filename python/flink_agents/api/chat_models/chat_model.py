@@ -15,8 +15,9 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Union
 
 from pydantic import Field
 from typing_extensions import override
@@ -47,6 +48,49 @@ class BaseChatModelConnection(Resource, ABC):
     def resource_type(cls) -> ResourceType:
         """Return resource type of class."""
         return ResourceType.CHAT_MODEL_CONNECTION
+
+    DEFAULT_REASONING_PATTERNS: ClassVar[Tuple[re.Pattern[str],...]] = (
+        re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE),
+        re.compile(r"<analysis>(.*?)</analysis>", re.DOTALL | re.IGNORECASE),
+        re.compile(r"<reasoning>(.*?)</reasoning>", re.DOTALL | re.IGNORECASE),
+        re.compile(r"```(?:think|reasoning|thought)\s*\n(.*?)\n```", re.DOTALL | re.IGNORECASE),
+        re.compile(r"(?:^|\n)Reasoning:\s*(.*?)(?:\n{2,}|$)", re.DOTALL | re.IGNORECASE),
+    )
+
+    @staticmethod
+    def _extract_reasoning(
+        content: str,
+        patterns: List[re.Pattern[str]] = DEFAULT_REASONING_PATTERNS,
+    ) -> Tuple[str, Optional[str]]:
+        """Extract content within <think></think> tags and clean the remaining content.
+
+        Parameters
+        ----------
+        content: str
+          Original content text
+
+        Returns:
+        -------
+        Tuple[str, Optional[str]]
+          The cleaned content and the reasoning part.
+        """
+        if not content:
+            return "", None
+
+        reasoning_chunks: List[str] = []
+        cleaned = content
+
+        for pat in patterns:
+            matches = pat.findall(cleaned)
+            if matches:
+                reasoning_chunks.extend(m.strip() for m in matches if m.strip())
+                cleaned = pat.sub("", cleaned)
+
+        reasoning = "\n\n".join(reasoning_chunks) if reasoning_chunks else None
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        cleaned = re.sub(r" {2,}", " ", cleaned)
+        cleaned = cleaned.strip()
+        return cleaned, reasoning
 
     @abstractmethod
     def chat(
