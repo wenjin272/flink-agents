@@ -115,7 +115,7 @@ class Agent(ABC):
         if name in self._actions:
             msg = f"Action {name} already defined"
             raise ValueError(msg)
-        self._actions[name] = (events, func, params)
+        self._actions[name] = (events, func, params if params else None)
         return self
 
     def add_prompt(self, name: str, prompt: Prompt) -> "Agent":

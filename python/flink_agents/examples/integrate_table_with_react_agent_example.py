@@ -16,8 +16,15 @@
 # limitations under the License.
 #################################################################################
 import os
+from pathlib import Path
 
-from pydantic import BaseModel
+from pyflink.common import Row
+from pyflink.common.typeinfo import BasicTypeInfo, ExternalTypeInfo, RowTypeInfo
+from pyflink.datastream import (
+    KeySelector,
+    StreamExecutionEnvironment,
+)
+from pyflink.table import DataTypes, Schema, StreamTableEnvironment, TableDescriptor
 
 from flink_agents.api.agents.react_agent import ReActAgent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -32,18 +39,49 @@ from flink_agents.integrations.chat_models.ollama_chat_model import (
 model = os.environ.get("OLLAMA_CHAT_MODEL", "qwen2.5:7b")
 
 
-class InputData(BaseModel):  # noqa: D101
-    a: int
-    b: int
-    c: int
+class MyKeySelector(KeySelector):
+    """KeySelector for extracting key."""
+
+    def get_key(self, value: Row) -> int:
+        """Extract key from Row."""
+        return value[0]
 
 
-class OutputData(BaseModel):  # noqa: D101
-    result: int
+current_dir = Path(__file__).parent
 
-
+os.environ["PYTHONPATH"] = (
+    "/Users/jhin/Repo/oss/flink-agents/python/.venv/lib/python3.11/site-packages"
+)
 if __name__ == "__main__":
-    env = AgentsExecutionEnvironment.get_execution_environment()
+    stream_env = StreamExecutionEnvironment.get_execution_environment()
+
+    # should compile flink-agents jars before run this example.
+    stream_env.add_jars(
+        f"file:///{current_dir}/../../../runtime/target/flink-agents-runtime-0.1-SNAPSHOT.jar"
+    )
+    stream_env.add_jars(
+        f"file:///{current_dir}/../../../plan/target/flink-agents-plan-0.1-SNAPSHOT.jar"
+    )
+    stream_env.add_jars(
+        f"file:///{current_dir}/../../../api/target/flink-agents-api-0.1-SNAPSHOT.jar"
+    )
+
+    stream_env.set_parallelism(1)
+
+    t_env = StreamTableEnvironment.create(stream_execution_environment=stream_env)
+
+    table = t_env.from_elements(
+        elements=[(1, 2, 3)],
+        schema=DataTypes.ROW(
+            [
+                DataTypes.FIELD("a", DataTypes.INT()),
+                DataTypes.FIELD("b", DataTypes.INT()),
+                DataTypes.FIELD("c", DataTypes.INT()),
+            ]
+        ),
+    )
+
+    env = AgentsExecutionEnvironment.get_execution_environment(env=stream_env)
 
     # register resource to execution environment
     (
@@ -66,23 +104,33 @@ if __name__ == "__main__":
         ],
     )
 
+    output_type_info = RowTypeInfo(
+        [BasicTypeInfo.INT_TYPE_INFO()],
+        ["result"],
+    )
+
     # create ReAct agent.
     agent = ReActAgent(
         chat_model_setup=OllamaChatModelSetup,
         connection="ollama",
         prompt=prompt,
         tools=["add", "multiply"],
-        output_schema=OutputData,
+        output_schema=output_type_info,
     )
 
-    # execute agent
-    input_list = []
+    output_type = ExternalTypeInfo(output_type_info)
 
-    output_list = env.from_list(input_list).apply(agent).to_list()
-    input_list.append({"key": "0001", "value": InputData(a=2123, b=2321, c=312)})
+    schema = (Schema.new_builder().column("result", DataTypes.INT())).build()
 
-    env.execute()
+    output_table = (
+        env.from_table(input=table, t_env=t_env, key_selector=MyKeySelector())
+        .apply(agent)
+        .to_table(schema=schema, output_type=output_type)
+    )
 
-    for output in output_list:
-        for key, value in output.items():
-            print(f"{key}: {value}")
+    t_env.create_temporary_table(
+        "sink",
+        TableDescriptor.for_connector("print").schema(schema).build(),
+    )
+
+    output_table.execute_insert("sink").wait()
