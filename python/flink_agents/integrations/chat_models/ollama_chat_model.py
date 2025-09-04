@@ -98,7 +98,7 @@ class OllamaChatModelConnection(BaseChatModelConnection):
         # Convert tool format
         ollama_tools = None
         if tools is not None:
-            ollama_tools = [to_openai_tool(tool.metadata) for tool in tools]
+            ollama_tools = [to_openai_tool(metadata=tool.metadata) for tool in tools]
 
         response = self.client.chat(
             model=self.model,
