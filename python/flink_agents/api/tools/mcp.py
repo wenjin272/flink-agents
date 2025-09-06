@@ -21,7 +21,7 @@ from abc import ABC
 import asyncio
 from contextlib import AsyncExitStack
 from datetime import timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -37,7 +37,7 @@ from flink_agents.api.prompts.prompt import Prompt
 
 
 
-class MCPToolDefinition(BaseTool):
+class MCPTool(BaseTool):
     """MCP tool definition that can be called directly.
 
     This represents a single tool from an MCP server.
@@ -69,7 +69,8 @@ class MCPPrompt(Prompt):
     arguments: Dict[str, Any] = Field(default_factory=dict)
     mcp_server: Optional["MCPServer"] = Field(default=None, exclude=True)
 
-    def get_content(self, **arguments: Any) -> Any:
+    @override
+    def format_string(self, **arguments: Any) -> Any:
         """Get the actual prompt content from the MCP server.
 
         Returns a list of messages, each containing role and content information.
@@ -169,11 +170,11 @@ class MCPServer(Resource, ABC):
 
         return content
 
-    def list_tools(self) -> List[MCPToolDefinition]:
+    def list_tools(self) -> List[MCPTool]:
         """List available tool definitions from the MCP server."""
         return asyncio.run(self._list_tools_async())
 
-    async def _list_tools_async(self) -> List[MCPToolDefinition]:
+    async def _list_tools_async(self) -> List[MCPTool]:
         """Async implementation of list_tools."""
         session = await self._get_session()
         tools_response = await session.list_tools()
@@ -186,7 +187,7 @@ class MCPServer(Resource, ABC):
                 args_schema=tool_data.inputSchema or {"type": "object", "properties": {}}
             )
 
-            tool = MCPToolDefinition(
+            tool = MCPTool(
                 metadata=metadata,
                 mcp_server=self,
                 timeout=self.timeout
@@ -195,19 +196,19 @@ class MCPServer(Resource, ABC):
 
         return tools
 
-    def get_tool(self, name: str) -> MCPToolDefinition:
+    def get_tool(self, name: str) -> MCPTool:
         """Get a single callable tool by name."""
         return asyncio.run(self._get_tool_async(name))
 
-    async def _get_tool_async(self, name: str) -> MCPToolDefinition:
+    async def _get_tool_async(self, name: str) -> MCPTool:
         """Async implementation of get_tool."""
-        tools, _ = await self._list_tools_async()
+        tools = await self._list_tools_async()
         for tool in tools:
             if tool.metadata.name == name:
                 return tool
         raise ValueError(f"Tool '{name}' not found on MCP server at {self.endpoint}")
 
-    def get_tool_definition(self, name: str) -> ToolMetadata:
+    def get_tool_metadata(self, name: str) -> ToolMetadata:
         """Get a single tool definition metadata by name."""
         tool = self.get_tool(name)
         return tool.metadata
