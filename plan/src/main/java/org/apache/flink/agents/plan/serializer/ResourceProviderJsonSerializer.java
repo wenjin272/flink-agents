@@ -18,18 +18,17 @@
 
 package org.apache.flink.agents.plan.serializer;
 
-import org.apache.flink.agents.api.tools.ToolType;
 import org.apache.flink.agents.plan.resourceprovider.JavaResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.JavaSerializableResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.PythonSerializableResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
-import org.apache.flink.agents.plan.resourceprovider.ToolResourceProvider;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonGenerator;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.SerializerProvider;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Custom serializer for {@link ResourceProvider} that handles the serialization of different
@@ -55,22 +54,10 @@ public class ResourceProviderJsonSerializer extends StdSerializer<ResourceProvid
             serializePythonSerializableResourceProvider(
                     jsonGenerator, (PythonSerializableResourceProvider) resourceProvider);
         } else if (resourceProvider instanceof JavaResourceProvider) {
-            jsonGenerator.writeStringField("name", resourceProvider.getName());
-            jsonGenerator.writeStringField("type", resourceProvider.getType().getValue());
-            jsonGenerator.writeStringField(
-                    "__resource_provider_type__", JavaResourceProvider.class.getSimpleName());
+            serializeJavaResourceProvider(jsonGenerator, (JavaResourceProvider) resourceProvider);
         } else if (resourceProvider instanceof JavaSerializableResourceProvider) {
-            jsonGenerator.writeStringField("name", resourceProvider.getName());
-            jsonGenerator.writeStringField("type", resourceProvider.getType().getValue());
-            jsonGenerator.writeStringField(
-                    "module", ((JavaSerializableResourceProvider) resourceProvider).getModule());
-            jsonGenerator.writeStringField(
-                    "clazz", ((JavaSerializableResourceProvider) resourceProvider).getClazz());
-            jsonGenerator.writeStringField(
-                    "__resource_provider_type__",
-                    JavaSerializableResourceProvider.class.getSimpleName());
-        } else if (resourceProvider instanceof ToolResourceProvider) {
-            serializeToolResourceProvider(jsonGenerator, (ToolResourceProvider) resourceProvider);
+            serializeJavaSerializableResourceProvider(
+                    jsonGenerator, (JavaSerializableResourceProvider) resourceProvider);
         } else {
             throw new IllegalArgumentException(
                     "Unsupported resource provider type: " + resourceProvider.getClass().getName());
@@ -129,20 +116,37 @@ public class ResourceProviderJsonSerializer extends StdSerializer<ResourceProvid
         gen.writeStringField("__resource_provider_type__", "PythonSerializableResourceProvider");
     }
 
-    private void serializeToolResourceProvider(JsonGenerator gen, ToolResourceProvider provider)
+    private void serializeJavaSerializableResourceProvider(
+            JsonGenerator gen, JavaSerializableResourceProvider provider) throws IOException {
+        gen.writeStringField("name", provider.getName());
+        gen.writeStringField("type", provider.getType().getValue());
+        gen.writeStringField("module", provider.getModule());
+        gen.writeStringField("clazz", provider.getClazz());
+        gen.writeStringField("serializedResource", provider.getSerializedResource());
+        gen.writeStringField(
+                "__resource_provider_type__",
+                JavaSerializableResourceProvider.class.getSimpleName());
+    }
+
+    private void serializeJavaResourceProvider(JsonGenerator gen, JavaResourceProvider provider)
             throws IOException {
         gen.writeStringField("name", provider.getName());
         gen.writeStringField("type", provider.getType().getValue());
-        gen.writeStringField("declaringClass", provider.getDeclaringClass());
-        gen.writeStringField("methodName", provider.getMethodName());
-        gen.writeArrayFieldStart("parameterTypeNames");
-        for (String s : provider.getParameterTypeNames()) {
-            gen.writeString(s);
+        gen.writeStringField("className", provider.getClassName());
+        List<Object> parameters = provider.getParameters();
+        gen.writeFieldName("parameters");
+        gen.writeStartArray();
+        for (Object parameter : parameters) {
+            gen.writeObject(parameter);
         }
         gen.writeEndArray();
-        // Explicitly record the tool type of the method-based tool for plan-level visibility
-        gen.writeStringField("tool_type", ToolType.FUNCTION.getValue());
+        gen.writeFieldName("parameterTypes");
+        gen.writeStartArray();
+        for (String type : provider.getParameterTypes()) {
+            gen.writeString(type);
+        }
+        gen.writeEndArray();
         gen.writeStringField(
-                "__resource_provider_type__", ToolResourceProvider.class.getSimpleName());
+                "__resource_provider_type__", JavaResourceProvider.class.getSimpleName());
     }
 }

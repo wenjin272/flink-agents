@@ -24,10 +24,10 @@ import org.apache.flink.agents.plan.resourceprovider.JavaSerializableResourcePro
 import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.PythonSerializableResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
-import org.apache.flink.agents.plan.resourceprovider.ToolResourceProvider;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonParser;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.DeserializationContext;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.JsonNode;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
 import java.io.IOException;
@@ -41,6 +41,7 @@ import java.util.Map;
  * implementation.
  */
 public class ResourceProviderJsonDeserializer extends StdDeserializer<ResourceProvider> {
+    private static ObjectMapper mapper = new ObjectMapper();
 
     public ResourceProviderJsonDeserializer() {
         super(ResourceProvider.class);
@@ -65,8 +66,6 @@ public class ResourceProviderJsonDeserializer extends StdDeserializer<ResourcePr
             return deserializeJavaResourceProvider(node);
         } else if (JavaSerializableResourceProvider.class.getSimpleName().equals(providerType)) {
             return deserializeJavaSerializableResourceProvider(node);
-        } else if (ToolResourceProvider.class.getSimpleName().equals(providerType)) {
-            return deserializeToolResourceProvider(node);
         } else {
             throw new IOException("Unsupported resource provider type: " + providerType);
         }
@@ -106,7 +105,27 @@ public class ResourceProviderJsonDeserializer extends StdDeserializer<ResourcePr
     private JavaResourceProvider deserializeJavaResourceProvider(JsonNode node) {
         String name = node.get("name").asText();
         String type = node.get("type").asText();
-        return new JavaResourceProvider(name, ResourceType.fromValue(type));
+        String className = node.get("className").asText();
+        List<Object> parameters = new ArrayList<>();
+        List<String> parameterTypes = new ArrayList<>();
+
+        // TODO: There is a general requirement that support json serialize/deserialize arbitrary
+        // parameters when serialize/deserialize AgentPlan. The current implementation is not
+        // elegant, we should unify and refactor later.
+        JsonNode parametersNode = node.get("parameters");
+        JsonNode parameterTypesNode = node.get("parameterTypes");
+        try {
+            for (int i = 0; i < parametersNode.size(); i++) {
+                String clazzName = parameterTypesNode.get(i).asText();
+                parameterTypes.add(clazzName);
+                Class<?> clazz = Class.forName(clazzName);
+                parameters.add(mapper.treeToValue(parametersNode.get(i), clazz));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return new JavaResourceProvider(
+                name, ResourceType.fromValue(type), className, parameters, parameterTypes);
     }
 
     private JavaSerializableResourceProvider deserializeJavaSerializableResourceProvider(
@@ -115,26 +134,9 @@ public class ResourceProviderJsonDeserializer extends StdDeserializer<ResourcePr
         String type = node.get("type").asText();
         String module = node.get("module").asText();
         String clazz = node.get("clazz").asText();
+        String serializedResource = node.get("serializedResource").asText();
         return new JavaSerializableResourceProvider(
-                name, ResourceType.fromValue(type), module, clazz);
-    }
-
-    private ToolResourceProvider deserializeToolResourceProvider(JsonNode node) {
-        String name = node.get("name").asText();
-        String declaringClass = node.get("declaringClass").asText();
-        String methodName = node.get("methodName").asText();
-        List<String> typeNames = new ArrayList<>();
-        JsonNode arr = node.get("parameterTypeNames");
-        if (arr != null && arr.isArray()) {
-            arr.forEach(n -> typeNames.add(n.asText()));
-        }
-        // Optional: validate tool_type == function, if present
-        JsonNode toolType = node.get("tool_type");
-        if (toolType != null && !"function".equalsIgnoreCase(toolType.asText())) {
-            // Non-blocking: could log or throw. Keep non-blocking for compatibility.
-        }
-        return new ToolResourceProvider(
-                name, declaringClass, methodName, typeNames.toArray(new String[0]));
+                name, ResourceType.fromValue(type), module, clazz, serializedResource);
     }
 
     private Object parseJsonNode(JsonNode node) {
