@@ -18,7 +18,7 @@
  *
  */
 
-package org.apache.flink.agents.api.tools;
+package org.apache.flink.agents.plan.tools;
 
 import java.util.HashMap;
 import java.util.List;

@@ -21,8 +21,6 @@
 package org.apache.flink.agents.plan.tools;
 
 import org.apache.flink.agents.api.annotation.Tool;
-import org.apache.flink.agents.api.tools.SchemaUtils;
-import org.apache.flink.agents.api.tools.ToolMetadata;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonProcessingException;
 
 import java.lang.reflect.Method;

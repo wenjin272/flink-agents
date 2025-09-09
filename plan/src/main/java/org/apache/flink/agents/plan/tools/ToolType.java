@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.agents.api.tools;
+package org.apache.flink.agents.plan.tools;
 
 /** Enumeration of tool types supported by Flink-Agents. */
 public enum ToolType {

@@ -18,7 +18,7 @@
  *
  */
 
-package org.apache.flink.agents.api.tools;
+package org.apache.flink.agents.plan.tools;
 
 import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonProcessingException;
