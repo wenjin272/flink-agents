@@ -27,7 +27,6 @@ from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.tools.tool import BaseTool
 from flink_agents.api.tools.mcp import MCPServer
-from flink_agents.api.tools.tool import ToolMetadata
 
 
 class BaseChatModelConnection(Resource, ABC):

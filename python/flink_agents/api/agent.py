@@ -240,31 +240,6 @@ class Agent(ABC):
         if name in self._mcp_servers:
             msg = f"MCP server {name} already defined"
             raise ValueError(msg)
-        # ensure the resource carries its own name for cross-resource lookup
-        if getattr(mcp_server, "name", None) != name:
-            mcp_server.name = name
-        self._mcp_servers[name] = mcp_server
-        return self
-
-    def add_mcp_server(self, name: str, mcp_server: MCPServer) -> "Agent":
-        """Add an MCP server to the agent.
-
-        Parameters
-        ----------
-        name : str
-            The name of the MCP server, should be unique in the same Agent.
-        mcp_server : MCPServer
-            The MCP server resource instance.
-
-        Returns:
-        -------
-        Agent
-            The modified Agent instance.
-        """
-        if name in self._mcp_servers:
-            msg = f"MCP server {name} already defined"
-            raise ValueError(msg)
-        # ensure the resource carries its own name for cross-resource lookup
         if getattr(mcp_server, "name", None) != name:
             mcp_server.name = name
         self._mcp_servers[name] = mcp_server
