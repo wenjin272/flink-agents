@@ -1,5 +1,4 @@
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,14 +7,13 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
 package org.apache.flink.agents.api.chat.model;
@@ -23,6 +21,7 @@ package org.apache.flink.agents.api.chat.model;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.prompt.Prompt;
+import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +31,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -49,11 +49,13 @@ class BaseChatModelTest {
     private static class TestChatModel extends BaseChatModel {
         private String responsePrefix = "Test Response: ";
 
+        public TestChatModel(BiFunction<String, ResourceType, Resource> getResource) {
+            super(getResource);
+        }
+
         @Override
-        public ChatMessage chat(Prompt request) {
+        public ChatMessage chat(List<ChatMessage> messages) {
             // Simple test implementation that echoes the last user message
-            List<ChatMessage> messages =
-                    request.formatMessages(MessageRole.SYSTEM, new HashMap<>());
 
             String lastUserContent = "";
             for (ChatMessage message : messages) {
@@ -72,26 +74,21 @@ class BaseChatModelTest {
         public void setResponsePrefix(String prefix) {
             this.responsePrefix = prefix;
         }
-
-        @Override
-        public String getName() {
-            return this.getClass().getSimpleName();
-        }
     }
 
     @BeforeEach
     void setUp() {
-        chatModel = new TestChatModel();
+        chatModel = new TestChatModel(null);
 
         // Create simple prompt
-        simplePrompt = new Prompt("simple", "You are a helpful assistant. User says: {user_input}");
+        simplePrompt = new Prompt("You are a helpful assistant. User says: {user_input}");
 
         // Create conversation prompt
         List<ChatMessage> conversationTemplate =
                 Arrays.asList(
                         new ChatMessage(MessageRole.SYSTEM, "You are a helpful AI assistant."),
                         new ChatMessage(MessageRole.USER, "{user_message}"));
-        conversationPrompt = new Prompt("conversation", conversationTemplate);
+        conversationPrompt = new Prompt(conversationTemplate);
     }
 
     @Test
@@ -108,9 +105,10 @@ class BaseChatModelTest {
 
         // Format the prompt with variables
         Prompt formattedPrompt =
-                new Prompt("formatted", simplePrompt.formatMessages(MessageRole.SYSTEM, variables));
+                new Prompt(simplePrompt.formatMessages(MessageRole.SYSTEM, variables));
 
-        ChatMessage response = chatModel.chat(formattedPrompt);
+        ChatMessage response =
+                chatModel.chat(formattedPrompt.formatMessages(MessageRole.USER, new HashMap<>()));
 
         assertNotNull(response);
         assertEquals(MessageRole.ASSISTANT, response.getRole());
@@ -124,11 +122,10 @@ class BaseChatModelTest {
         variables.put("user_message", "What's the weather like?");
 
         Prompt formattedPrompt =
-                new Prompt(
-                        "formatted",
-                        conversationPrompt.formatMessages(MessageRole.SYSTEM, variables));
+                new Prompt(conversationPrompt.formatMessages(MessageRole.SYSTEM, variables));
 
-        ChatMessage response = chatModel.chat(formattedPrompt);
+        ChatMessage response =
+                chatModel.chat(formattedPrompt.formatMessages(MessageRole.USER, new HashMap<>()));
 
         assertNotNull(response);
         assertEquals(MessageRole.ASSISTANT, response.getRole());
@@ -138,9 +135,10 @@ class BaseChatModelTest {
     @Test
     @DisplayName("Test chat with empty prompt")
     void testChatWithEmptyPrompt() {
-        Prompt emptyPrompt = new Prompt("empty", "");
+        Prompt emptyPrompt = new Prompt("");
 
-        ChatMessage response = chatModel.chat(emptyPrompt);
+        ChatMessage response =
+                chatModel.chat(emptyPrompt.formatMessages(MessageRole.USER, new HashMap<>()));
 
         assertNotNull(response);
         assertEquals(MessageRole.ASSISTANT, response.getRole());
@@ -158,9 +156,10 @@ class BaseChatModelTest {
                         new ChatMessage(
                                 MessageRole.USER, "Second message - this should be the response"));
 
-        Prompt multiPrompt = new Prompt("multi", multipleMessages);
+        Prompt multiPrompt = new Prompt(multipleMessages);
 
-        ChatMessage response = chatModel.chat(multiPrompt);
+        ChatMessage response =
+                chatModel.chat(multiPrompt.formatMessages(MessageRole.USER, new HashMap<>()));
 
         assertNotNull(response);
         assertTrue(response.getContent().contains("Second message - this should be the response"));
@@ -175,9 +174,10 @@ class BaseChatModelTest {
         variables.put("user_input", "Test message");
 
         Prompt formattedPrompt =
-                new Prompt("formatted", simplePrompt.formatMessages(MessageRole.SYSTEM, variables));
+                new Prompt(simplePrompt.formatMessages(MessageRole.SYSTEM, variables));
 
-        ChatMessage response = chatModel.chat(formattedPrompt);
+        ChatMessage response =
+                chatModel.chat(formattedPrompt.formatMessages(MessageRole.USER, new HashMap<>()));
 
         assertTrue(response.getContent().startsWith("Custom Response:"));
     }
@@ -187,11 +187,11 @@ class BaseChatModelTest {
     void testChatWithSystemOnlyPrompt() {
         Prompt systemOnlyPrompt =
                 new Prompt(
-                        "system",
                         Arrays.asList(
                                 new ChatMessage(MessageRole.SYSTEM, "System instruction only")));
 
-        ChatMessage response = chatModel.chat(systemOnlyPrompt);
+        ChatMessage response =
+                chatModel.chat(systemOnlyPrompt.formatMessages(MessageRole.USER, new HashMap<>()));
 
         assertNotNull(response);
         assertEquals(MessageRole.ASSISTANT, response.getRole());
@@ -205,9 +205,10 @@ class BaseChatModelTest {
         variables.put("user_input", "Format test");
 
         Prompt formattedPrompt =
-                new Prompt("formatted", simplePrompt.formatMessages(MessageRole.SYSTEM, variables));
+                new Prompt(simplePrompt.formatMessages(MessageRole.SYSTEM, variables));
 
-        ChatMessage response = chatModel.chat(formattedPrompt);
+        ChatMessage response =
+                chatModel.chat(formattedPrompt.formatMessages(MessageRole.USER, new HashMap<>()));
 
         // Verify response structure
         assertNotNull(response.getRole());
@@ -229,9 +230,10 @@ class BaseChatModelTest {
         variables.put("user_input", longInput.toString());
 
         Prompt formattedPrompt =
-                new Prompt("formatted", simplePrompt.formatMessages(MessageRole.SYSTEM, variables));
+                new Prompt(simplePrompt.formatMessages(MessageRole.SYSTEM, variables));
 
-        ChatMessage response = chatModel.chat(formattedPrompt);
+        ChatMessage response =
+                chatModel.chat(formattedPrompt.formatMessages(MessageRole.USER, new HashMap<>()));
 
         assertNotNull(response);
         assertTrue(response.getContent().length() > 0);

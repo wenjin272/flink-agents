@@ -61,7 +61,7 @@ class ChatMessageTest {
     @DisplayName("Test default constructor creates USER message")
     void testDefaultConstructor() {
         ChatMessage defaultMessage = new ChatMessage();
-        assertEquals(MessageRole.USER, defaultMessage.getRole());
+        assertEquals(MessageRole.SYSTEM, defaultMessage.getRole());
         assertEquals("", defaultMessage.getContent());
         assertNotNull(defaultMessage.getToolCalls());
         assertNotNull(defaultMessage.getExtraArgs());

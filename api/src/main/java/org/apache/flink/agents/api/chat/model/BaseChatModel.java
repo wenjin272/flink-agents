@@ -19,18 +19,47 @@
 package org.apache.flink.agents.api.chat.model;
 
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
-import org.apache.flink.agents.api.prompt.Prompt;
+import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.resource.SerializableResource;
 
-public abstract class BaseChatModel extends SerializableResource {
+import java.util.List;
+import java.util.function.BiFunction;
+
+public abstract class BaseChatModel extends Resource {
+    protected final BiFunction<String, ResourceType, Resource> getResource;
+    protected String promptName;
+    protected List<String> toolNames;
+
+    public BaseChatModel(BiFunction<String, ResourceType, Resource> getResource) {
+        this(getResource, null, null);
+    }
+
+    public BaseChatModel(
+            BiFunction<String, ResourceType, Resource> getResource, String promptName) {
+        this(getResource, promptName, null);
+    }
+
+    public BaseChatModel(
+            BiFunction<String, ResourceType, Resource> getResource, List<String> toolNames) {
+        this(getResource, null, toolNames);
+    }
+
+    public BaseChatModel(
+            BiFunction<String, ResourceType, Resource> getResource,
+            String promptName,
+            List<String> toolNames) {
+        this.getResource = getResource;
+        this.promptName = promptName;
+        this.toolNames = toolNames;
+    }
+
     /**
      * Process a chat request and return a chat response.
      *
-     * @param request the chat request containing messages, options, etc.
+     * @param messages the input chat messages
      * @return the chat response containing model outputs
      */
-    public abstract ChatMessage chat(Prompt request);
+    public abstract ChatMessage chat(List<ChatMessage> messages);
 
     @Override
     public ResourceType getResourceType() {

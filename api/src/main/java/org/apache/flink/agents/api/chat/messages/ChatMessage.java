@@ -19,6 +19,7 @@
 package org.apache.flink.agents.api.chat.messages;
 
 import org.apache.flink.agents.api.resource.Resource;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,7 +31,7 @@ import java.util.Objects;
  * Chat message class that represents all message types (user, system, assistant, tool) with
  * different roles
  */
-public class ChatMessage implements Message {
+public class ChatMessage {
 
     /** The key for the message type in the metadata. */
     public static final String MESSAGE_TYPE = "messageType";
@@ -40,9 +41,9 @@ public class ChatMessage implements Message {
     private List<Map<String, Object>> toolCalls;
     private Map<String, Object> extraArgs;
 
-    /** Default constructor with USER role */
+    /** Default constructor with SYSTEM role */
     public ChatMessage() {
-        this.role = MessageRole.USER;
+        this.role = MessageRole.SYSTEM;
         this.content = "";
         this.toolCalls = new ArrayList<>();
         this.extraArgs = new HashMap<>();
@@ -50,7 +51,7 @@ public class ChatMessage implements Message {
 
     /** Constructor with role and content */
     public ChatMessage(MessageRole role, String content) {
-        this.role = role != null ? role : MessageRole.USER;
+        this.role = role != null ? role : MessageRole.SYSTEM;
         this.content = content != null ? content : "";
         this.toolCalls = new ArrayList<>();
         this.extraArgs = new HashMap<>();
@@ -63,7 +64,7 @@ public class ChatMessage implements Message {
             String content,
             List<Map<String, Object>> toolCalls,
             Map<String, Object> extraArgs) {
-        this.role = role != null ? role : MessageRole.USER;
+        this.role = role != null ? role : MessageRole.SYSTEM;
         this.content = content != null ? content : "";
         this.toolCalls = toolCalls != null ? toolCalls : new ArrayList<>();
         this.extraArgs = extraArgs != null ? new HashMap<>(extraArgs) : new HashMap<>();
@@ -74,7 +75,7 @@ public class ChatMessage implements Message {
     public ChatMessage(MessageRole role, Resource resource, Map<String, Object> extraArgs) {
         if (resource == null) throw new IllegalArgumentException("resource must not be null");
         // TODO handle resource content properly
-        this.role = role != null ? role : MessageRole.USER;
+        this.role = role != null ? role : MessageRole.SYSTEM;
         this.toolCalls = new ArrayList<>();
         this.extraArgs = extraArgs != null ? new HashMap<>(extraArgs) : new HashMap<>();
         this.extraArgs.put(MESSAGE_TYPE, this.role);
@@ -114,17 +115,16 @@ public class ChatMessage implements Message {
         this.extraArgs.put(MESSAGE_TYPE, this.role);
     }
 
-    @Override
+    @JsonIgnore
     public String getText() {
         return this.content;
     }
 
-    @Override
     public Map<String, Object> getMetadata() {
         return this.extraArgs;
     }
 
-    @Override
+    @JsonIgnore
     public MessageRole getMessageType() {
         return this.role;
     }
