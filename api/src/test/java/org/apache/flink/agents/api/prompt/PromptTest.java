@@ -23,6 +23,9 @@ package org.apache.flink.agents.api.prompt;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonProcessingException;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,7 +53,7 @@ class PromptTest {
         String textTemplate =
                 "You are a product review analyzer, please generate a score and the dislike reasons "
                         + "(if any) for the review. The product {product_id} is {description}, and user review is '{review}'.";
-        textPrompt = new Prompt("textPrompt", textTemplate);
+        textPrompt = new Prompt(textTemplate);
 
         // Create message-based prompt template
         List<ChatMessage> messageTemplate =
@@ -62,7 +65,7 @@ class PromptTest {
                         new ChatMessage(
                                 MessageRole.USER,
                                 "The product {product_id} is {description}, and user review is '{review}'."));
-        messagesPrompt = new Prompt("messagesPrompt", messageTemplate);
+        messagesPrompt = new Prompt(messageTemplate);
 
         // Set up test variables
         variables = new HashMap<>();
@@ -165,16 +168,9 @@ class PromptTest {
     }
 
     @Test
-    @DisplayName("Test prompt name")
-    void testPromptName() {
-        assertEquals("textPrompt", textPrompt.getName());
-        assertEquals("messagesPrompt", messagesPrompt.getName());
-    }
-
-    @Test
     @DisplayName("Test empty prompt")
     void testEmptyPrompt() {
-        Prompt emptyPrompt = new Prompt("empty", "");
+        Prompt emptyPrompt = new Prompt("");
         String result = emptyPrompt.formatString(new HashMap<>());
         assertEquals("", result);
 
@@ -187,7 +183,7 @@ class PromptTest {
     @DisplayName("Test prompt with special characters")
     void testPromptWithSpecialCharacters() {
         String specialTemplate = "Handle special chars: {text} with symbols like @#$%^&*()";
-        Prompt specialPrompt = new Prompt("special", specialTemplate);
+        Prompt specialPrompt = new Prompt(specialTemplate);
 
         Map<String, String> specialVars = new HashMap<>();
         specialVars.put("text", "Hello & Welcome!");
@@ -201,7 +197,7 @@ class PromptTest {
     @DisplayName("Test prompt with nested braces")
     void testPromptWithNestedBraces() {
         String nestedTemplate = "JSON example: {{\"key\": \"{value}\"}}";
-        Prompt nestedPrompt = new Prompt("nested", nestedTemplate);
+        Prompt nestedPrompt = new Prompt(nestedTemplate);
 
         Map<String, String> nestedVars = new HashMap<>();
         nestedVars.put("value", "test");
@@ -224,7 +220,7 @@ class PromptTest {
                                 "I'd be happy to help with {task}. Let me know what specifically you need."),
                         new ChatMessage(MessageRole.USER, "{user_request}"));
 
-        Prompt conversationPrompt = new Prompt("conversation", conversationTemplate);
+        Prompt conversationPrompt = new Prompt(conversationTemplate);
 
         Map<String, String> conversationVars = new HashMap<>();
         conversationVars.put("assistant_type", "an AI assistant");
@@ -239,5 +235,26 @@ class PromptTest {
         assertTrue(messages.get(0).getContent().contains("an AI assistant"));
         assertTrue(messages.get(0).getContent().contains("software development"));
         assertTrue(messages.get(3).getContent().contains("NullPointerException"));
+    }
+
+    @Test
+    @DisplayName("Test string prompt serialize and deserialize")
+    void testStringPromptSerializeAndDeserialize() throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        String json = mapper.writeValueAsString(textPrompt);
+        Prompt deserialized = mapper.readValue(json, Prompt.class);
+        Map<String, String> empty = new HashMap<>();
+        Assertions.assertEquals(textPrompt.formatString(empty), deserialized.formatString(empty));
+    }
+
+    @Test
+    @DisplayName("Test message prompt serialize and deserialize")
+    void testMessagePromptSerializeAndDeserialize() throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        String json = mapper.writeValueAsString(messagesPrompt);
+        Prompt deserialized = mapper.readValue(json, Prompt.class);
+        Map<String, String> empty = new HashMap<>();
+        Assertions.assertEquals(
+                messagesPrompt.formatString(empty), deserialized.formatString(empty));
     }
 }
