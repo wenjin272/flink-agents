@@ -18,8 +18,9 @@
 
 package org.apache.flink.agents.api.tools;
 
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.JsonNode;
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonCreator;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Objects;
 
@@ -28,13 +29,26 @@ import java.util.Objects;
  * interact with. Implementation logic for creating metadata from methods is handled in the plan
  * module.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ToolMetadata {
+    private static final String FIELD_NAME = "name";
+    private static final String FIELD_DESCRIPTION = "description";
+    private static final String FIELD_INPUT_SCHEMA = "inputSchema";
 
+    @JsonProperty(FIELD_NAME)
     private final String name;
-    private final String description;
-    private final JsonNode inputSchema;
 
-    public ToolMetadata(String name, String description, JsonNode inputSchema) {
+    @JsonProperty(FIELD_DESCRIPTION)
+    private final String description;
+
+    @JsonProperty(FIELD_INPUT_SCHEMA)
+    private final String inputSchema;
+
+    @JsonCreator
+    public ToolMetadata(
+            @JsonProperty(FIELD_NAME) String name,
+            @JsonProperty(FIELD_DESCRIPTION) String description,
+            @JsonProperty(FIELD_INPUT_SCHEMA) String inputSchema) {
         this.name = Objects.requireNonNull(name, "name cannot be null");
         this.description = Objects.requireNonNull(description, "description cannot be null");
         this.inputSchema = Objects.requireNonNull(inputSchema, "inputSchema cannot be null");
@@ -48,17 +62,8 @@ public class ToolMetadata {
         return description;
     }
 
-    public JsonNode getInputSchema() {
+    public String getInputSchema() {
         return inputSchema;
-    }
-
-    /** Get input schema as JSON string for validation. */
-    public String getInputSchemaAsString() {
-        try {
-            return new ObjectMapper().writeValueAsString(inputSchema);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize input schema", e);
-        }
     }
 
     @Override

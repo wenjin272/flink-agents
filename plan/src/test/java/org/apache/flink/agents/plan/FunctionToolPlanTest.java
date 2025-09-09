@@ -62,18 +62,16 @@ class FunctionToolPlanTest {
     }
 
     static class TestAgent extends Agent {
-        @Tool(name = "java_calc")
-        private final FunctionTool javaTool;
+        @Tool private final FunctionTool javaTool;
 
-        @Tool(name = "py_tool")
-        private final FunctionTool pyTool;
+        @Tool private final FunctionTool pyTool;
 
         TestAgent() {
             try {
                 Method m =
                         FunctionToolPlanTest.class.getMethod(
                                 "calc", double.class, double.class, String.class);
-                this.javaTool = FunctionTool.fromStaticMethod("java_calc", "java calculator", m);
+                this.javaTool = FunctionTool.fromStaticMethod("java calculator", m);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -81,7 +79,7 @@ class FunctionToolPlanTest {
             ObjectMapper om = new ObjectMapper();
             ObjectNode schema = om.createObjectNode();
             schema.put("type", "object");
-            ToolMetadata md = new ToolMetadata("py_tool", "python tool", schema);
+            ToolMetadata md = new ToolMetadata("py_tool", "python tool", schema.asText());
             PythonFunction pyFunc = new PythonFunction("mod", "qual");
             this.pyTool = new FunctionTool(md, pyFunc);
         }
@@ -92,7 +90,7 @@ class FunctionToolPlanTest {
     void functionToolAgentPlan() throws Exception {
         AgentPlan plan = new AgentPlan(new TestAgent());
 
-        FunctionTool javaTool = (FunctionTool) plan.getResource("java_calc", ResourceType.TOOL);
+        FunctionTool javaTool = (FunctionTool) plan.getResource("javaTool", ResourceType.TOOL);
         ToolResponse ok =
                 javaTool.call(
                         new ToolParameters(
@@ -104,7 +102,7 @@ class FunctionToolPlanTest {
         assertTrue(ok.isSuccess());
         assertEquals(36.0, (Double) ok.getResult(), 1e-9);
 
-        FunctionTool pyTool = (FunctionTool) plan.getResource("py_tool", ResourceType.TOOL);
+        FunctionTool pyTool = (FunctionTool) plan.getResource("pyTool", ResourceType.TOOL);
         ToolResponse err = pyTool.call(new ToolParameters(new HashMap<>(Map.of("x", 1))));
         assertFalse(err.isSuccess());
     }
@@ -115,7 +113,7 @@ class FunctionToolPlanTest {
         Method m =
                 FunctionToolPlanTest.class.getMethod(
                         "calc", double.class, double.class, String.class);
-        FunctionTool tool = FunctionTool.fromStaticMethod("java_calc", "desc", m);
+        FunctionTool tool = FunctionTool.fromStaticMethod("desc", m);
         ToolResponse ok =
                 tool.call(
                         new ToolParameters(

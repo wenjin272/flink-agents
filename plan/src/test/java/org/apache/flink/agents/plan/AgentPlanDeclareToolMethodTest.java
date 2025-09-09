@@ -24,14 +24,9 @@ import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.annotation.Action;
-import org.apache.flink.agents.api.annotation.ChatModel;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
-import org.apache.flink.agents.api.chat.messages.ChatMessage;
-import org.apache.flink.agents.api.chat.messages.MessageRole;
-import org.apache.flink.agents.api.chat.model.BaseChatModel;
 import org.apache.flink.agents.api.context.RunnerContext;
-import org.apache.flink.agents.api.prompt.Prompt;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.tools.BaseTool;
 import org.apache.flink.agents.api.tools.ToolMetadata;
@@ -51,19 +46,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ToolsMethodToolsPlanTest {
+class AgentPlanDeclareToolMethodTest {
 
     private AgentPlan agentPlan;
 
     static class TestAgent extends Agent {
-        @ChatModel(name = "testChatModel")
-        private BaseChatModel chatModel;
-
-        TestAgent(BaseChatModel chatModel) {
-            this.chatModel = chatModel;
-        }
-
-        @Tool(name = "calculator", description = "Performs basic arithmetic operations")
+        @Tool(description = "Performs basic arithmetic operations")
         public static double calculate(
                 @ToolParam(name = "a") Double a,
                 @ToolParam(name = "b") Double b,
@@ -83,7 +71,7 @@ class ToolsMethodToolsPlanTest {
             }
         }
 
-        @Tool(name = "get_weather", description = "Get weather information for a location")
+        @Tool(description = "Get weather information for a location")
         public static String getWeather(
                 @ToolParam(name = "location") String location,
                 @ToolParam(name = "units") String units) {
@@ -99,21 +87,9 @@ class ToolsMethodToolsPlanTest {
         }
     }
 
-    static class MockChatModel extends BaseChatModel {
-        @Override
-        public ChatMessage chat(Prompt request) {
-            return new ChatMessage(MessageRole.ASSISTANT, "Mock response");
-        }
-
-        @Override
-        public String getName() {
-            return "testChatModel";
-        }
-    }
-
     @BeforeEach
     void setup() throws Exception {
-        agentPlan = new AgentPlan(new TestAgent(new MockChatModel()));
+        agentPlan = new AgentPlan(new TestAgent());
     }
 
     @Test
@@ -123,14 +99,14 @@ class ToolsMethodToolsPlanTest {
                 agentPlan.getResourceProviders();
         assertTrue(providers.containsKey(ResourceType.TOOL));
         Map<String, ?> toolProviders = providers.get(ResourceType.TOOL);
-        assertTrue(toolProviders.containsKey("calculator"));
-        assertTrue(toolProviders.containsKey("get_weather"));
+        assertTrue(toolProviders.containsKey("calculate"));
+        assertTrue(toolProviders.containsKey("getWeather"));
     }
 
     @Test
     @DisplayName("Retrieve tool and call with parameters")
     void retrieveAndCallTool() throws Exception {
-        BaseTool calculator = (BaseTool) agentPlan.getResource("calculator", ResourceType.TOOL);
+        BaseTool calculator = (BaseTool) agentPlan.getResource("calculate", ResourceType.TOOL);
         ToolParameters tp =
                 new ToolParameters(
                         new HashMap<>(
@@ -142,7 +118,7 @@ class ToolsMethodToolsPlanTest {
         assertTrue(r.isSuccess());
         assertEquals(45.0, (Double) r.getResult(), 0.001);
 
-        BaseTool weather = (BaseTool) agentPlan.getResource("get_weather", ResourceType.TOOL);
+        BaseTool weather = (BaseTool) agentPlan.getResource("getWeather", ResourceType.TOOL);
         ToolResponse wr =
                 weather.call(
                         new ToolParameters(
@@ -158,7 +134,7 @@ class ToolsMethodToolsPlanTest {
     @Test
     @DisplayName("Parameter conversion and errors")
     void paramConversionAndErrors() throws Exception {
-        BaseTool calculator = (BaseTool) agentPlan.getResource("calculator", ResourceType.TOOL);
+        BaseTool calculator = (BaseTool) agentPlan.getResource("calculate", ResourceType.TOOL);
 
         ToolResponse r =
                 calculator.call(
@@ -213,24 +189,24 @@ class ToolsMethodToolsPlanTest {
     @Test
     @DisplayName("Metadata and schema shape")
     void metadataSchema() throws Exception {
-        BaseTool calculator = (BaseTool) agentPlan.getResource("calculator", ResourceType.TOOL);
+        BaseTool calculator = (BaseTool) agentPlan.getResource("calculate", ResourceType.TOOL);
         ToolMetadata md = calculator.getMetadata();
-        assertEquals("calculator", md.getName());
+        assertEquals("calculate", md.getName());
         assertEquals("Performs basic arithmetic operations", md.getDescription());
         assertNotNull(md.getInputSchema());
-        String json = md.getInputSchemaAsString();
+        String json = md.getInputSchema();
         assertTrue(json.contains("\"a\""));
         assertTrue(json.contains("\"b\""));
         assertTrue(json.contains("\"operation\""));
     }
 
     @Test
-    @DisplayName("AgentPlan JSON roundtrip with ToolResourceProvider")
-    void agentPlanJsonRoundtrip() throws Exception {
+    @DisplayName("AgentPlan json serialize and deserialized with ToolResourceProvider")
+    void testAgentPlanJsonSerializable() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         String json = mapper.writeValueAsString(agentPlan);
         AgentPlan restored = mapper.readValue(json, AgentPlan.class);
-        BaseTool calculator = (BaseTool) restored.getResource("calculator", ResourceType.TOOL);
+        BaseTool calculator = (BaseTool) restored.getResource("calculate", ResourceType.TOOL);
         ToolResponse r =
                 calculator.call(
                         new ToolParameters(

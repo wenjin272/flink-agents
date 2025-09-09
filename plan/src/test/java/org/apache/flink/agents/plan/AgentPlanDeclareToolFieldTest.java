@@ -45,7 +45,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Field-based FunctionTool extraction and invocation tests. */
-class ToolsFieldToolsPlanTest {
+class AgentPlanDeclareToolFieldTest {
 
     private AgentPlan agentPlan;
 
@@ -79,11 +79,9 @@ class ToolsFieldToolsPlanTest {
     }
 
     static class TestAgent extends Agent {
-        @Tool(name = "calculator")
-        private final BaseTool calculator = createCalculatorTool();
+        @Tool private final BaseTool calculator = createCalculatorTool();
 
-        @Tool(name = "get_weather")
-        private final BaseTool weather = createWeatherTool();
+        @Tool private final BaseTool weather = createWeatherTool();
 
         @Action(listenEvents = {InputEvent.class})
         public void onInput(Event e, RunnerContext ctx) {
@@ -93,10 +91,9 @@ class ToolsFieldToolsPlanTest {
         private static BaseTool createCalculatorTool() {
             try {
                 Method m =
-                        ToolsFieldToolsPlanTest.class.getMethod(
+                        AgentPlanDeclareToolFieldTest.class.getMethod(
                                 "calculate", double.class, double.class, String.class);
-                return FunctionTool.fromStaticMethod(
-                        "calculator", "Performs basic arithmetic operations", m);
+                return FunctionTool.fromStaticMethod("Performs basic arithmetic operations", m);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -105,10 +102,9 @@ class ToolsFieldToolsPlanTest {
         private static BaseTool createWeatherTool() {
             try {
                 Method m =
-                        ToolsFieldToolsPlanTest.class.getMethod(
+                        AgentPlanDeclareToolFieldTest.class.getMethod(
                                 "getWeather", String.class, String.class);
-                return FunctionTool.fromStaticMethod(
-                        "get_weather", "Get weather information for a location", m);
+                return FunctionTool.fromStaticMethod("Get weather information for a location", m);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -128,7 +124,7 @@ class ToolsFieldToolsPlanTest {
         assertTrue(providers.containsKey(ResourceType.TOOL));
         Map<String, ?> toolProviders = providers.get(ResourceType.TOOL);
         assertTrue(toolProviders.containsKey("calculator"));
-        assertTrue(toolProviders.containsKey("get_weather"));
+        assertTrue(toolProviders.containsKey("weather"));
     }
 
     @Test
@@ -151,7 +147,7 @@ class ToolsFieldToolsPlanTest {
     @Test
     @DisplayName("Call weather FunctionTool")
     void callWeather() throws Exception {
-        BaseTool tool = (BaseTool) agentPlan.getResource("get_weather", ResourceType.TOOL);
+        BaseTool tool = (BaseTool) agentPlan.getResource("weather", ResourceType.TOOL);
         assertInstanceOf(FunctionTool.class, tool);
         ToolResponse r =
                 tool.call(
@@ -170,10 +166,10 @@ class ToolsFieldToolsPlanTest {
     void metadataSchema() throws Exception {
         FunctionTool tool = (FunctionTool) agentPlan.getResource("calculator", ResourceType.TOOL);
         ToolMetadata md = tool.getMetadata();
-        assertEquals("calculator", md.getName());
+        assertEquals("calculate", md.getName());
         assertEquals("Performs basic arithmetic operations", md.getDescription());
         assertNotNull(md.getInputSchema());
-        String json = md.getInputSchemaAsString();
+        String json = md.getInputSchema();
         assertTrue(json.contains("\"a\""));
         assertTrue(json.contains("\"b\""));
         assertTrue(json.contains("\"operation\""));
@@ -203,6 +199,4 @@ class ToolsFieldToolsPlanTest {
                                                 "operation", "noop"))));
         assertFalse(r.isSuccess());
     }
-
-    // add test to field based tools JavaFuntion
 }

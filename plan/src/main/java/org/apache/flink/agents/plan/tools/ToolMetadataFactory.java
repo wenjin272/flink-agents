@@ -23,7 +23,7 @@ package org.apache.flink.agents.plan.tools;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.tools.SchemaUtils;
 import org.apache.flink.agents.api.tools.ToolMetadata;
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.JsonNode;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonProcessingException;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -35,7 +35,7 @@ import java.lang.reflect.Modifier;
 public class ToolMetadataFactory {
 
     /** Create ToolMetadata from a static method annotated with @Tool. */
-    public static ToolMetadata fromMethod(Method method, Object instance) {
+    public static ToolMetadata fromStaticMethod(Method method) throws JsonProcessingException {
         if (!Modifier.isStatic(method.getModifiers())) {
             throw new IllegalArgumentException("Only static methods are supported");
         }
@@ -45,9 +45,9 @@ public class ToolMetadataFactory {
             throw new IllegalArgumentException("Method must be annotated with @Tool");
         }
 
-        String name = toolAnnotation.name().isEmpty() ? method.getName() : toolAnnotation.name();
+        String name = method.getName();
         String description = toolAnnotation.description();
-        JsonNode schema = SchemaUtils.generateSchema(method);
+        String schema = SchemaUtils.generateSchema(method);
 
         return new ToolMetadata(name, description, schema);
     }

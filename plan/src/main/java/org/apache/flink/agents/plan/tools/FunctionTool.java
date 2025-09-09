@@ -30,6 +30,10 @@ import org.apache.flink.agents.api.tools.ToolResponse;
 import org.apache.flink.agents.api.tools.ToolType;
 import org.apache.flink.agents.plan.Function;
 import org.apache.flink.agents.plan.JavaFunction;
+import org.apache.flink.agents.plan.tools.serializer.FunctionToolJsonDeserializer;
+import org.apache.flink.agents.plan.tools.serializer.FunctionToolJsonSerializer;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -40,6 +44,8 @@ import java.lang.reflect.Parameter;
  * module as it handles the implementation logic for converting user-defined @Tool methods into
  * executable tools.
  */
+@JsonSerialize(using = FunctionToolJsonSerializer.class)
+@JsonDeserialize(using = FunctionToolJsonDeserializer.class)
 public class FunctionTool extends BaseTool {
 
     private final Function function;
@@ -58,10 +64,7 @@ public class FunctionTool extends BaseTool {
         }
 
         Tool toolAnnotation = method.getAnnotation(Tool.class);
-        String name =
-                toolAnnotation != null && !toolAnnotation.name().isEmpty()
-                        ? toolAnnotation.name()
-                        : method.getName();
+        String name = method.getName();
         String description = toolAnnotation != null ? toolAnnotation.description() : "";
 
         ToolMetadata metadata =
@@ -74,10 +77,10 @@ public class FunctionTool extends BaseTool {
     }
 
     /**
-     * Create a FunctionTool from a static method with explicit name/description. This does not
-     * require a method-level @Tool annotation.
+     * Create a FunctionTool from a static method with explicit description. This does not require a
+     * method-level @Tool annotation.
      */
-    public static FunctionTool fromStaticMethod(String name, String description, Method method)
+    public static FunctionTool fromStaticMethod(String description, Method method)
             throws Exception {
         if (!Modifier.isStatic(method.getModifiers())) {
             throw new IllegalArgumentException(
@@ -85,7 +88,7 @@ public class FunctionTool extends BaseTool {
         }
         ToolMetadata metadata =
                 new ToolMetadata(
-                        name != null && !name.isEmpty() ? name : method.getName(),
+                        method.getName(),
                         description != null ? description : "",
                         SchemaUtils.generateSchema(method));
         JavaFunction javaFunction =
@@ -131,5 +134,9 @@ public class FunctionTool extends BaseTool {
         } catch (Exception e) {
             return ToolResponse.error(e);
         }
+    }
+
+    public Function getFunction() {
+        return function;
     }
 }
