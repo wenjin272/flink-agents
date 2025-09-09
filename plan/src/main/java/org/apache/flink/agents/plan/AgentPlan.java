@@ -21,6 +21,7 @@ package org.apache.flink.agents.plan;
 import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.annotation.ChatModel;
+import org.apache.flink.agents.api.annotation.Prompt;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
@@ -28,9 +29,11 @@ import org.apache.flink.agents.api.resource.SerializableResource;
 import org.apache.flink.agents.plan.resourceprovider.JavaResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.JavaSerializableResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
-import org.apache.flink.agents.plan.resourceprovider.ToolResourceProvider;
 import org.apache.flink.agents.plan.serializer.AgentPlanJsonDeserializer;
 import org.apache.flink.agents.plan.serializer.AgentPlanJsonSerializer;
+import org.apache.flink.agents.plan.tools.FunctionTool;
+import org.apache.flink.agents.plan.tools.ToolMetadata;
+import org.apache.flink.agents.plan.tools.ToolMetadataFactory;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -46,7 +49,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** Agent plan compiled from user defined agent. */
@@ -156,7 +159,15 @@ public class AgentPlan implements Serializable {
         ResourceProvider provider = resourceProviders.get(type).get(name);
 
         // Create resource using provider
-        Resource resource = provider.provide(() -> this.getResource(name, type));
+        Resource resource =
+                provider.provide(
+                        (String anotherName, ResourceType anotherType) -> {
+                            try {
+                                return this.getResource(anotherName, anotherType);
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
 
         // Cache the resource
         resourceCache.computeIfAbsent(type, k -> new ConcurrentHashMap<>()).put(name, resource);
@@ -196,7 +207,8 @@ public class AgentPlan implements Serializable {
                         method.getAnnotation(org.apache.flink.agents.api.annotation.Action.class);
 
                 // Get the event types this action listens to
-                Class<? extends Event>[] listenEventTypes = actionAnnotation.listenEvents();
+                Class<? extends Event>[] listenEventTypes =
+                        Objects.requireNonNull(actionAnnotation).listenEvents();
 
                 // Convert event types to string names
                 List<String> eventTypeNames = new ArrayList<>();
@@ -231,11 +243,15 @@ public class AgentPlan implements Serializable {
         for (Field field : agentClass.getDeclaredFields()) {
             field.setAccessible(true); // Allow access to private fields
 
+            String errMsg =
+                    "Failed to access field "
+                            + field.getName()
+                            + " in agent class "
+                            + agentClass.getName();
+
             // Check for @Tool annotation
             if (field.isAnnotationPresent(Tool.class)) {
-                Tool toolAnnotation = field.getAnnotation(Tool.class);
-                String resourceName =
-                        toolAnnotation.name().isEmpty() ? field.getName() : toolAnnotation.name();
+                String resourceName = field.getName();
 
                 try {
                     Object fieldValue = field.get(agent);
@@ -247,46 +263,14 @@ public class AgentPlan implements Serializable {
                         addResourceProvider(provider);
                     }
                 } catch (IllegalAccessException e) {
-                    throw new Exception(
-                            "Failed to access field "
-                                    + field.getName()
-                                    + " in agent class "
-                                    + agentClass.getName(),
-                            e);
-                }
-            }
-
-            // Scan static methods annotated with @Tool (method-based tools)
-            for (Method method : agentClass.getDeclaredMethods()) {
-                if (method.isAnnotationPresent(Tool.class)
-                        && Modifier.isStatic(method.getModifiers())) {
-                    Tool toolAnn = method.getAnnotation(Tool.class);
-                    String name = toolAnn.name().isEmpty() ? method.getName() : toolAnn.name();
-
-                    // Build parameter type names for reconstruction
-                    Class<?>[] paramTypes = method.getParameterTypes();
-                    String[] paramTypeNames = new String[paramTypes.length];
-                    for (int i = 0; i < paramTypes.length; i++) {
-                        paramTypeNames[i] = paramTypes[i].getName();
-                    }
-
-                    ResourceProvider provider =
-                            new ToolResourceProvider(
-                                    name,
-                                    method.getDeclaringClass().getName(),
-                                    method.getName(),
-                                    paramTypeNames);
-                    addResourceProvider(provider);
+                    throw new Exception(errMsg, e);
                 }
             }
 
             // Check for @ChatModel annotation
             if (field.isAnnotationPresent(ChatModel.class)) {
                 ChatModel chatModelAnnotation = field.getAnnotation(ChatModel.class);
-                String resourceName =
-                        chatModelAnnotation.name().isEmpty()
-                                ? field.getName()
-                                : chatModelAnnotation.name();
+                String resourceName = field.getName();
 
                 try {
                     Object fieldValue = field.get(agent);
@@ -301,13 +285,51 @@ public class AgentPlan implements Serializable {
                         addResourceProvider(provider);
                     }
                 } catch (IllegalAccessException e) {
-                    throw new Exception(
-                            "Failed to access field "
-                                    + field.getName()
-                                    + " in agent class "
-                                    + agentClass.getName(),
-                            e);
+                    throw new Exception(errMsg, e);
                 }
+            }
+        }
+
+        // Scan static methods annotated with @Tool (method-based tools)
+        for (Method method : agentClass.getDeclaredMethods()) {
+            if (method.isAnnotationPresent(Tool.class)
+                    && Modifier.isStatic(method.getModifiers())) {
+                Tool toolAnn = method.getAnnotation(Tool.class);
+                String name = method.getName();
+
+                // Build parameter type names for reconstruction
+                Class<?>[] paramTypes = method.getParameterTypes();
+
+                ToolMetadata metadata = ToolMetadataFactory.fromStaticMethod(method);
+                JavaFunction javaFunction =
+                        new JavaFunction(method.getDeclaringClass(), method.getName(), paramTypes);
+
+                FunctionTool tool = new FunctionTool(metadata, javaFunction);
+                JavaSerializableResourceProvider provider =
+                        JavaSerializableResourceProvider.createResourceProvider(
+                                name, ResourceType.TOOL, tool);
+
+                addResourceProvider(provider);
+            } else if (method.isAnnotationPresent(Prompt.class)) {
+                String promptName = method.getName();
+                SerializableResource prompt = (SerializableResource) method.invoke(null);
+
+                JavaSerializableResourceProvider provider =
+                        JavaSerializableResourceProvider.createResourceProvider(
+                                promptName, ResourceType.PROMPT, prompt);
+
+                addResourceProvider(provider);
+            } else if (method.isAnnotationPresent(ChatModel.class)) {
+                String chatModelName = method.getName();
+                Map<String, Object> meta = (Map<String, Object>) method.invoke(null);
+                JavaResourceProvider provider =
+                        new JavaResourceProvider(
+                                chatModelName,
+                                ResourceType.CHAT_MODEL,
+                                (String) meta.get(ChatModel.CHAT_MODEL_CLASS_NAME),
+                                (List<Object>) meta.get(ChatModel.CHAT_MODEL_ARGUMENTS),
+                                (List<String>) meta.get(ChatModel.CHAT_MODEL_ARGUMENTS_TYPES));
+                addResourceProvider(provider);
             }
         }
     }
@@ -317,25 +339,16 @@ public class AgentPlan implements Serializable {
      * serializable.
      */
     private ResourceProvider createResourceProvider(
-            String name, ResourceType type, Resource resource, Class<?> agentClass) {
+            String name, ResourceType type, Resource resource, Class<?> agentClass)
+            throws Exception {
         if (resource instanceof SerializableResource) {
             // For serializable resources, use JavaSerializableResourceProvider
             SerializableResource serializableResource = (SerializableResource) resource;
-            return new JavaSerializableResourceProvider(
-                    name, type, agentClass.getPackage().getName(), resource.getClass().getName()) {
-                @Override
-                public Resource provide(Callable<Resource> getResource) throws Exception {
-                    return serializableResource;
-                }
-            };
+            return JavaSerializableResourceProvider.createResourceProvider(
+                    name, type, serializableResource);
         } else {
-            // For non-serializable resources, use JavaResourceProvider
-            return new JavaResourceProvider(name, type) {
-                @Override
-                public Resource provide(Callable<Resource> getResource) throws Exception {
-                    return resource;
-                }
-            };
+            throw new UnsupportedOperationException(
+                    "Only support declared SerializableResource as field of Agent.");
         }
     }
 
