@@ -34,24 +34,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Tool {
     /**
-     * The name of the tool resource. If not specified, the field/method name will be used.
-     *
-     * @return the resource name
-     */
-    String name() default "";
-
-    /**
      * The description of the tool. If not provided, the field/method name will be used.
      *
      * @return the description of the tool
      */
     String description() default "";
-
-    /**
-     * Whether the tool result should be returned directly or passed back to the model.
-     *
-     * @return true if the tool result should be returned directly, false if it should be passed
-     *     back to the model
-     */
-    boolean returnDirect() default false;
 }
