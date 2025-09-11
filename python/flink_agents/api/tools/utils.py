@@ -20,10 +20,10 @@ from inspect import signature
 from typing import Any, Callable, Dict, Optional, Type, Union
 
 from docstring_parser import parse
+from mcp import types
 from pydantic import BaseModel, create_model
 from pydantic.fields import Field, FieldInfo
 
-from mcp import types
 
 def create_schema_from_function(name: str, func: Callable) -> Type[BaseModel]:
     """Create a pydantic schema from a function's signature."""
@@ -39,7 +39,7 @@ def create_schema_from_function(name: str, func: Callable) -> Type[BaseModel]:
     for param_name in params:
         param_type = params[param_name].annotation
         param_default = params[param_name].default
-        description = doc_params.get(param_name, None)
+        description = doc_params.get(param_name)
         if description is not None:
             description = description.description
         else:
@@ -192,7 +192,8 @@ def extract_mcp_content_item(content_item: Any) -> Dict[str, Any]:
         ImportError: If MCP types are not available
     """
     if types is None:
-        raise ImportError("MCP types not available. Please install the mcp package.")
+        err_msg = "MCP types not available. Please install the mcp package."
+        raise ImportError(err_msg)
 
     if isinstance(content_item, types.TextContent):
         return {"type": "text", "text": content_item.text}

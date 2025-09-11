@@ -17,24 +17,31 @@
 #################################################################################
 from __future__ import annotations
 
-from abc import ABC
 import asyncio
+from abc import ABC
 from contextlib import AsyncExitStack
 from datetime import timedelta
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Type
 from urllib.parse import urlparse
 
-import httpx
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
+from mcp.types import TextContent
 from pydantic import Field
 from typing_extensions import override
 
+from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.tools.tool import BaseTool, ToolMetadata, ToolType
 from flink_agents.api.tools.utils import extract_mcp_content_item
-from flink_agents.api.prompts.prompt import Prompt
 
+if TYPE_CHECKING:
+    from types import TracebackType
+
+    import httpx
+    from mcp.types import PromptArgument
+    from typing_extensions import Self
 
 
 class MCPTool(BaseTool):
@@ -43,7 +50,7 @@ class MCPTool(BaseTool):
     This represents a single tool from an MCP server.
     """
 
-    mcp_server: Optional["MCPServer"] = Field(default=None, exclude=True)
+    mcp_server: MCPServer = Field(default=None, exclude=True)
 
     @classmethod
     @override
@@ -54,31 +61,57 @@ class MCPTool(BaseTool):
     def call(self, *args: Any, **kwargs: Any) -> Any:
         """Call the MCP tool with the given arguments."""
         if self.mcp_server is None:
-            raise ValueError("MCP tool call requires a reference to the MCP server")
+            msg = "MCP tool call requires a reference to the MCP server"
+            raise ValueError(msg)
 
-        return asyncio.run(self.mcp_server._call_tool_async(self.metadata.name, *args, **kwargs))
+        return asyncio.run(self.mcp_server.call_tool_async(self.metadata.name, *args, **kwargs))
 
 
 class MCPPrompt(Prompt):
     """MCP prompt definition that extends the base Prompt class.
 
-    This represents a prompt template from an MCP server.
+    This represents a prompt managed by an MCP server.
     """
 
-    description: Optional[str] = None
-    arguments: Dict[str, Any] = Field(default_factory=dict)
-    mcp_server: Optional["MCPServer"] = Field(default=None, exclude=True)
+    title: str
+    description: str | None = None
+    prompt_arguments: list[PromptArgument] = Field(default_factory=list)
+    mcp_server: MCPServer | None = Field(default=None, exclude=True)
+
+    def _check_arguments(self, **kwargs: str) -> Dict[str, str]:
+        if self.mcp_server is None:
+            msg = "MCP prompt requires a reference to the MCP server"
+            raise ValueError(msg)
+
+        arguments = {}
+        for argument in self.prompt_arguments:
+            if argument.required:
+                if argument.name in kwargs:
+                    arguments[argument.name] = kwargs[argument.name]
+                else:
+                    msg = f"Missing required argument {argument.name}"
+                    raise RuntimeError(msg)
+        return arguments
 
     @override
-    def format_string(self, **arguments: Any) -> Any:
+    def format_string(self, **arguments: str) -> str:
         """Get the actual prompt content from the MCP server.
 
         Returns a list of messages, each containing role and content information.
         """
-        if self.mcp_server is None:
-            raise ValueError("MCP prompt requires a reference to the MCP server")
+        arguments = self._check_arguments(**arguments)
+        messages = self.mcp_server.get_prompt(self.name, arguments)
+        text = "\n".join(message.content for message in messages)
+        return text
 
-        return asyncio.run(self.mcp_server._get_prompt_content_async(self.name, arguments))
+    @override
+    def format_messages(
+            self, role: MessageRole = MessageRole.SYSTEM, **arguments: str
+    ) -> List[ChatMessage]:
+        """Get the prompt from the MCP server with optional arguments."""
+        arguments = self._check_arguments(**arguments)
+        return self.mcp_server.get_prompt(self.name, arguments)
+
 
 
 class MCPServer(Resource, ABC):
@@ -87,17 +120,15 @@ class MCPServer(Resource, ABC):
     This is a logical container for MCP tools and prompts; it is not directly invokable.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
-
     # HTTP connection parameters
     endpoint: str
-    headers: Optional[Dict[str, Any]] = None
+    headers: Dict[str, Any] | None = None
     timeout: timedelta = timedelta(seconds=30)
     sse_read_timeout: timedelta = timedelta(seconds=60 * 5)
-    auth: Optional[httpx.Auth] = None
+    auth: httpx.Auth | None = None
 
-    session: Optional[ClientSession] = Field(default=None, exclude=True)
-    connection_context: Optional[AsyncExitStack] = Field(default=None, exclude=True)
+    session: ClientSession = Field(default=None, exclude=True)
+    connection_context: AsyncExitStack = Field(default=None, exclude=True)
 
     @classmethod
     @override
@@ -113,12 +144,15 @@ class MCPServer(Resource, ABC):
             return False
 
     async def _get_session(self) -> ClientSession:
-        """Get or create an MCP client session using the official SDK's streamable HTTP transport."""
+        """Get or create an MCP client session using the official SDK's streamable
+        HTTP transport.
+        """
         if self.session is not None:
             return self.session
 
         if not self._is_valid_http_url():
-            raise ValueError(f"Invalid HTTP endpoint: {self.endpoint}")
+            msg = f"Invalid HTTP endpoint: {self.endpoint}"
+            raise ValueError(msg)
 
         try:
             self.connection_context = AsyncExitStack()
@@ -140,11 +174,11 @@ class MCPServer(Resource, ABC):
 
             await self.session.initialize()
 
-            return self.session
-
-        except Exception as e:
+        except Exception:
             await self._cleanup_connection()
             raise
+
+        return self.session
 
     async def _cleanup_connection(self) -> None:
         """Clean up connection resources."""
@@ -156,17 +190,15 @@ class MCPServer(Resource, ABC):
         except Exception:
             pass
 
-    async def _call_tool_async(self, tool_name: str, *args: Any, **kwargs: Any) -> Any:
+    async def call_tool_async(self, tool_name: str, *args: Any, **kwargs: Any) -> Any:
         """Call a tool on the MCP server asynchronously."""
         session = await self._get_session()
 
         arguments = kwargs if kwargs else (args[0] if args else {})
 
-        result = await session.call_tool(tool_name, arguments)
+        result = await session.call_tool(tool_name, arguments, read_timeout_seconds=self.timeout)
 
-        content = []
-        for item in result.content:
-            content.append(extract_mcp_content_item(item))
+        content = [extract_mcp_content_item(item) for item in result.content]
 
         return content
 
@@ -188,9 +220,9 @@ class MCPServer(Resource, ABC):
             )
 
             tool = MCPTool(
+                name=tool_data.name,
                 metadata=metadata,
                 mcp_server=self,
-                timeout=self.timeout
             )
             tools.append(tool)
 
@@ -206,7 +238,8 @@ class MCPServer(Resource, ABC):
         for tool in tools:
             if tool.metadata.name == name:
                 return tool
-        raise ValueError(f"Tool '{name}' not found on MCP server at {self.endpoint}")
+        msg = f"Tool '{name}' not found on MCP server at {self.endpoint}"
+        raise ValueError(msg)
 
     def get_tool_metadata(self, name: str) -> ToolMetadata:
         """Get a single tool definition metadata by name."""
@@ -234,49 +267,45 @@ class MCPServer(Resource, ABC):
 
             prompt = MCPPrompt(
                 name=prompt_data.name,
-                template="",  # MCP prompts don't have templates in metadata - content comes from get_prompt call
-                description=prompt_data.description,
-                arguments=arguments_dict,
+                title=prompt_data.title,
+                template=prompt_data.description,
+                prompt_arguments=prompt_data.arguments,
                 mcp_server=self
             )
             prompts.append(prompt)
 
         return prompts
 
-    def get_prompt(self, name: str) -> MCPPrompt:
+    def get_prompt(self, name: str, arguments: Dict[str, str] | None = None) -> List[ChatMessage]:
         """Get a single prompt definition by name."""
-        return asyncio.run(self._get_prompt_async(name))
+        return asyncio.run(self._get_prompt_async(name, arguments))
 
-    async def _get_prompt_async(self, name: str) -> MCPPrompt:
+    async def _get_prompt_async(self, name: str, arguments: Dict[str, str] | None = None) -> List[ChatMessage]:
         """Async implementation of get_prompt."""
-        prompts, _ = await self._list_prompts_async()
-        for prompt in prompts:
-            if prompt.name == name:
-                return prompt
-        raise ValueError(f"Prompt '{name}' not found on MCP server at {self.endpoint}")
+        async with self._get_session() as session:
+            prompt = await session.get_prompt(name, arguments)
+            chat_messages = []
+            for message in prompt.messages:
+                if isinstance(message.content, TextContent):
+                    chat_messages.append(ChatMessage(role=message.role, content=message.content.text))
+                else:
+                    err_msg = f"Unsupported content type: {type(message.content)}"
+                    raise TypeError(err_msg)
 
-    async def _get_prompt_content_async(self, prompt_name: str, arguments: Dict[str, Any]) -> Any:
-        """Get the actual content of a prompt from the MCP server."""
-        session = await self._get_session()
-        result = await session.get_prompt(prompt_name, arguments)
-
-        # Extract content from the result messages
-        messages = []
-        for message in result.messages:
-            content_item = extract_mcp_content_item(message.content)
-            messages.append(content_item)
-
-        return messages
+        return chat_messages
 
     async def close(self) -> None:
         """Close the MCP session and clean up resources."""
         await self._cleanup_connection()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self,
+                        exc_type: Type[BaseException] | None,
+                        exc_val: BaseException | None,
+                        exc_tb: TracebackType | None,) -> bool:
         """Async context manager exit."""
         await self.close()
         return False
