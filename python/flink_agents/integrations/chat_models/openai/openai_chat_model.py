@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, List, Literal, Optional, Sequence
+from typing import Any, Dict, List, Literal, Sequence
 
 import httpx
 from openai import NOT_GIVEN, OpenAI
@@ -68,7 +68,7 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
         description="The timeout, in seconds, for API requests.",
         ge=0,
     )
-    default_headers: Optional[Dict[str, str]] = Field(
+    default_headers: Dict[str, str] | None = Field(
         default=None, description="The default headers for API requests."
     )
     reuse_client: bool = Field(
@@ -79,19 +79,19 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
         ),
     )
 
-    _client: Optional[OpenAI] = PrivateAttr(default=None)
-    _http_client: Optional[httpx.Client] = PrivateAttr()
+    _client: OpenAI | None = PrivateAttr(default=None)
+    _http_client: httpx.Client | None = PrivateAttr()
 
     def __init__(
         self,
         *,
-        api_key: Optional[str] = None,
-        api_base_url: Optional[str] = None,
+        api_key: str | None = None,
+        api_base_url: str | None = None,
         max_retries: int = 3,
         timeout: float = 60.0,
         reuse_client: bool = True,
-        http_client: Optional[httpx.Client] = None,
-        async_http_client: Optional[httpx.AsyncClient] = None,
+        http_client: httpx.Client | None = None,
+        async_http_client: httpx.AsyncClient | None = None,
         **kwargs: Any,
     ) -> None:
         """Init method."""
@@ -136,7 +136,7 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
     def chat(
         self,
         messages: Sequence[ChatMessage],
-        tools: Optional[List[BaseTool]] = None,
+        tools: List[BaseTool] | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
         """Direct communication with model service for chat conversation.
@@ -211,11 +211,11 @@ class OpenAIChatModelSetup(BaseChatModelSetup):
         ge=0.0,
         le=2.0,
     )
-    max_tokens: Optional[int] = Field(
+    max_tokens: int | None = Field(
         description="The maximum number of tokens to generate.",
         gt=0,
     )
-    logprobs: Optional[bool] = Field(
+    logprobs: bool | None = Field(
         description="Whether to return logprobs per token.",
         default=None,
     )
@@ -232,7 +232,7 @@ class OpenAIChatModelSetup(BaseChatModelSetup):
         default=False,
         description="Whether to use strict mode for invoking tools/using schemas.",
     )
-    reasoning_effort: Optional[Literal["low", "medium", "high"]] = Field(
+    reasoning_effort: Literal["low", "medium", "high"] | None = Field(
         default=None,
         description="The effort to use for reasoning models.",
     )
@@ -242,10 +242,10 @@ class OpenAIChatModelSetup(BaseChatModelSetup):
         *,
         model: str = DEFAULT_OPENAI_MODEL,
         temperature: float = DEFAULT_TEMPERATURE,
-        max_tokens: Optional[int] = None,
-        additional_kwargs: Optional[Dict[str, Any]] = None,
+        max_tokens: int | None = None,
+        additional_kwargs: Dict[str, Any] | None = None,
         strict: bool = False,
-        reasoning_effort: Optional[Literal["low", "medium", "high"]] = None,
+        reasoning_effort: Literal["low", "medium", "high"] | None = None,
         **kwargs: Any,
     ) -> None:
         """Init method."""

@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, ClassVar, Dict, List, Union
+from typing import Any, ClassVar, Dict, List
 
 from flink_agents.api.memory_object import MemoryObject
 from flink_agents.api.memory_reference import MemoryRef
@@ -54,7 +54,7 @@ class LocalMemoryObject(MemoryObject):
         if self.ROOT_KEY not in self.__store:
             self.__store[self.ROOT_KEY] = _ObjMarker()
 
-    def get(self, path_or_ref: Union[str,MemoryRef]) -> Any:
+    def get(self, path_or_ref: str | MemoryRef) -> Any:
         """Get the value of a (direct or indirect) field or a MemoryRef in the object.
 
         Parameters

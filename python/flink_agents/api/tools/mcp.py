@@ -21,7 +21,7 @@ from abc import ABC
 from contextlib import AsyncExitStack
 from datetime import timedelta
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Type
 from urllib.parse import urlparse
 
 import cloudpickle
@@ -76,7 +76,7 @@ class MCPPrompt(Prompt):
     """
 
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     prompt_arguments: list[PromptArgument] = Field(default_factory=list)
     mcp_server: "MCPServer" = Field(default=None, exclude=True)
 
@@ -125,16 +125,16 @@ class MCPServer(SerializableResource, ABC):
 
     # HTTP connection parameters
     endpoint: str
-    headers: Optional[Dict[str, Any]] = None
+    headers: Dict[str, Any] | None = None
     timeout: timedelta = timedelta(seconds=30)
     sse_read_timeout: timedelta = timedelta(seconds=60 * 5)
-    auth: Optional[httpx.Auth] = None
+    auth: httpx.Auth | None = None
 
     session: ClientSession = Field(default=None, exclude=True)
     connection_context: AsyncExitStack = Field(default=None, exclude=True)
 
     @field_serializer("auth")
-    def __serialize_auth(self, auth: Optional[httpx.Auth]) -> Union[str, None]:
+    def __serialize_auth(self, auth: httpx.Auth | None) -> str | None:
         if auth is None:
             return auth
         return base64.b64encode(cloudpickle.dumps(auth)).decode()
@@ -300,13 +300,13 @@ class MCPServer(SerializableResource, ABC):
         return prompts
 
     def get_prompt(
-        self, name: str, arguments: Optional[Dict[str, str]]
+        self, name: str, arguments: Dict[str, str] | None
     ) -> List[ChatMessage]:
         """Get a single prompt definition by name."""
         return asyncio.run(self._get_prompt_async(name, arguments))
 
     async def _get_prompt_async(
-        self, name: str, arguments: Optional[Dict[str, str]]
+        self, name: str, arguments: Dict[str, str] | None
     ) -> List[ChatMessage]:
         """Async implementation of get_prompt."""
         async with self._get_session() as session:
@@ -333,9 +333,9 @@ class MCPServer(SerializableResource, ABC):
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: Type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> bool:
         """Async context manager exit."""
         await self.close()

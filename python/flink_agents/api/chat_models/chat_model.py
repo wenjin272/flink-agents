@@ -17,7 +17,7 @@
 #################################################################################
 import re
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Sequence, Tuple
 
 from pydantic import Field
 from typing_extensions import override
@@ -62,7 +62,7 @@ class BaseChatModelConnection(Resource, ABC):
     def _extract_reasoning(
         content: str,
         patterns: List[re.Pattern[str]] = DEFAULT_REASONING_PATTERNS,
-    ) -> Tuple[str, Optional[str]]:
+    ) -> Tuple[str, str | None]:
         """Extract content within <think></think> tags and clean the remaining content.
 
         Parameters
@@ -97,7 +97,7 @@ class BaseChatModelConnection(Resource, ABC):
     def chat(
         self,
         messages: Sequence[ChatMessage],
-        tools: Optional[List[BaseTool]] = None,
+        tools: List[BaseTool] | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
         """Direct communication with model service for chat conversation.
@@ -135,9 +135,9 @@ class BaseChatModelSetup(Resource):
     """
 
     connection: str = Field(description="Name of the referenced connection.")
-    prompt: Optional[Union[Prompt, str]] = None
-    tools: Optional[List[str]] = None
-    mcp_servers: Optional[List[MCPServer]] = None
+    prompt: Prompt | str | None = None
+    tools: List[str] | None = None
+    mcp_servers: List[MCPServer] | None = None
 
     @property
     @abstractmethod

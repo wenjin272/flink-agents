@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, cast
 
 from pydantic import BaseModel, field_serializer, model_validator
 
@@ -54,8 +54,8 @@ class AgentPlan(BaseModel):
 
     actions: Dict[str, Action]
     actions_by_event: Dict[str, List[str]]
-    resource_providers: Optional[Dict[ResourceType, Dict[str, ResourceProvider]]] = None
-    config: Optional[AgentConfiguration] = None
+    resource_providers: Dict[ResourceType, Dict[str, ResourceProvider]] | None = None
+    config: AgentConfiguration | None = None
     __resources: Dict[ResourceType, Dict[str, Resource]] = {}
 
     @field_serializer("resource_providers")

@@ -17,7 +17,7 @@
 #################################################################################
 import importlib
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Type
 
 from pyflink.common import TypeInformation
 from pyflink.datastream import DataStream, KeySelector, StreamExecutionEnvironment
@@ -106,7 +106,7 @@ class AgentsExecutionEnvironment(ABC):
 
     @staticmethod
     def get_execution_environment(
-        env: Optional[StreamExecutionEnvironment] = None, **kwargs: Dict[str, Any]
+        env: StreamExecutionEnvironment | None = None, **kwargs: Dict[str, Any]
     ) -> "AgentsExecutionEnvironment":
         """Get agents execution environment.
 
@@ -130,7 +130,7 @@ class AgentsExecutionEnvironment(ABC):
             ).create_instance(env=env, **kwargs)
 
     @abstractmethod
-    def get_config(self, path: Optional[str] = None) -> Configuration:
+    def get_config(self, path: str | None = None) -> Configuration:
         """Get the writable configuration for flink agents.
 
         Returns:
@@ -157,7 +157,7 @@ class AgentsExecutionEnvironment(ABC):
 
     @abstractmethod
     def from_datastream(
-        self, input: DataStream, key_selector: Optional[KeySelector] = None
+        self, input: DataStream, key_selector: KeySelector | None = None
     ) -> AgentBuilder:
         """Set input for agents. Used for remote execution.
 
@@ -179,7 +179,7 @@ class AgentsExecutionEnvironment(ABC):
         self,
         input: Table,
         t_env: StreamTableEnvironment,
-        key_selector: Optional[KeySelector] = None,
+        key_selector: KeySelector | None = None,
     ) -> AgentBuilder:
         """Set input for agents. Used for remote execution.
 

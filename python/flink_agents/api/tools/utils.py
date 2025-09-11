@@ -116,7 +116,7 @@ def create_model_from_schema(name: str, schema: dict) -> type[BaseModel]:
         """Resolves field type, including optional types and nullability."""
         if "$ref" in field_schema:
             model_reference = field_schema["$ref"].split("/")[-1]
-            return models.get(model_reference, Any)  # type: ignore[arg-type]
+            return models.get(model_reference, Any)  #
 
         if "anyOf" in field_schema:
             types = [
@@ -127,10 +127,10 @@ def create_model_from_schema(name: str, schema: dict) -> type[BaseModel]:
             if type(None) in types:
                 types.remove(type(None))
                 if len(types) == 1:
-                    return typing.Optional[types[0]]
-                return Optional[Union[tuple(types)]]  # type: ignore[return-value]
+                    return typing.Optional[types[0]] # noqa: UP007
+                return Optional[tuple(types)]  # # noqa: UP007
             else:
-                return Union[tuple(types)]  # type: ignore[return-value]
+                return Union[tuple(types)]  # noqa: UP007
         field_type = TYPE_MAPPING.get(field_schema.get("type"), typing.Any)  # type: ignore[arg-type]
 
         # Handle arrays (lists)

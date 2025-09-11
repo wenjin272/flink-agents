@@ -17,7 +17,7 @@
 #################################################################################
 import importlib
 import inspect
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, field_serializer, model_validator
 
@@ -44,12 +44,12 @@ class Action(BaseModel):
 
     name: str
     # TODO: Raise a warning when the action has a return value, as it will be ignored.
-    exec: Union[PythonFunction, JavaFunction]
+    exec: PythonFunction | JavaFunction
     listen_event_types: List[str]
-    config: Optional[Dict[str, Any]] = None
+    config: Dict[str, Any] | None = None
 
     @field_serializer("config")
-    def __serialize_config(self, config: Dict[str, Any]) -> Union[Dict[str, Any], None]:
+    def __serialize_config(self, config: Dict[str, Any]) -> Dict[str, Any] | None:
         if config is None:
             return config
         data = {}
@@ -84,7 +84,7 @@ class Action(BaseModel):
         name: str,
         exec: Function,
         listen_event_types: List[str],
-        config: Optional[Dict[str, Any]] = None,
+        config: Dict[str, Any] | None = None,
     ) -> None:
         """Action will check function signature when init."""
         super().__init__(

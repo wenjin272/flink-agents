@@ -16,7 +16,7 @@
 # limitations under the License.
 #################################################################################
 import uuid
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Sequence
 
 from ollama import Client, Message
 from pydantic import Field
@@ -68,7 +68,7 @@ class OllamaChatModelConnection(BaseChatModelConnection):
         self,
         model: str,
         base_url: str = "http://localhost:11434",
-        request_timeout: Optional[float] = DEFAULT_REQUEST_TIMEOUT,
+        request_timeout: float | None = DEFAULT_REQUEST_TIMEOUT,
         **kwargs: Any,
     ) -> None:
         """Init method."""
@@ -89,7 +89,7 @@ class OllamaChatModelConnection(BaseChatModelConnection):
     def chat(
         self,
         messages: Sequence[ChatMessage],
-        tools: Optional[List[BaseTool]] = None,
+        tools: List[BaseTool] | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
         """Process a sequence of messages, and return a response."""
@@ -197,7 +197,7 @@ class OllamaChatModelSetup(BaseChatModelSetup):
         default_factory=dict,
         description="Additional model parameters for the Ollama API.",
     )
-    keep_alive: Optional[Union[float, str]] = Field(
+    keep_alive: float | str | None = Field(
         default="5m",
         description="Controls how long the model will stay loaded into memory following the "
         "request(default: 5m)",
@@ -213,10 +213,10 @@ class OllamaChatModelSetup(BaseChatModelSetup):
         connection: str,
         temperature: float = 0.75,
         num_ctx: int = DEFAULT_CONTEXT_WINDOW,
-        request_timeout: Optional[float] = DEFAULT_REQUEST_TIMEOUT,
-        additional_kwargs: Optional[Dict[str, Any]] = None,
-        keep_alive: Optional[Union[float, str]] = None,
-        extract_reasoning: Optional[bool] = False,
+        request_timeout: float | None = DEFAULT_REQUEST_TIMEOUT,
+        additional_kwargs: Dict[str, Any] | None = None,
+        keep_alive: float | str | None = None,
+        extract_reasoning: bool | None = False,
         **kwargs: Any,
     ) -> None:
         """Init method."""

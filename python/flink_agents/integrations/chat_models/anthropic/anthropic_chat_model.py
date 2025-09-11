@@ -16,7 +16,7 @@
 # limitations under the License.
 #################################################################################
 import uuid
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Sequence
 
 from anthropic import Anthropic
 from anthropic._types import NOT_GIVEN
@@ -128,7 +128,7 @@ class AnthropicChatModelConnection(BaseChatModelConnection):
 
     def __init__(
             self,
-            api_key: Optional[str] = None,
+            api_key: str | None = None,
             max_retries: int = 3,
             timeout: float = 60.0,
             **kwargs: Any,
@@ -141,7 +141,7 @@ class AnthropicChatModelConnection(BaseChatModelConnection):
             **kwargs,
         )
 
-    _client: Optional[Anthropic] = PrivateAttr(default=None)
+    _client: Anthropic | None = PrivateAttr(default=None)
 
     @property
     def client(self) -> Anthropic:
@@ -150,7 +150,7 @@ class AnthropicChatModelConnection(BaseChatModelConnection):
             self._client = Anthropic(api_key=self.api_key, max_retries=self.max_retries, timeout=self.timeout)
         return self._client
 
-    def chat(self, messages: Sequence[ChatMessage], tools: Optional[List[BaseTool]] = None,
+    def chat(self, messages: Sequence[ChatMessage], tools: List[BaseTool] | None = None,
              **kwargs: Any) -> ChatMessage:
         """Direct communication with Anthropic model service for chat conversation."""
         anthropic_tools = None

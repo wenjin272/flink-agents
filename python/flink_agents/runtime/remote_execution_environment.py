@@ -17,7 +17,7 @@
 #################################################################################
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import cloudpickle
 from pyflink.common import TypeInformation
@@ -54,8 +54,8 @@ class RemoteAgentBuilder(AgentBuilder):
     __resources: Dict[ResourceType, Dict[str, Any]] = None
 
     def __init__(
-        self, input: DataStream, config: AgentConfiguration, t_env: Optional[StreamTableEnvironment] = None,
-            resources: Optional[Dict[ResourceType, Dict[str, Any]]] = None,
+        self, input: DataStream, config: AgentConfiguration, t_env: StreamTableEnvironment | None = None,
+            resources: Dict[ResourceType, Dict[str, Any]] | None = None,
     ) -> None:
         """Init method of RemoteAgentBuilder."""
         self.__input = input
@@ -84,7 +84,7 @@ class RemoteAgentBuilder(AgentBuilder):
         return self
 
     def to_datastream(
-        self, output_type: Optional[TypeInformation] = None
+        self, output_type: TypeInformation | None = None
     ) -> DataStream:
         """Get output datastream of agent execution.
 
@@ -160,7 +160,7 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
             config_dir = Path(flink_conf_dir) / "config.yaml"
             self.__config.load_from_file(str(config_dir))
 
-    def get_config(self, path: Optional[str] = None) -> AgentConfiguration:
+    def get_config(self, path: str | None = None) -> AgentConfiguration:
         """Get the writable configuration for flink agents.
 
         Returns:
@@ -172,7 +172,7 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
 
     @staticmethod
     def __process_input_datastream(
-        input: DataStream, key_selector: Optional[KeySelector] = None
+        input: DataStream, key_selector: KeySelector | None = None
     ) -> KeyedStream:
         if isinstance(input, KeyedStream):
             return input
@@ -204,7 +204,7 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         self,
         input: Table,
         t_env: StreamTableEnvironment,
-        key_selector: Optional[KeySelector] = None,
+        key_selector: KeySelector | None = None,
     ) -> AgentBuilder:
         """Set input Table of agent.
 

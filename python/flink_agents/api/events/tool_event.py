@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from uuid import UUID
 
 from flink_agents.api.events.event import Event
@@ -52,4 +52,4 @@ class ToolResponseEvent(Event):
 
     request_id: UUID
     responses: Dict[UUID, Any]
-    external_ids: Dict[UUID, Optional[str]]
+    external_ids: Dict[UUID, str | None]

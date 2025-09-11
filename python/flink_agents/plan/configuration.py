@@ -16,7 +16,7 @@
 # limitations under the License.
 #################################################################################
 from pathlib import Path
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Type
 
 import yaml
 from pydantic import BaseModel
@@ -62,7 +62,7 @@ class AgentConfiguration(BaseModel, Configuration):
 
     conf_data: Dict[str, Any]
 
-    def __init__(self, conf_data: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, conf_data: Dict[str, Any] | None = None) -> None:
         """Initialize with optional configuration data."""
         if conf_data is None:
             super().__init__(conf_data = {})
@@ -92,19 +92,19 @@ class AgentConfiguration(BaseModel, Configuration):
             raise ValueError(msg) from e
 
     @override
-    def get_int(self, key: str, default: Optional[int]=None) -> int:
+    def get_int(self, key: str, default: int | None=None) -> int:
         return self.get_value_with_type(key, int, default)
 
     @override
-    def get_float(self, key: str, default: Optional[float]=None) -> float:
+    def get_float(self, key: str, default: float | None=None) -> float:
         return self.get_value_with_type(key, float, default)
 
     @override
-    def get_bool(self, key: str, default: Optional[bool]=None) -> bool:
+    def get_bool(self, key: str, default: bool | None=None) -> bool:
         return self.get_value_with_type(key, bool, default)
 
     @override
-    def get_str(self, key: str, default: Optional[str]=None) -> str:
+    def get_str(self, key: str, default: str | None=None) -> str:
         return self.get_value_with_type(key, str, default)
 
     @override
@@ -131,7 +131,7 @@ class AgentConfiguration(BaseModel, Configuration):
     def set(self, option: ConfigOption, value: Any) -> None:
         self.conf_data[option.get_key()] = value
 
-    def load_from_file(self, config_path: Optional[str] = None) -> None:
+    def load_from_file(self, config_path: str | None = None) -> None:
         """Load configuration from a YAML file and update current configuration data.
 
         Args:

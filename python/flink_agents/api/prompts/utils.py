@@ -16,13 +16,13 @@
 # limitations under the License.
 #################################################################################
 import re
-from typing import Dict, Optional
+from typing import Dict
 
 
 class SafeFormatter:
     """Safe string formatter that does not raise KeyError if key is missing."""
 
-    def __init__(self, kwargs: Optional[Dict[str, str]] = None) -> None:
+    def __init__(self, kwargs: Dict[str, str] | None = None) -> None:
         """Init method."""
         self.kwargs = kwargs or {}
 

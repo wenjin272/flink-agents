@@ -16,7 +16,7 @@
 # limitations under the License.
 #################################################################################
 import uuid
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Type
+from typing import Any, Dict, List, Sequence, Tuple, Type
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -46,7 +46,7 @@ class MockChatModelConnection(BaseChatModelConnection):
     def chat(
         self,
         messages: Sequence[ChatMessage],
-        tools: Optional[List] = None,
+        tools: List | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
         """Generate tool call or response according to input."""

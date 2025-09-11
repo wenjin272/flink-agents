@@ -75,7 +75,7 @@ def _is_function_cacheable(func: Callable) -> bool:
         for param in sig.parameters.values():
             if param.default is not inspect.Parameter.empty:
                 # Check if default is a mutable type
-                if isinstance(param.default, (list, dict, set)):
+                if isinstance(param.default, list | dict | set):
                     return False
 
                 if param.default is None:
