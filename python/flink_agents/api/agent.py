@@ -237,10 +237,8 @@ class Agent(ABC):
         Agent
             The modified Agent instance.
         """
-        if name in self._mcp_servers:
+        if name in self._resources[ResourceType.MCP_SERVER]:
             msg = f"MCP server {name} already defined"
             raise ValueError(msg)
-        if getattr(mcp_server, "name", None) != name:
-            mcp_server.name = name
-        self._mcp_servers[name] = mcp_server
+        self._resources[ResourceType.MCP_SERVER][name] = mcp_server
         return self

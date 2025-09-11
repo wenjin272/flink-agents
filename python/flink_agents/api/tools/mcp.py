@@ -15,33 +15,33 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from __future__ import annotations
-
 import asyncio
+import base64
 from abc import ABC
 from contextlib import AsyncExitStack
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Dict, List, Type
+from types import TracebackType
+from typing import Any, Dict, List, Optional, Type, Union
 from urllib.parse import urlparse
 
+import cloudpickle
+import httpx
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
-from mcp.types import TextContent
-from pydantic import Field
-from typing_extensions import override
+from mcp.types import PromptArgument, TextContent
+from pydantic import (
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
+from typing_extensions import Self, override
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.prompts.prompt import Prompt
-from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.resource import ResourceType, SerializableResource
 from flink_agents.api.tools.tool import BaseTool, ToolMetadata, ToolType
 from flink_agents.api.tools.utils import extract_mcp_content_item
-
-if TYPE_CHECKING:
-    from types import TracebackType
-
-    import httpx
-    from mcp.types import PromptArgument
-    from typing_extensions import Self
 
 
 class MCPTool(BaseTool):
@@ -50,7 +50,7 @@ class MCPTool(BaseTool):
     This represents a single tool from an MCP server.
     """
 
-    mcp_server: MCPServer = Field(default=None, exclude=True)
+    mcp_server: "MCPServer" = Field(default=None, exclude=True)
 
     @classmethod
     @override
@@ -64,7 +64,9 @@ class MCPTool(BaseTool):
             msg = "MCP tool call requires a reference to the MCP server"
             raise ValueError(msg)
 
-        return asyncio.run(self.mcp_server.call_tool_async(self.metadata.name, *args, **kwargs))
+        return asyncio.run(
+            self.mcp_server.call_tool_async(self.metadata.name, *args, **kwargs)
+        )
 
 
 class MCPPrompt(Prompt):
@@ -74,9 +76,9 @@ class MCPPrompt(Prompt):
     """
 
     title: str
-    description: str | None = None
+    description: Optional[str] = None
     prompt_arguments: list[PromptArgument] = Field(default_factory=list)
-    mcp_server: MCPServer | None = Field(default=None, exclude=True)
+    mcp_server: "MCPServer" = Field(default=None, exclude=True)
 
     def _check_arguments(self, **kwargs: str) -> Dict[str, str]:
         if self.mcp_server is None:
@@ -106,29 +108,43 @@ class MCPPrompt(Prompt):
 
     @override
     def format_messages(
-            self, role: MessageRole = MessageRole.SYSTEM, **arguments: str
+        self, role: MessageRole = MessageRole.SYSTEM, **arguments: str
     ) -> List[ChatMessage]:
         """Get the prompt from the MCP server with optional arguments."""
         arguments = self._check_arguments(**arguments)
         return self.mcp_server.get_prompt(self.name, arguments)
 
 
-
-class MCPServer(Resource, ABC):
+class MCPServer(SerializableResource, ABC):
     """Resource representing an MCP server and exposing its tools/prompts.
 
     This is a logical container for MCP tools and prompts; it is not directly invokable.
     """
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     # HTTP connection parameters
     endpoint: str
-    headers: Dict[str, Any] | None = None
+    headers: Optional[Dict[str, Any]] = None
     timeout: timedelta = timedelta(seconds=30)
     sse_read_timeout: timedelta = timedelta(seconds=60 * 5)
-    auth: httpx.Auth | None = None
+    auth: Optional[httpx.Auth] = None
 
     session: ClientSession = Field(default=None, exclude=True)
     connection_context: AsyncExitStack = Field(default=None, exclude=True)
+
+    @field_serializer("auth")
+    def __serialize_auth(self, auth: Optional[httpx.Auth]) -> Union[str, None]:
+        if auth is None:
+            return auth
+        return base64.b64encode(cloudpickle.dumps(auth)).decode()
+
+    @model_validator(mode="before")
+    def __custom_deserialize(self) -> "MCPServer":
+        auth = self["auth"]
+        if auth and isinstance(auth, str):
+            self["auth"] = cloudpickle.loads(base64.b64decode(auth))
+        return self
 
     @classmethod
     @override
@@ -158,13 +174,17 @@ class MCPServer(Resource, ABC):
             self.connection_context = AsyncExitStack()
 
             # Use streamable HTTP client with context management
-            read_stream, write_stream, _ = await self.connection_context.enter_async_context(
+            (
+                read_stream,
+                write_stream,
+                _,
+            ) = await self.connection_context.enter_async_context(
                 streamablehttp_client(
                     url=self.endpoint,
                     headers=self.headers,
                     timeout=self.timeout,
                     sse_read_timeout=self.sse_read_timeout,
-                    auth=self.auth
+                    auth=self.auth,
                 )
             )
 
@@ -196,7 +216,9 @@ class MCPServer(Resource, ABC):
 
         arguments = kwargs if kwargs else (args[0] if args else {})
 
-        result = await session.call_tool(tool_name, arguments, read_timeout_seconds=self.timeout)
+        result = await session.call_tool(
+            tool_name, arguments, read_timeout_seconds=self.timeout
+        )
 
         content = [extract_mcp_content_item(item) for item in result.content]
 
@@ -216,7 +238,8 @@ class MCPServer(Resource, ABC):
             metadata = ToolMetadata(
                 name=tool_data.name,
                 description=tool_data.description or "",
-                args_schema=tool_data.inputSchema or {"type": "object", "properties": {}}
+                args_schema=tool_data.inputSchema
+                or {"type": "object", "properties": {}},
             )
 
             tool = MCPTool(
@@ -262,7 +285,7 @@ class MCPServer(Resource, ABC):
                 for arg in prompt_data.arguments:
                     arguments_dict[arg.name] = {
                         "description": arg.description,
-                        "required": getattr(arg, 'required', False)
+                        "required": getattr(arg, "required", False),
                     }
 
             prompt = MCPPrompt(
@@ -270,24 +293,30 @@ class MCPServer(Resource, ABC):
                 title=prompt_data.title,
                 template=prompt_data.description,
                 prompt_arguments=prompt_data.arguments,
-                mcp_server=self
+                mcp_server=self,
             )
             prompts.append(prompt)
 
         return prompts
 
-    def get_prompt(self, name: str, arguments: Dict[str, str] | None = None) -> List[ChatMessage]:
+    def get_prompt(
+        self, name: str, arguments: Optional[Dict[str, str]]
+    ) -> List[ChatMessage]:
         """Get a single prompt definition by name."""
         return asyncio.run(self._get_prompt_async(name, arguments))
 
-    async def _get_prompt_async(self, name: str, arguments: Dict[str, str] | None = None) -> List[ChatMessage]:
+    async def _get_prompt_async(
+        self, name: str, arguments: Optional[Dict[str, str]]
+    ) -> List[ChatMessage]:
         """Async implementation of get_prompt."""
         async with self._get_session() as session:
             prompt = await session.get_prompt(name, arguments)
             chat_messages = []
             for message in prompt.messages:
                 if isinstance(message.content, TextContent):
-                    chat_messages.append(ChatMessage(role=message.role, content=message.content.text))
+                    chat_messages.append(
+                        ChatMessage(role=message.role, content=message.content.text)
+                    )
                 else:
                     err_msg = f"Unsupported content type: {type(message.content)}"
                     raise TypeError(err_msg)
@@ -302,10 +331,12 @@ class MCPServer(Resource, ABC):
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self,
-                        exc_type: Type[BaseException] | None,
-                        exc_val: BaseException | None,
-                        exc_tb: TracebackType | None,) -> bool:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> bool:
         """Async context manager exit."""
         await self.close()
         return False
