@@ -14,7 +14,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 # limitations under the License.
-#################################################################################
+################################################################################
 
 # only works on linux
 os=$(uname -s)
@@ -35,6 +35,6 @@ if [[ $os == "Linux" ]]; then
       sleep 10 # wait for ollama to start
   fi
 
-  ollama pull qwen3:0.6b
-  ollama run qwen3:0.6b
+  ollama pull all-minilm:22m
+  ollama run all-minilm:22m
 fi

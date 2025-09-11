@@ -15,26 +15,3 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-
-# only works on linux
-os=$(uname -s)
-echo $os
-if [[ $os == "Linux" ]]; then
-  curl -fsSL https://ollama.com/install.sh | sh
-  ret=$?
-  if [ "$ret" != "0" ]
-  then
-    exit $ret
-  fi
-
-  if curl -f http://localhost:11434/api/tags >/dev/null 2>&1; then
-      echo "Ollama is already running"
-  else
-      echo "Starting Ollama server"
-      ollama serve &
-      sleep 10 # wait for ollama to start
-  fi
-
-  ollama pull qwen3:0.6b
-  ollama run qwen3:0.6b
-fi
