@@ -35,6 +35,7 @@ from flink_agents.api.embedding_models.embedding_model import (
 )
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import ResourceType
+from flink_agents.api.tools.mcp import MCPServer
 
 
 class AgentBuilder(ABC):
@@ -351,4 +352,25 @@ class AgentsExecutionEnvironment(ABC):
             raise ValueError(msg)
         kwargs["name"] = name
         self._resources[ResourceType.EMBEDDING_MODEL][name] = (embedding_model, kwargs)
+        return self
+
+    def add_mcp_server(self, name: str, mcp_server: MCPServer) -> "AgentsExecutionEnvironment":
+        """Add an MCP server to the agent execution environment.
+
+        Parameters
+        ----------
+        name : str
+            The name of the MCP server, should be unique in the same Agent.
+        mcp_server : MCPServer
+            The MCP server resource instance.
+
+        Returns:
+        -------
+        AgentsExecutionEnvironment
+            The environment contains registered embedding model setup.
+        """
+        if name in self._resources[ResourceType.MCP_SERVER]:
+            msg = f"MCP server {name} already defined"
+            raise ValueError(msg)
+        self._resources[ResourceType.MCP_SERVER][name] = mcp_server
         return self
