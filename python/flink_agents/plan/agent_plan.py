@@ -15,12 +15,13 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from pydantic import BaseModel, field_serializer, model_validator
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.tools.mcp import MCPServer
 from flink_agents.plan.actions.action import Action
 from flink_agents.plan.actions.chat_model_action import CHAT_MODEL_ACTION
 from flink_agents.plan.actions.tool_call_action import TOOL_CALL_ACTION
@@ -208,7 +209,9 @@ class AgentPlan(BaseModel):
             self.__resources[type] = {}
         if name not in self.__resources[type]:
             resource_provider = self.resource_providers[type][name]
-            resource = resource_provider.provide(get_resource=self.get_resource, config=self.config)
+            resource = resource_provider.provide(
+                get_resource=self.get_resource, config=self.config
+            )
             self.__resources[type][name] = resource
         return self.__resources[type][name]
 
@@ -345,6 +348,12 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
                     name=name, resource=prompt
                 )
             )
+        elif hasattr(value, "_is_mcp_server"):
+            if isinstance(value, staticmethod):
+                value = value.__func__
+
+            mcp_server = value()
+            _add_mcp_server(name, resource_providers, mcp_server)
 
     for name, prompt in agent.resources[ResourceType.PROMPT].items():
         resource_providers.append(
@@ -356,6 +365,10 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
         resource_providers.append(
             PythonSerializableResourceProvider.from_resource(name=name, resource=tool)
         )
+
+    for name, mcp_server in agent.resources[ResourceType.MCP_SERVER].items():
+        mcp_server = cast("MCPServer", mcp_server)
+        _add_mcp_server(name, resource_providers, mcp_server)
 
     for name, chat_model in agent.resources[ResourceType.CHAT_MODEL].items():
         clazz, kwargs = chat_model
@@ -402,3 +415,30 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
         resource_providers.append(provider)
 
     return resource_providers
+
+
+def _add_mcp_server(
+    name: str, resource_providers: List[ResourceProvider], mcp_server: MCPServer
+) -> None:
+    resource_providers.append(
+        PythonSerializableResourceProvider.from_resource(name=name, resource=mcp_server)
+    )
+    resource_providers.extend(
+        [
+            PythonSerializableResourceProvider.from_resource(
+                name=prompt.name, resource=prompt
+            )
+            for prompt in mcp_server.list_prompts()
+        ]
+    )
+
+    resource_providers.extend(
+        [
+            PythonSerializableResourceProvider.from_resource(
+                name=tool.name, resource=tool
+            )
+            for tool in mcp_server.list_tools()
+        ]
+    )
+
+    mcp_server.close()
