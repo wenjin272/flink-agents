@@ -15,14 +15,47 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+from abc import ABC, abstractmethod
 from typing import List, Sequence
+
+from typing_extensions import override
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.prompts.utils import format_string
 from flink_agents.api.resource import ResourceType, SerializableResource
 
 
-class Prompt(SerializableResource):
+class Prompt(SerializableResource, ABC):
+    """Base prompt abstract."""
+
+    @staticmethod
+    def from_messages(name: str, messages: Sequence[ChatMessage]) -> "Prompt":
+        """Create prompt from sequence of ChatMessage."""
+        return LocalPrompt(name=name, template=messages)
+
+    @staticmethod
+    def from_text(name: str, text: str) -> "Prompt":
+        """Create prompt from text string."""
+        return LocalPrompt(name=name, template=text)
+
+    @abstractmethod
+    def format_string(self, **kwargs: str) -> str:
+        """Generate text string from template with additional arguments."""
+
+    @abstractmethod
+    def format_messages(
+        self, role: MessageRole = MessageRole.SYSTEM, **kwargs: str
+    ) -> List[ChatMessage]:
+        """Generate list of ChatMessage from template with additional arguments."""
+
+    @classmethod
+    @override
+    def resource_type(cls) -> ResourceType:
+        """Get the resource type."""
+        return ResourceType.PROMPT
+
+
+class LocalPrompt(Prompt):
     """Prompt for a language model.
 
     Attributes:
@@ -32,21 +65,6 @@ class Prompt(SerializableResource):
     """
 
     template: Sequence[ChatMessage] | str
-
-    @staticmethod
-    def from_messages(name: str, messages: Sequence[ChatMessage]) -> "Prompt":
-        """Create prompt from sequence of ChatMessage."""
-        return Prompt(name=name, template=messages)
-
-    @staticmethod
-    def from_text(name: str, text: str) -> "Prompt":
-        """Create prompt from text string."""
-        return Prompt(name=name, template=text)
-
-    @classmethod
-    def resource_type(cls) -> ResourceType:
-        """Get the resource type."""
-        return ResourceType.PROMPT
 
     def format_string(self, **kwargs: str) -> str:
         """Generate text string from template with input arguments."""

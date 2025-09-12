@@ -18,7 +18,7 @@
 import pytest
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.prompts.prompt import Prompt
+from flink_agents.api.prompts.prompt import LocalPrompt, Prompt
 
 
 @pytest.fixture(scope="module")
@@ -32,7 +32,7 @@ def text_prompt() -> Prompt:  # noqa: D103
     return Prompt.from_text(name="prompt", text=template)
 
 
-def test_prompt_from_text_to_string(text_prompt: Prompt) -> None:  # noqa: D103
+def test_prompt_from_text_to_string(text_prompt: LocalPrompt) -> None:  # noqa: D103
     assert text_prompt.format_string(
         product_id="12345",
         description="wireless noise-canceling headphones with 20-hour battery life",
@@ -45,7 +45,7 @@ def test_prompt_from_text_to_string(text_prompt: Prompt) -> None:  # noqa: D103
     )
 
 
-def test_prompt_from_text_to_messages(text_prompt: Prompt) -> None:  # noqa: D103
+def test_prompt_from_text_to_messages(text_prompt: LocalPrompt) -> None:  # noqa: D103
     assert text_prompt.format_messages(
         product_id="12345",
         description="wireless noise-canceling headphones with 20-hour battery life",
@@ -78,7 +78,7 @@ def messages_prompt() -> Prompt:  # noqa: D103
     return Prompt.from_messages(name="prompt", messages=template)
 
 
-def test_prompt_from_messages_to_string(messages_prompt: Prompt) -> None:  # noqa: D103
+def test_prompt_from_messages_to_string(messages_prompt: LocalPrompt) -> None:  # noqa: D103
     assert messages_prompt.format_string(
         product_id="12345",
         description="wireless noise-canceling headphones with 20-hour battery life",
@@ -92,7 +92,7 @@ def test_prompt_from_messages_to_string(messages_prompt: Prompt) -> None:  # noq
     )
 
 
-def test_prompt_from_messages_to_messages(messages_prompt: Prompt) -> None:  # noqa: D103
+def test_prompt_from_messages_to_messages(messages_prompt: LocalPrompt) -> None:  # noqa: D103
     assert messages_prompt.format_messages(
         product_id="12345",
         description="wireless noise-canceling headphones with 20-hour battery life",
@@ -112,7 +112,7 @@ def test_prompt_from_messages_to_messages(messages_prompt: Prompt) -> None:  # n
     ]
 
 
-def test_prompt_lack_one_argument(text_prompt: Prompt) -> None:  # noqa: D103
+def test_prompt_lack_one_argument(text_prompt: LocalPrompt) -> None:  # noqa: D103
     assert text_prompt.format_string(
         product_id="12345",
         review="The headphones broke after one week of use. Very poor quality",
@@ -126,6 +126,6 @@ def test_prompt_lack_one_argument(text_prompt: Prompt) -> None:  # noqa: D103
 def test_prompt_contain_json_schema() -> None:  # noqa: D103
     prompt = Prompt.from_text(
         name="prompt",
-        text=f"The json schema is {Prompt.model_json_schema(mode='serialization')}",
+        text=f"The json schema is {LocalPrompt.model_json_schema(mode='serialization')}",
     )
     prompt.format_string()
