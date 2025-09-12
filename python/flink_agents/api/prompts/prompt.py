@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import List, Sequence, Union
+from typing import List, Sequence
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.prompts.utils import format_string
@@ -31,7 +31,7 @@ class Prompt(SerializableResource):
         The prompt template.
     """
 
-    template: Union[Sequence[ChatMessage], str]
+    template: Sequence[ChatMessage] | str
 
     @staticmethod
     def from_messages(name: str, messages: Sequence[ChatMessage]) -> "Prompt":

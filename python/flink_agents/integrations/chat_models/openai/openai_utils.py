@@ -17,7 +17,7 @@
 #################################################################################
 import json
 import os
-from typing import List, Optional, Sequence, Tuple, cast
+from typing import List, Sequence, Tuple, cast
 
 import openai
 from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageParam
@@ -28,9 +28,9 @@ DEFAULT_OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 
 
 def resolve_openai_credentials(
-    api_key: Optional[str] = None,
-    api_base_url: Optional[str] = None,
-) -> Tuple[Optional[str], str]:
+    api_key: str | None = None,
+    api_base_url: str | None = None,
+) -> Tuple[str | None, str]:
     """Resolve OpenAI credentials.
 
     The order of precedence is:
@@ -54,9 +54,9 @@ def resolve_openai_credentials(
 
 def _get_from_param_or_env(
     param_name: str,
-    value_from_args: Optional[str] = None,
-    env_var_name: Optional[str] = None,
-    default_value: Optional[str] = None,
+    value_from_args: str | None = None,
+    env_var_name: str | None = None,
+    default_value: str | None = None,
 ) -> str:
     """Get a value from a param or an environment variable.
 

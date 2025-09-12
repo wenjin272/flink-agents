@@ -83,6 +83,6 @@ def check_type_match(actual: Any, expect: Any) -> None:
         if len(typing.get_args(actual)) != len(typing.get_args(expect)):
             raise TypeError()
         for actual_arg, expect_arg in zip(
-            typing.get_args(actual), typing.get_args(expect)
+            typing.get_args(actual), typing.get_args(expect), strict=False
         ):
             check_type_match(actual_arg, expect_arg)

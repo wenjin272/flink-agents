@@ -36,8 +36,8 @@ test_model = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:0.6b")
 current_dir = Path(__file__).parent
 
 try:
-    # only auto setup ollama in ci with python3.9 to reduce ci cost.
-    if "3.9" in sys.version:
+    # only auto setup ollama in ci with python 3.10 to reduce ci cost.
+    if "3.10" in sys.version:
         subprocess.run(
             ["bash", f"{current_dir}/start_ollama_server.sh"], timeout=300, check=True
         )

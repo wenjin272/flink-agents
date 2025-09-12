@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Callable, Union
+from typing import Any, Callable
 
 from docstring_parser import parse
 from typing_extensions import override
@@ -34,7 +34,7 @@ class FunctionTool(BaseTool):
         User defined function.
     """
 
-    func: Union[PythonFunction, JavaFunction]
+    func: PythonFunction | JavaFunction
 
     @classmethod
     @override
