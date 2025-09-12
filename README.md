@@ -10,7 +10,7 @@ Prerequisites for building Flink Agents:
 * Git
 * Maven
 * Java 11
-* Python 3 (3.9, 3.10, 3.11 or 3.12)
+* Python 3 (3.10, 3.11)
 
 To clone from git, enter:
 

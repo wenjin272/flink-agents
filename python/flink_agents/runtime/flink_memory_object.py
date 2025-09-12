@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 from flink_agents.api.memory_object import MemoryObject
 from flink_agents.api.memory_reference import MemoryRef
@@ -33,7 +33,7 @@ class FlinkMemoryObject(MemoryObject):
         """Initialize with a Java MemoryObject instance."""
         self._j_memory_object = j_memory_object
 
-    def get(self, path_or_ref: Union[str, MemoryRef]) -> Any:
+    def get(self, path_or_ref: str | MemoryRef) -> Any:
         """Get a nested object or value by path or MemoryRef.
 
         If the input is a MemoryRef, resolve the reference and return the data.

@@ -18,7 +18,7 @@
 import importlib
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pydantic import BaseModel, Field
 
@@ -122,7 +122,7 @@ class PythonSerializableResourceProvider(SerializableResourceProvider):
     """
 
     serialized: Dict[str, Any]
-    resource: Optional[SerializableResource] = Field(exclude=True, default=None)
+    resource: SerializableResource | None = Field(exclude=True, default=None)
 
     @staticmethod
     def from_resource(

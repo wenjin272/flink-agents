@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from pyflink.common import TypeInformation
 from pyflink.datastream import DataStream, KeySelector, StreamExecutionEnvironment
@@ -94,7 +94,7 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
     __executed: bool = False
     __config: AgentConfiguration = AgentConfiguration()
 
-    def get_config(self, path: Optional[str] = None) -> AgentConfiguration:
+    def get_config(self, path: str | None = None) -> AgentConfiguration:
         """Get configuration of execution environment."""
         if path is not None:
             self.__config.load_from_file(path)

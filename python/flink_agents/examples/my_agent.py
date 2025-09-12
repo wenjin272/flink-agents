@@ -18,7 +18,7 @@
 import copy
 import random
 import time
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -45,7 +45,7 @@ class ItemData(BaseModel):
     id: int
     review: str
     review_score: float
-    memory_info: Optional[dict] = None
+    memory_info: dict | None = None
 
 
 class MyEvent(Event):  # noqa D101

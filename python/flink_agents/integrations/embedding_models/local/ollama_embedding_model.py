@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 ################################################################################
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict
 
 from ollama import Client
 from pydantic import Field
@@ -60,7 +60,7 @@ class OllamaEmbeddingModelConnection(BaseEmbeddingModelConnection):
     def __init__(
             self,
             base_url: str = "http://localhost:11434",
-            request_timeout: Optional[float] = DEFAULT_REQUEST_TIMEOUT,
+            request_timeout: float | None = DEFAULT_REQUEST_TIMEOUT,
             **kwargs: Any,
     ) -> None:
         """Init method."""
@@ -115,7 +115,7 @@ class OllamaEmbeddingModelSetup(BaseEmbeddingModelSetup):
         default=True,
         description="Controls what happens if input text exceeds model's maximum length (default: True).",
     )
-    keep_alive: Optional[Union[float, str]] = Field(
+    keep_alive: float | str | None = Field(
         default="5m",
         description="Controls how long the model will stay loaded into memory following the "
                     "request(default: 5m)",
@@ -131,8 +131,8 @@ class OllamaEmbeddingModelSetup(BaseEmbeddingModelSetup):
             connection: str,
             model: str,
             truncate: bool = True,
-            additional_kwargs: Optional[Dict[str, Any]] = None,
-            keep_alive: Optional[Union[float, str]] = None,
+            additional_kwargs: Dict[str, Any] | None = None,
+            keep_alive: float | str | None = None,
             **kwargs: Any,
     ) -> None:
         """Init method."""

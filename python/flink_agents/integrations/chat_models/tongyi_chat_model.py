@@ -19,7 +19,7 @@ import contextlib
 import json
 import os
 import uuid
-from typing import Any, Dict, List, Optional, Sequence, cast
+from typing import Any, Dict, List, Sequence, cast
 
 from dashscope import Generation
 from pydantic import Field
@@ -79,8 +79,8 @@ class TongyiChatModelConnection(BaseChatModelConnection):
     def __init__(
         self,
         model: str = DEFAULT_MODEL,
-        api_key: Optional[str] = None,
-        request_timeout: Optional[float] = DEFAULT_REQUEST_TIMEOUT,
+        api_key: str | None = None,
+        request_timeout: float | None = DEFAULT_REQUEST_TIMEOUT,
         **kwargs: Any,
     ) -> None:
         """Init method."""
@@ -103,13 +103,13 @@ class TongyiChatModelConnection(BaseChatModelConnection):
     def chat(
         self,
         messages: Sequence[ChatMessage],
-        tools: Optional[List[BaseTool]] = None,
+        tools: List[BaseTool] | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
         """Process a sequence of messages, and return a response."""
         tongyi_messages = self.__convert_to_tongyi_messages(messages)
 
-        tongyi_tools: Optional[List[Dict[str, Any]]] = (
+        tongyi_tools: List[Dict[str, Any]] | None = (
             [to_dashscope_tool(tool.metadata) for tool in tools] if tools else None
         )
 
@@ -240,8 +240,8 @@ class TongyiChatModelSetup(BaseChatModelSetup):
         self,
         connection: str,
         temperature: float = 0.7,
-        additional_kwargs: Optional[Dict[str, Any]] = None,
-        extract_reasoning: Optional[bool] = False,
+        additional_kwargs: Dict[str, Any] | None = None,
+        extract_reasoning: bool | None = False,
         **kwargs: Any,
     ) -> None:
         """Init method."""

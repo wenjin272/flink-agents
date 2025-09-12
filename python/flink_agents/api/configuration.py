@@ -16,7 +16,7 @@
 # limitations under the License.
 #################################################################################
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Type
+from typing import Any, Type
 
 
 class ConfigOption:
@@ -30,7 +30,7 @@ class ConfigOption:
         default: The default value for this configuration option
     """
 
-    def __init__(self, key: str, config_type: Type[Any], default: Optional[Any]=None) -> None:
+    def __init__(self, key: str, config_type: Type[Any], default: Any | None=None) -> None:
         """Initialize a configuration option."""
         self._key = key
         self._type = config_type
@@ -105,7 +105,7 @@ class ReadableConfiguration(ABC):
     """
 
     @abstractmethod
-    def get_int(self, key: str, default: Optional[int]=None) -> int:
+    def get_int(self, key: str, default: int | None=None) -> int:
         """Get the int configuration value by key.
 
         Args:
@@ -117,7 +117,7 @@ class ReadableConfiguration(ABC):
         """
 
     @abstractmethod
-    def get_float(self, key: str, default: Optional[float]=None) -> float:
+    def get_float(self, key: str, default: float | None=None) -> float:
         """Get the float configuration value by key.
 
         Args:
@@ -129,7 +129,7 @@ class ReadableConfiguration(ABC):
         """
 
     @abstractmethod
-    def get_bool(self, key: str, default: Optional[bool]=None) -> bool:
+    def get_bool(self, key: str, default: bool | None=None) -> bool:
         """Get the boolean configuration value by key.
 
         Args:
@@ -141,7 +141,7 @@ class ReadableConfiguration(ABC):
         """
 
     @abstractmethod
-    def get_str(self, key: str, default: Optional[str]=None) -> str:
+    def get_str(self, key: str, default: str | None=None) -> str:
         """Get the string configuration value by key.
 
         Args:

@@ -17,7 +17,7 @@
 #################################################################################
 import importlib
 import json
-from typing import Any, List, Optional, Union, cast
+from typing import Any, List, cast
 
 from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 from pyflink.common import Row
@@ -43,7 +43,7 @@ class OutputSchema(BaseModel):
     """Util class to help serialize and deserialize output schema json."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    output_schema: Union[type[BaseModel], RowTypeInfo]
+    output_schema: type[BaseModel] | RowTypeInfo
 
     @model_serializer
     def __custom_serializer(self) -> dict[str, Any]:
@@ -142,9 +142,9 @@ class ReActAgent(Agent):
         *,
         chat_model_setup: type[BaseChatModelSetup],
         connection: str,
-        prompt: Optional[Prompt] = None,
-        tools: Optional[List[str]] = None,
-        output_schema: Optional[Union[type[BaseModel], RowTypeInfo]] = None,
+        prompt: Prompt | None = None,
+        tools: List[str] | None = None,
+        output_schema: type[BaseModel] | RowTypeInfo | None = None,
         **kwargs: Any,
     ) -> None:
         """Init method of ReActAgent.
@@ -217,7 +217,7 @@ class ReActAgent(Agent):
         except KeyError:
             prompt = None
 
-        if isinstance(usr_input, (bool, str, int, float, type(None))):
+        if isinstance(usr_input, bool | str | int | float | type(None)):
             usr_input = str(usr_input)
             if prompt:
                 usr_msgs = prompt.format_messages(
