@@ -25,6 +25,7 @@ import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.tools.BaseTool;
+import org.apache.flink.annotation.VisibleForTesting;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -90,5 +91,25 @@ public abstract class BaseChatModelSetup extends Resource {
     @Override
     public ResourceType getResourceType() {
         return ResourceType.CHAT_MODEL;
+    }
+
+    @VisibleForTesting
+    public String getConnection() {
+        return connection;
+    }
+
+    @VisibleForTesting
+    public String getModel() {
+        return model;
+    }
+
+    @VisibleForTesting
+    public Object getPrompt() {
+        return prompt;
+    }
+
+    @VisibleForTesting
+    public List<String> getTools() {
+        return tools;
     }
 }

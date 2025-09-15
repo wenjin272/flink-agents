@@ -36,6 +36,7 @@ import org.apache.flink.agents.plan.serializer.AgentPlanJsonDeserializer;
 import org.apache.flink.agents.plan.serializer.AgentPlanJsonSerializer;
 import org.apache.flink.agents.plan.tools.FunctionTool;
 import org.apache.flink.agents.plan.tools.ToolMetadataFactory;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -200,6 +201,31 @@ public class AgentPlan implements Serializable {
         this.resourceCache = new ConcurrentHashMap<>();
     }
 
+    private void extractActions(
+            Class<? extends Event>[] listenEventTypes, Class<?> clazz, Method method)
+            throws Exception {
+        // Convert event types to string names
+        List<String> eventTypeNames = new ArrayList<>();
+        for (Class<? extends Event> eventType : listenEventTypes) {
+            eventTypeNames.add(eventType.getName());
+        }
+
+        // Create a JavaFunction for this method
+        JavaFunction javaFunction =
+                new JavaFunction(clazz, method.getName(), method.getParameterTypes());
+
+        // Create an Action
+        Action action = new Action(method.getName(), javaFunction, eventTypeNames);
+
+        // Add to actions map
+        actions.put(action.getName(), action);
+
+        // Add to actionsByEvent map
+        for (String eventTypeName : eventTypeNames) {
+            actionsByEvent.computeIfAbsent(eventTypeName, k -> new ArrayList<>()).add(action);
+        }
+    }
+
     private void extractActionsFromAgent(Agent agent) throws Exception {
         // Scan the agent class for methods annotated with @Action
         Class<?> agentClass = agent.getClass();
@@ -212,29 +238,14 @@ public class AgentPlan implements Serializable {
                 Class<? extends Event>[] listenEventTypes =
                         Objects.requireNonNull(actionAnnotation).listenEvents();
 
-                // Convert event types to string names
-                List<String> eventTypeNames = new ArrayList<>();
-                for (Class<? extends Event> eventType : listenEventTypes) {
-                    eventTypeNames.add(eventType.getName());
-                }
-
-                // Create a JavaFunction for this method
-                JavaFunction javaFunction =
-                        new JavaFunction(agentClass, method.getName(), method.getParameterTypes());
-
-                // Create an Action
-                Action action = new Action(method.getName(), javaFunction, eventTypeNames);
-
-                // Add to actions map
-                actions.put(action.getName(), action);
-
-                // Add to actionsByEvent map
-                for (String eventTypeName : eventTypeNames) {
-                    actionsByEvent
-                            .computeIfAbsent(eventTypeName, k -> new ArrayList<>())
-                            .add(action);
-                }
+                extractActions(listenEventTypes, agentClass, method);
             }
+        }
+
+        for (Map.Entry<String, Tuple3<Class<? extends Event>[], Class<?>, Method>> action :
+                agent.getActions().entrySet()) {
+            Tuple3<Class<? extends Event>[], Class<?>, Method> tuple = action.getValue();
+            extractActions(tuple.f0, tuple.f1, tuple.f2);
         }
     }
 
@@ -242,6 +253,24 @@ public class AgentPlan implements Serializable {
         String name = method.getName();
         ResourceDescriptor descriptor = (ResourceDescriptor) method.invoke(null);
         JavaResourceProvider provider = new JavaResourceProvider(name, type, descriptor);
+        addResourceProvider(provider);
+    }
+
+    private void extractTool(Method method) throws Exception {
+        String name = method.getName();
+
+        // Build parameter type names for reconstruction
+        Class<?>[] paramTypes = method.getParameterTypes();
+
+        ToolMetadata metadata = ToolMetadataFactory.fromStaticMethod(method);
+        JavaFunction javaFunction =
+                new JavaFunction(method.getDeclaringClass(), method.getName(), paramTypes);
+
+        FunctionTool tool = new FunctionTool(metadata, javaFunction);
+        JavaSerializableResourceProvider provider =
+                JavaSerializableResourceProvider.createResourceProvider(
+                        name, ResourceType.TOOL, tool);
+
         addResourceProvider(provider);
     }
 
@@ -299,26 +328,11 @@ public class AgentPlan implements Serializable {
             }
         }
 
-        // Scan static methods annotated with @Tool (method-based tools)
+        // Scan static methods annotated with @Tool, @Prompt, @ChatModel .etc
         for (Method method : agentClass.getDeclaredMethods()) {
             if (method.isAnnotationPresent(Tool.class)
                     && Modifier.isStatic(method.getModifiers())) {
-                Tool toolAnn = method.getAnnotation(Tool.class);
-                String name = method.getName();
-
-                // Build parameter type names for reconstruction
-                Class<?>[] paramTypes = method.getParameterTypes();
-
-                ToolMetadata metadata = ToolMetadataFactory.fromStaticMethod(method);
-                JavaFunction javaFunction =
-                        new JavaFunction(method.getDeclaringClass(), method.getName(), paramTypes);
-
-                FunctionTool tool = new FunctionTool(metadata, javaFunction);
-                JavaSerializableResourceProvider provider =
-                        JavaSerializableResourceProvider.createResourceProvider(
-                                name, ResourceType.TOOL, tool);
-
-                addResourceProvider(provider);
+                extractTool(method);
             } else if (method.isAnnotationPresent(Prompt.class)) {
                 String promptName = method.getName();
                 SerializableResource prompt = (SerializableResource) method.invoke(null);
@@ -332,6 +346,32 @@ public class AgentPlan implements Serializable {
                 extractResource(ResourceType.CHAT_MODEL, method);
             } else if (method.isAnnotationPresent(ChatModelConnection.class)) {
                 extractResource(ResourceType.CHAT_MODEL_CONNECTION, method);
+            }
+        }
+
+        for (Map.Entry<ResourceType, Map<String, Object>> entry : agent.getResources().entrySet()) {
+            ResourceType type = entry.getKey();
+            if (type == ResourceType.CHAT_MODEL || type == ResourceType.CHAT_MODEL_CONNECTION) {
+                for (Map.Entry<String, Object> kv : entry.getValue().entrySet()) {
+                    JavaResourceProvider provider =
+                            new JavaResourceProvider(
+                                    kv.getKey(), type, (ResourceDescriptor) kv.getValue());
+                    addResourceProvider(provider);
+                }
+            } else if (type == ResourceType.PROMPT) {
+                for (Map.Entry<String, Object> kv : entry.getValue().entrySet()) {
+                    JavaSerializableResourceProvider provider =
+                            JavaSerializableResourceProvider.createResourceProvider(
+                                    kv.getKey(),
+                                    ResourceType.PROMPT,
+                                    (SerializableResource) kv.getValue());
+
+                    addResourceProvider(provider);
+                }
+            } else if (type == ResourceType.TOOL) {
+                for (Map.Entry<String, Object> kv : entry.getValue().entrySet()) {
+                    extractTool((Method) kv.getValue());
+                }
             }
         }
     }
