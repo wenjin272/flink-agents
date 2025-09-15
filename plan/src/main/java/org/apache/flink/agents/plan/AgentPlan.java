@@ -20,7 +20,8 @@ package org.apache.flink.agents.plan;
 
 import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
-import org.apache.flink.agents.api.annotation.ChatModel;
+import org.apache.flink.agents.api.annotation.ChatModelConnection;
+import org.apache.flink.agents.api.annotation.ChatModelSetup;
 import org.apache.flink.agents.api.annotation.Prompt;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.resource.Resource;
@@ -237,6 +238,13 @@ public class AgentPlan implements Serializable {
         }
     }
 
+    private void extractResource(ResourceType type, Method method) throws Exception {
+        String name = method.getName();
+        ResourceDescriptor descriptor = (ResourceDescriptor) method.invoke(null);
+        JavaResourceProvider provider = new JavaResourceProvider(name, type, descriptor);
+        addResourceProvider(provider);
+    }
+
     private void extractResourceProvidersFromAgent(Agent agent) throws Exception {
         Class<?> agentClass = agent.getClass();
 
@@ -269,8 +277,8 @@ public class AgentPlan implements Serializable {
             }
 
             // Check for @ChatModel annotation
-            if (field.isAnnotationPresent(ChatModel.class)) {
-                ChatModel chatModelAnnotation = field.getAnnotation(ChatModel.class);
+            if (field.isAnnotationPresent(ChatModelSetup.class)) {
+                ChatModelSetup chatModelAnnotation = field.getAnnotation(ChatModelSetup.class);
                 String resourceName = field.getName();
 
                 try {
@@ -320,13 +328,10 @@ public class AgentPlan implements Serializable {
                                 promptName, ResourceType.PROMPT, prompt);
 
                 addResourceProvider(provider);
-            } else if (method.isAnnotationPresent(ChatModel.class)) {
-                String chatModelName = method.getName();
-                ResourceDescriptor descriptor = (ResourceDescriptor) method.invoke(null);
-                JavaResourceProvider provider =
-                        new JavaResourceProvider(
-                                chatModelName, ResourceType.CHAT_MODEL, descriptor);
-                addResourceProvider(provider);
+            } else if (method.isAnnotationPresent(ChatModelSetup.class)) {
+                extractResource(ResourceType.CHAT_MODEL, method);
+            } else if (method.isAnnotationPresent(ChatModelConnection.class)) {
+                extractResource(ResourceType.CHAT_MODEL_CONNECTION, method);
             }
         }
     }

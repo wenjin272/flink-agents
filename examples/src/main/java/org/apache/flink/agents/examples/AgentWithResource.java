@@ -22,7 +22,7 @@ import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
 import org.apache.flink.agents.api.annotation.Action;
-import org.apache.flink.agents.api.annotation.ChatModel;
+import org.apache.flink.agents.api.annotation.ChatModelSetup;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
@@ -95,7 +95,7 @@ public class AgentWithResource extends Agent {
         return new Prompt("This is a test prompt");
     }
 
-    @ChatModel
+    @ChatModelSetup
     public static ResourceDescriptor myChatModel() {
         return ResourceDescriptor.Builder.newBuilder(MockChatModel.class.getName())
                 .addInitialArgument("endpoint", "127.0.0.1")

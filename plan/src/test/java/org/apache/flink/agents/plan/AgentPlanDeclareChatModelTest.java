@@ -24,7 +24,7 @@ import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.annotation.Action;
-import org.apache.flink.agents.api.annotation.ChatModel;
+import org.apache.flink.agents.api.annotation.ChatModelSetup;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.chat.model.BaseChatModelSetup;
@@ -70,7 +70,7 @@ class AgentPlanDeclareChatModelTest {
     }
 
     static class ChatAgent extends Agent {
-        @ChatModel
+        @ChatModelSetup
         public static ResourceDescriptor testChatModel() {
             return ResourceDescriptor.Builder.newBuilder(MockChatModel.class.getName())
                     .addInitialArgument("endpoint", "127.0.0.1")

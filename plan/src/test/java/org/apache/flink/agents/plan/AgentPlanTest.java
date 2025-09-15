@@ -22,7 +22,7 @@ import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
-import org.apache.flink.agents.api.annotation.ChatModel;
+import org.apache.flink.agents.api.annotation.ChatModelSetup;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.resource.Resource;
@@ -114,7 +114,7 @@ public class AgentPlanTest {
 
         @Tool private TestTool myTool = new TestTool("myTool");
 
-        @ChatModel
+        @ChatModelSetup
         private TestSerializableChatModel chatModel =
                 new TestSerializableChatModel("defaultChatModel");
 
