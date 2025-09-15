@@ -35,6 +35,7 @@ import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -129,5 +130,31 @@ class AgentPlanDeclareChatModelTest {
         ChatMessage reply =
                 model.chat(new Prompt("Hi").formatMessages(MessageRole.USER, new HashMap<>()));
         assertEquals("ok:Hi", reply.getContent());
+    }
+
+    @Test
+    void testAddChatModel() throws Exception {
+        Agent agent = new Agent();
+        agent.addChatModelSetup(
+                "testChatModel",
+                ResourceDescriptor.Builder.newBuilder(MockChatModel.class.getName())
+                        .addInitialArgument("endpoint", "127.0.0.1")
+                        .addInitialArgument("topK", 5)
+                        .addInitialArgument("topP", 0.2)
+                        .addInitialArgument("prompt", "myPrompt")
+                        .addInitialArgument("tools", List.of("calculate"))
+                        .build());
+        AgentPlan actualPlan = new AgentPlan(agent);
+        BaseChatModelSetup actualChatModel =
+                (BaseChatModelSetup)
+                        actualPlan.getResource("testChatModel", ResourceType.CHAT_MODEL);
+        BaseChatModelSetup expectedChatModel =
+                (BaseChatModelSetup)
+                        agentPlan.getResource("testChatModel", ResourceType.CHAT_MODEL);
+        Assertions.assertEquals(expectedChatModel.getClass(), actualChatModel.getClass());
+        Assertions.assertEquals(expectedChatModel.getConnection(), actualChatModel.getConnection());
+        Assertions.assertEquals(expectedChatModel.getModel(), actualChatModel.getModel());
+        Assertions.assertEquals(expectedChatModel.getPrompt(), actualChatModel.getPrompt());
+        Assertions.assertEquals(expectedChatModel.getTools(), actualChatModel.getTools());
     }
 }

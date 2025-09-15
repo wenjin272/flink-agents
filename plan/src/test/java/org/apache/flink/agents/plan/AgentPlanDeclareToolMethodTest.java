@@ -103,9 +103,7 @@ class AgentPlanDeclareToolMethodTest {
         assertTrue(toolProviders.containsKey("getWeather"));
     }
 
-    @Test
-    @DisplayName("Retrieve tool and call with parameters")
-    void retrieveAndCallTool() throws Exception {
+    void checkToolCall(AgentPlan agentPlan) throws Exception {
         BaseTool calculator = (BaseTool) agentPlan.getResource("calculate", ResourceType.TOOL);
         ToolParameters tp =
                 new ToolParameters(
@@ -129,6 +127,23 @@ class AgentPlanDeclareToolMethodTest {
         assertTrue(wr.isSuccess());
         assertTrue(wr.getResultAsString().contains("London"));
         assertTrue(wr.getResultAsString().contains("72.0°F"));
+    }
+
+    @Test
+    @DisplayName("Retrieve tool and call with parameters")
+    void retrieveAndCallTool() throws Exception {
+        checkToolCall(this.agentPlan);
+    }
+
+    @Test
+    @DisplayName("Check tools added to agent instance.")
+    void testAgentAddTool() throws Exception {
+        Agent agent = new Agent();
+        agent.addTool(
+                        TestAgent.class.getMethod(
+                                "calculate", Double.class, Double.class, String.class))
+                .addTool(TestAgent.class.getMethod("getWeather", String.class, String.class));
+        checkToolCall(new AgentPlan(agent));
     }
 
     @Test

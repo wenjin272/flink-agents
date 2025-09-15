@@ -30,6 +30,7 @@ import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.resource.SerializableResource;
 import org.apache.flink.agents.plan.resourceprovider.JavaSerializableResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -214,6 +215,41 @@ public class AgentPlanTest {
 
         // The map should be empty for agents without resource annotations
         assertThat(resourceProviders).isEmpty();
+    }
+
+    @Test
+    public void testAgentAddAction() throws Exception {
+        // Construct agent plan from declare api.
+        AgentPlan expectedPlan = new AgentPlan(new TestAgent());
+
+        Agent agent = new Agent();
+        agent.addAction(
+                        new Class[] {InputEvent.class},
+                        TestAgent.class,
+                        TestAgent.class.getMethod(
+                                "handleInputEvent", InputEvent.class, RunnerContext.class))
+                .addAction(
+                        new Class[] {TestEvent.class, OutputEvent.class},
+                        TestAgent.class,
+                        TestAgent.class.getMethod(
+                                "handleMultipleEvents", Event.class, RunnerContext.class));
+        AgentPlan actualPlan = new AgentPlan(agent);
+
+        Assertions.assertEquals(expectedPlan.getActions().size(), actualPlan.getActions().size());
+
+        Action expectedInputAction = expectedPlan.getActions().get("handleInputEvent");
+        Action actualInputAction = actualPlan.getActions().get("handleInputEvent");
+        Assertions.assertEquals(expectedInputAction.getName(), actualInputAction.getName());
+        Assertions.assertEquals(expectedInputAction.getExec(), actualInputAction.getExec());
+        Assertions.assertEquals(
+                expectedInputAction.getListenEventTypes(), actualInputAction.getListenEventTypes());
+
+        expectedInputAction = expectedPlan.getActions().get("handleMultipleEvents");
+        actualInputAction = actualPlan.getActions().get("handleMultipleEvents");
+        Assertions.assertEquals(expectedInputAction.getName(), actualInputAction.getName());
+        Assertions.assertEquals(expectedInputAction.getExec(), actualInputAction.getExec());
+        Assertions.assertEquals(
+                expectedInputAction.getListenEventTypes(), actualInputAction.getListenEventTypes());
     }
 
     @Test

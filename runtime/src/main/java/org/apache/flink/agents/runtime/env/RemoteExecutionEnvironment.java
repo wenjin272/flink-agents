@@ -21,6 +21,7 @@ package org.apache.flink.agents.runtime.env;
 import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.AgentBuilder;
 import org.apache.flink.agents.api.AgentsExecutionEnvironment;
+import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.plan.AgentConfiguration;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.runtime.CompileUtils;
@@ -71,13 +72,13 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
 
     @Override
     public <T, K> AgentBuilder fromDataStream(DataStream<T> input, KeySelector<T, K> keySelector) {
-        return new RemoteAgentBuilder<>(input, keySelector, env, config);
+        return new RemoteAgentBuilder<>(input, keySelector, env, config, resources);
     }
 
     @Override
     public <K> AgentBuilder fromTable(
             Table input, StreamTableEnvironment tableEnv, KeySelector<Object, K> keySelector) {
-        return new RemoteAgentBuilder<>(input, tableEnv, keySelector, env, config);
+        return new RemoteAgentBuilder<>(input, tableEnv, keySelector, env, config, resources);
     }
 
     @Override
@@ -111,6 +112,7 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
         private final StreamExecutionEnvironment env;
         private final StreamTableEnvironment tableEnv;
         private final AgentConfiguration config;
+        private final Map<ResourceType, Map<String, Object>> resources;
 
         private AgentPlan agentPlan;
         private DataStream<Object> outputDataStream;
@@ -120,12 +122,14 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
                 DataStream<T> inputDataStream,
                 KeySelector<T, K> keySelector,
                 StreamExecutionEnvironment env,
-                AgentConfiguration config) {
+                AgentConfiguration config,
+                Map<ResourceType, Map<String, Object>> resources) {
             this.inputDataStream = inputDataStream;
             this.keySelector = keySelector;
             this.env = env;
             this.tableEnv = null;
             this.config = config;
+            this.resources = resources;
         }
 
         // Constructor for Table input
@@ -135,17 +139,21 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
                 StreamTableEnvironment tableEnv,
                 KeySelector<Object, K> keySelector,
                 StreamExecutionEnvironment env,
-                AgentConfiguration config) {
+                AgentConfiguration config,
+                Map<ResourceType, Map<String, Object>> resources) {
             this.inputDataStream = (DataStream<T>) tableEnv.toDataStream(inputTable);
             this.keySelector = (KeySelector<T, K>) keySelector;
             this.env = env;
             this.tableEnv = tableEnv;
             this.config = config;
+            this.resources = resources;
         }
 
         @Override
         public AgentBuilder apply(Agent agent) {
             try {
+                // Inspect resources registered in environment to agent.
+                agent.mergeResource(resources);
                 this.agentPlan = new AgentPlan(agent, config);
                 return this;
             } catch (Exception e) {
