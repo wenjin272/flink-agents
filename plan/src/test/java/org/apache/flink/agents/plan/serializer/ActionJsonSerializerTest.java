@@ -25,11 +25,14 @@ import org.apache.flink.agents.plan.Action;
 import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.agents.plan.PythonFunction;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -198,5 +201,38 @@ public class ActionJsonSerializerTest {
         assertEquals(RunnerContext.class, deserializedFunction.getParameterTypes()[1]);
         assertEquals(1, deserializedAction.getListenEventTypes().size());
         assertEquals(InputEvent.class.getName(), deserializedAction.getListenEventTypes().get(0));
+    }
+
+    @Test
+    public void testSerializeDeserializeConfig() throws Exception {
+        // Create a JavaFunction
+        JavaFunction function =
+                new JavaFunction(
+                        "org.apache.flink.agents.plan.TestAction",
+                        "legal",
+                        new Class[] {InputEvent.class, RunnerContext.class});
+
+        Map<String, Object> config = new HashMap<>();
+        InputEvent arg0 = new InputEvent("123");
+        List<String> arg1 = List.of("1", "2", "3");
+        Map<String, Integer> arg2 = Map.of("k1", 1, "k2", 2);
+        config.put("arg0", arg0);
+        config.put("arg1", arg1);
+        config.put("arg2", arg2);
+
+        // Create an Action
+        Action action =
+                new Action("testAction", function, List.of(InputEvent.class.getName()), config);
+
+        // Serialize the action to JSON
+        ObjectMapper mapper = new ObjectMapper();
+        String json = mapper.writeValueAsString(action);
+
+        Action actual = mapper.readValue(json, Action.class);
+        Assertions.assertNotNull(actual.getConfig());
+        Map<String, Object> deserializeConfig = actual.getConfig();
+        Assertions.assertEquals("123", ((InputEvent) deserializeConfig.get("arg0")).getInput());
+        Assertions.assertEquals(arg1, deserializeConfig.get("arg1"));
+        Assertions.assertEquals(arg2, deserializeConfig.get("arg2"));
     }
 }

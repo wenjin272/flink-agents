@@ -33,6 +33,7 @@ import java.util.Map;
  * types.
  */
 public class ActionJsonSerializer extends StdSerializer<Action> {
+    public static final String CONFIG_TYPE = "__config_type__";
     private static final String PYTHON_FUNC_TYPE = "PythonFunction";
     private static final String JAVA_FUNC_TYPE = "JavaFunction";
 
@@ -76,15 +77,45 @@ public class ActionJsonSerializer extends StdSerializer<Action> {
         } else {
             jsonGenerator.writeFieldName("config");
             jsonGenerator.writeStartObject();
-            action.getConfig()
-                    .forEach(
-                            (name, value) -> {
-                                try {
-                                    jsonGenerator.writeObjectField(name, value);
-                                } catch (IOException e) {
-                                    throw new RuntimeException("Error writing action: " + name, e);
-                                }
-                            });
+            String configType = (String) config.get(CONFIG_TYPE);
+            if (configType == null) {
+                configType = "java";
+            } else {
+                config.remove(CONFIG_TYPE);
+            }
+            jsonGenerator.writeStringField(CONFIG_TYPE, configType);
+            if (configType.equals("java")) {
+                action.getConfig()
+                        .forEach(
+                                (name, value) -> {
+                                    try {
+                                        jsonGenerator.writeFieldName(name);
+                                        jsonGenerator.writeStartObject();
+                                        jsonGenerator.writeStringField(
+                                                "@class", value.getClass().getName());
+                                        jsonGenerator.writeObjectField("value", value);
+                                        jsonGenerator.writeEndObject();
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(
+                                                "Error writing action: " + name, e);
+                                    }
+                                });
+            } else if (configType.equals("python")) {
+                action.getConfig()
+                        .forEach(
+                                (name, value) -> {
+                                    try {
+                                        jsonGenerator.writeObjectField(name, value);
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(
+                                                "Error writing action: " + name, e);
+                                    }
+                                });
+            } else {
+                throw new IllegalArgumentException(
+                        String.format("Unknown config type %s", configType));
+            }
+
             jsonGenerator.writeEndObject();
         }
 

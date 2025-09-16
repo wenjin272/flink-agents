@@ -9,7 +9,7 @@
         "flink_agents.api.events.event.InputEvent"
     ],
     "config": {
-        "config_type": "python",
+        "__config_type__": "python",
         "output_schema": [
             "flink_agents.api.agents.react_agent",
             "OutputSchema",

@@ -25,13 +25,18 @@ import org.apache.flink.agents.plan.PythonFunction;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonParser;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.DeserializationContext;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.JsonNode;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.node.NullNode;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.apache.flink.agents.plan.serializer.ActionJsonSerializer.CONFIG_TYPE;
 
 /**
  * Custom deserializer for {@link Action} that handles the deserialization of the function and event
@@ -67,10 +72,19 @@ public class ActionJsonDeserializer extends StdDeserializer<Action> {
                 .forEach(eventTypeNode -> listenEventTypes.add(eventTypeNode.asText()));
 
         // Deserialize params
+        Map<String, Object> config = null;
         JsonNode configNode = node.get("config");
-        Map<String, Object> config = new HashMap<>();
-        if (configNode != null && configNode.isObject()) {
-            config = (Map<String, Object>) parseJsonNode(configNode);
+        if (configNode != null && !(configNode instanceof NullNode)) {
+            String configType = configNode.get(CONFIG_TYPE).asText();
+            if (configType.equals("java")) {
+                try {
+                    config = deserializeJavaConfig(node);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            } else if (configType.equals("python")) {
+                config = (Map<String, Object>) deserializePythonConfig(configNode);
+            }
         }
 
         try {
@@ -110,16 +124,42 @@ public class ActionJsonDeserializer extends StdDeserializer<Action> {
         }
     }
 
-    private Object parseJsonNode(JsonNode node) {
+    private Map<String, Object> deserializeJavaConfig(JsonNode node) throws Exception {
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode configNode = node.get("config");
+        Map<String, Object> config = new HashMap<>();
+        if (configNode != null && configNode.isObject()) {
+            Iterator<Map.Entry<String, JsonNode>> iterator = configNode.fields();
+            while (iterator.hasNext()) {
+                Map.Entry<String, JsonNode> entry = iterator.next();
+                String key = entry.getKey();
+                if (key.equals(CONFIG_TYPE)) {
+                    config.put(key, entry.getValue().asText());
+                    continue;
+                }
+                JsonNode clazzAndValue = entry.getValue();
+                String clazz = clazzAndValue.get("@class").asText();
+                JsonNode value = clazzAndValue.get("value");
+                config.put(key, mapper.treeToValue(value, Class.forName(clazz)));
+            }
+        }
+        return config;
+    }
+
+    private Object deserializePythonConfig(JsonNode node) {
         if (node.isObject()) {
             Map<String, Object> map = new HashMap<>();
             node.fields()
                     .forEachRemaining(
-                            entry -> map.put(entry.getKey(), parseJsonNode(entry.getValue())));
+                            entry ->
+                                    map.put(
+                                            entry.getKey(),
+                                            deserializePythonConfig(entry.getValue())));
             return map;
         } else if (node.isArray()) {
             List<Object> list = new ArrayList<>();
-            node.forEach(element -> list.add(parseJsonNode(element)));
+            node.forEach(element -> list.add(deserializePythonConfig(element)));
             return list;
         } else if (node.isValueNode()) {
             return node.asText();

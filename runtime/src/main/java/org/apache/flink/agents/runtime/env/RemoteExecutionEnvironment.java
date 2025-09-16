@@ -153,7 +153,7 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
         public AgentBuilder apply(Agent agent) {
             try {
                 // Inspect resources registered in environment to agent.
-                agent.mergeResource(resources);
+                agent.addResourcesIfAbsent(resources);
                 this.agentPlan = new AgentPlan(agent, config);
                 return this;
             } catch (Exception e) {
