@@ -95,6 +95,16 @@ public class MemoryRefTest {
         public ReadableConfiguration getConfig() {
             return null;
         }
+
+        @Override
+        public Map<String, Object> getActionConfig() {
+            return Map.of();
+        }
+
+        @Override
+        public Object getActionConfigValue(String key) {
+            return null;
+        }
     }
 
     @BeforeEach

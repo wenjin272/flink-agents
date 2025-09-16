@@ -223,16 +223,16 @@ public class AgentPlanTest {
         AgentPlan expectedPlan = new AgentPlan(new TestAgent());
 
         Agent agent = new Agent();
+        Map<String, Object> config = Map.of("key", 123);
         agent.addAction(
                         new Class[] {InputEvent.class},
-                        TestAgent.class,
                         TestAgent.class.getMethod(
                                 "handleInputEvent", InputEvent.class, RunnerContext.class))
                 .addAction(
                         new Class[] {TestEvent.class, OutputEvent.class},
-                        TestAgent.class,
                         TestAgent.class.getMethod(
-                                "handleMultipleEvents", Event.class, RunnerContext.class));
+                                "handleMultipleEvents", Event.class, RunnerContext.class),
+                        config);
         AgentPlan actualPlan = new AgentPlan(agent);
 
         Assertions.assertEquals(expectedPlan.getActions().size(), actualPlan.getActions().size());
@@ -250,6 +250,8 @@ public class AgentPlanTest {
         Assertions.assertEquals(expectedInputAction.getExec(), actualInputAction.getExec());
         Assertions.assertEquals(
                 expectedInputAction.getListenEventTypes(), actualInputAction.getListenEventTypes());
+        Assertions.assertEquals(
+                123, actualPlan.getActionConfigValue("handleMultipleEvents", "key"));
     }
 
     @Test

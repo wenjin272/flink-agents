@@ -19,12 +19,13 @@ import importlib
 import inspect
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, field_serializer, model_validator
 
 from flink_agents.api.events.event import Event
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.plan.function import Function, JavaFunction, PythonFunction
 
+_CONFIG_TYPE = "__config_type__"
 
 class Action(BaseModel):
     """Representation of an agent action with event listening and function execution.
@@ -41,6 +42,7 @@ class Action(BaseModel):
     listen_event_types : List[str]
         List of event types that will trigger this Action's execution.
     """
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
     # TODO: Raise a warning when the action has a return value, as it will be ignored.
@@ -53,7 +55,7 @@ class Action(BaseModel):
         if config is None:
             return config
         data = {}
-        data["config_type"] = "python"
+        data[_CONFIG_TYPE] = "python"
         for name, value in config.items():
             if isinstance(value, BaseModel):
                 data[name] = (
@@ -68,8 +70,8 @@ class Action(BaseModel):
     @model_validator(mode="before")
     def __custom_deserialize(self) -> "Action":
         config = self["config"]
-        if config is not None and "config_type" in config:
-            self["config"].pop("config_type")
+        if config is not None and _CONFIG_TYPE in config:
+            self["config"].pop(_CONFIG_TYPE)
             for name, value in config.items():
                 try:
                     module = importlib.import_module(value[0])

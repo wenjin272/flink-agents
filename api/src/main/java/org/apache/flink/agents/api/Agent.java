@@ -24,6 +24,8 @@ import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.api.java.tuple.Tuple3;
 
+import javax.annotation.Nullable;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
@@ -31,7 +33,8 @@ import java.util.Map;
 
 /** Base class for defining agent logic. */
 public class Agent {
-    private final Map<String, Tuple3<Class<? extends Event>[], Class<?>, Method>> actions;
+    private final Map<String, Tuple3<Class<? extends Event>[], Method, Map<String, Object>>>
+            actions;
 
     private final Map<ResourceType, Map<String, Object>> resources;
 
@@ -43,7 +46,7 @@ public class Agent {
         this.actions = new HashMap<>();
     }
 
-    public Map<String, Tuple3<Class<? extends Event>[], Class<?>, Method>> getActions() {
+    public Map<String, Tuple3<Class<? extends Event>[], Method, Map<String, Object>>> getActions() {
         return actions;
     }
 
@@ -56,17 +59,29 @@ public class Agent {
      *
      * @param events The event types this action listened.
      * @param method The method of this action, should be static method.
+     * @param config The optional config can be used by this action.
      */
-    public Agent addAction(Class<? extends Event>[] events, Class<?> clazz, Method method) {
+    public Agent addAction(
+            Class<? extends Event>[] events, Method method, @Nullable Map<String, Object> config) {
         String name = method.getName();
         if (actions.containsKey(name)) {
             throw new IllegalArgumentException(String.format("Action %s already defined.", name));
         }
-        actions.put(name, new Tuple3<>(events, clazz, method));
+        actions.put(name, new Tuple3<>(events, method, config));
         return this;
     }
 
-    public void mergeResource(Map<ResourceType, Map<String, Object>> resources) {
+    /**
+     * Add action to agent.
+     *
+     * @param events The event types this action listened.
+     * @param method The method of this action, should be static method.
+     */
+    public Agent addAction(Class<? extends Event>[] events, Method method) {
+        return addAction(events, method, null);
+    }
+
+    public void addResourcesIfAbsent(Map<ResourceType, Map<String, Object>> resources) {
         resources.forEach(this.resources::putIfAbsent);
     }
 

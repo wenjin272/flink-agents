@@ -33,6 +33,7 @@ import org.apache.flink.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The implementation class of {@link RunnerContext}, which serves as the execution context for
@@ -114,6 +115,16 @@ public class RunnerContextImpl implements RunnerContext {
     @Override
     public ReadableConfiguration getConfig() {
         return agentPlan.getConfig();
+    }
+
+    @Override
+    public Map<String, Object> getActionConfig() {
+        return agentPlan.getActionConfig(actionName);
+    }
+
+    @Override
+    public Object getActionConfigValue(String key) {
+        return agentPlan.getActionConfigValue(actionName, key);
     }
 
     public String getActionName() {

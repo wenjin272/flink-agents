@@ -25,6 +25,8 @@ import org.apache.flink.agents.plan.serializer.ActionJsonSerializer;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
+import javax.annotation.Nullable;
+
 import java.util.List;
 import java.util.Map;
 
@@ -41,10 +43,14 @@ public class Action {
     private final Function exec;
     private final List<String> listenEventTypes;
 
-    private final Map<String, Object> config;
+    // TODO: support nested map/list with non primitive type value.
+    @Nullable private final Map<String, Object> config;
 
     public Action(
-            String name, Function exec, List<String> listenEventTypes, Map<String, Object> config)
+            String name,
+            Function exec,
+            List<String> listenEventTypes,
+            @Nullable Map<String, Object> config)
             throws Exception {
         this.name = name;
         this.exec = exec;
@@ -69,6 +75,7 @@ public class Action {
         return listenEventTypes;
     }
 
+    @Nullable
     public Map<String, Object> getConfig() {
         return config;
     }
