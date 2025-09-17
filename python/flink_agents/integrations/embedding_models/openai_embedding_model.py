@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 ################################################################################
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from openai import NOT_GIVEN, OpenAI
 from pydantic import Field
@@ -64,11 +64,11 @@ class OpenAIEmbeddingModelConnection(BaseEmbeddingModelConnection):
         default=DEFAULT_MAX_RETRIES,
         description="Maximum number of retries for failed requests.",
     )
-    organization: Optional[str] = Field(
+    organization: str | None = Field(
         default=None,
         description="Optional organization ID for API requests.",
     )
-    project: Optional[str] = Field(
+    project: str | None = Field(
         default=None,
         description="Optional project ID for API requests.",
     )
@@ -77,10 +77,10 @@ class OpenAIEmbeddingModelConnection(BaseEmbeddingModelConnection):
         self,
         api_key: str,
         base_url: str = DEFAULT_BASE_URL,
-        request_timeout: Optional[float] = DEFAULT_REQUEST_TIMEOUT,
+        request_timeout: float | None = DEFAULT_REQUEST_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
-        organization: Optional[str] = None,
-        project: Optional[str] = None,
+        organization: str | None = None,
+        project: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Init method."""
@@ -152,11 +152,11 @@ class OpenAIEmbeddingModelSetup(BaseEmbeddingModelSetup):
         default="float",
         description='The format to return the embeddings in (default: "float").',
     )
-    dimensions: Optional[int] = Field(
+    dimensions: int | None = Field(
         default=None,
         description="The number of dimensions the resulting output embeddings should have.",
     )
-    user: Optional[str] = Field(
+    user: str | None = Field(
         default=None,
         description="A unique identifier representing your end-user.",
     )
@@ -171,9 +171,9 @@ class OpenAIEmbeddingModelSetup(BaseEmbeddingModelSetup):
         connection: str,
         model: str,
         encoding_format: str = "float",
-        dimensions: Optional[int] = None,
-        user: Optional[str] = None,
-        additional_kwargs: Optional[Dict[str, Any]] = None,
+        dimensions: int | None = None,
+        user: str | None = None,
+        additional_kwargs: Dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """Init method."""
