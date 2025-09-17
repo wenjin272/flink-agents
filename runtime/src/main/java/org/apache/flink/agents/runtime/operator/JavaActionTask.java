@@ -18,8 +18,8 @@
 package org.apache.flink.agents.runtime.operator;
 
 import org.apache.flink.agents.api.Event;
-import org.apache.flink.agents.plan.Action;
 import org.apache.flink.agents.plan.JavaFunction;
+import org.apache.flink.agents.plan.actions.Action;
 
 import static org.apache.flink.util.Preconditions.checkState;
 

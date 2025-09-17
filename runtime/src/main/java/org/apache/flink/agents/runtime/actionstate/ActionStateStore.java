@@ -18,7 +18,7 @@
 package org.apache.flink.agents.runtime.actionstate;
 
 import org.apache.flink.agents.api.Event;
-import org.apache.flink.agents.plan.Action;
+import org.apache.flink.agents.plan.actions.Action;
 
 import java.io.IOException;
 import java.util.List;

@@ -16,10 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.flink.agents.plan;
+package org.apache.flink.agents.plan.actions;
 
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.context.RunnerContext;
+import org.apache.flink.agents.plan.Function;
 import org.apache.flink.agents.plan.serializer.ActionJsonDeserializer;
 import org.apache.flink.agents.plan.serializer.ActionJsonSerializer;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonDeserialize;
