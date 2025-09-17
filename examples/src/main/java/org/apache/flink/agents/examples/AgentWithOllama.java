@@ -22,20 +22,21 @@ import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
 import org.apache.flink.agents.api.annotation.Action;
-import org.apache.flink.agents.api.annotation.ChatModel;
+import org.apache.flink.agents.api.annotation.ChatModelConnection;
+import org.apache.flink.agents.api.annotation.ChatModelSetup;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
-import org.apache.flink.agents.api.chat.model.BaseChatModel;
+import org.apache.flink.agents.api.chat.model.BaseChatModelSetup;
 import org.apache.flink.agents.api.context.RunnerContext;
+import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModel;
+import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelConnection;
+import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSetup;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Agent example that integrates an external Ollama chat model into Flink Agents.
@@ -43,40 +44,38 @@ import java.util.Map;
  * <p>This class demonstrates how to:
  *
  * <ul>
- *   <li>Declare a chat model resource using {@link ChatModel} metadata pointing to {@link
- *       OllamaChatModel}
+ *   <li>Declare a chat model connection using {@link ChatModelConnection} metadata pointing to
+ *       {@link OllamaChatModelConnection}
+ *   <li>Declare a chat model setup using {@link ChatModelSetup} metadata pointing to {@link
+ *       OllamaChatModelSetup}
  *   <li>Expose callable tools via {@link Tool} annotated static methods (temperature conversion,
  *       BMI, random number)
  *   <li>Fetch a chat model from the {@link RunnerContext} and perform a single-turn chat
  *   <li>Emit the model response as an {@link OutputEvent}
  * </ul>
  *
- * <p>The {@code ollamChatModel()} method publishes a resource with type {@link
+ * <p>The {@code ollamaChatModel()} method publishes a resource with type {@link
  * ResourceType#CHAT_MODEL} so it can be retrieved at runtime inside the {@code process} action. The
- * resource is configured with the Ollama HTTP endpoint, the model name, a prompt resource name, and
- * the list of tool names that the model is allowed to call.
+ * resource is configured with the connection name, the model name and the list of tool names that
+ * the model is allowed to call.
  */
 public class AgentWithOllama extends Agent {
+    @ChatModelConnection
+    public static ResourceDescriptor ollamaChatModelConnection() {
+        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelConnection.class.getName())
+                .addInitialArgument("endpoint", "http://localhost:11434")
+                .build();
+    }
 
-    @ChatModel
-    public static Map<String, Object> ollamChatModel() {
-        Map<String, Object> meta = new HashMap<>();
-        meta.put(ChatModel.CHAT_MODEL_CLASS_NAME, OllamaChatModel.class.getName());
-        meta.put(
-                ChatModel.CHAT_MODEL_ARGUMENTS,
-                List.of(
-                        "http://localhost:11434",
-                        "qwen3:4b",
-                        "myPrompt",
-                        List.of("calculateBMI", "convertTemperature", "createRandomNumber")));
-        meta.put(
-                ChatModel.CHAT_MODEL_ARGUMENTS_TYPES,
-                List.of(
-                        String.class.getName(),
-                        String.class.getName(),
-                        String.class.getName(),
-                        List.class.getName()));
-        return meta;
+    @ChatModelSetup
+    public static ResourceDescriptor ollamaChatModel() {
+        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
+                .addInitialArgument("connection", "ollamaChatModelConnection")
+                .addInitialArgument("model", "qwen3:8b")
+                .addInitialArgument(
+                        "tools",
+                        List.of("calculateBMI", "convertTemperature", "createRandomNumber"))
+                .build();
     }
 
     @Tool(description = "Converts temperature between Celsius and Fahrenheit")
@@ -125,8 +124,8 @@ public class AgentWithOllama extends Agent {
 
     @Action(listenEvents = {InputEvent.class})
     public static void process(InputEvent event, RunnerContext ctx) throws Exception {
-        BaseChatModel chatModel =
-                (BaseChatModel) ctx.getResource("ollamChatModel", ResourceType.CHAT_MODEL);
+        BaseChatModelSetup chatModel =
+                (BaseChatModelSetup) ctx.getResource("ollamaChatModel", ResourceType.CHAT_MODEL);
         ChatMessage response =
                 chatModel.chat(
                         Collections.singletonList(
