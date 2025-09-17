@@ -20,8 +20,8 @@ package org.apache.flink.agents.runtime.actionstate;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.context.RunnerContext;
-import org.apache.flink.agents.plan.Action;
 import org.apache.flink.agents.plan.JavaFunction;
+import org.apache.flink.agents.plan.actions.Action;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

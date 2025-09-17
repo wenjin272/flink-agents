@@ -18,8 +18,8 @@
 package org.apache.flink.agents.runtime.python.operator;
 
 import org.apache.flink.agents.api.Event;
-import org.apache.flink.agents.plan.Action;
 import org.apache.flink.agents.plan.PythonFunction;
+import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.runtime.operator.ActionTask;
 import org.apache.flink.agents.runtime.python.event.PythonEvent;
 import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;

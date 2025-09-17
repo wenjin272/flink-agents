@@ -18,7 +18,7 @@
 package org.apache.flink.agents.runtime.operator;
 
 import org.apache.flink.agents.api.Event;
-import org.apache.flink.agents.plan.Action;
+import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

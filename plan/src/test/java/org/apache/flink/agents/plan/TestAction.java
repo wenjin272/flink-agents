@@ -19,6 +19,7 @@ package org.apache.flink.agents.plan;
 
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.context.RunnerContext;
+import org.apache.flink.agents.plan.actions.Action;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
