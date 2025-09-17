@@ -28,11 +28,12 @@ import io.github.ollama4j.models.chat.OllamaChatResult;
 import io.github.ollama4j.tools.Tools;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
-import org.apache.flink.agents.api.chat.model.BaseChatModel;
+import org.apache.flink.agents.api.chat.model.BaseChatModelConnection;
 import org.apache.flink.agents.api.resource.Resource;
+import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.plan.tools.BaseTool;
-import org.apache.flink.agents.plan.tools.ToolParameters;
+import org.apache.flink.agents.api.tools.BaseTool;
+import org.apache.flink.agents.api.tools.ToolParameters;
 
 import java.util.HashMap;
 import java.util.List;
@@ -46,63 +47,54 @@ import java.util.stream.Collectors;
  * <p>This implementation adapts the generic Flink Agents chat model interface to Ollama's
  * conversation API.
  *
- * <p>See also {@link BaseChatModel} for the common resource abstractions and lifecycle.
+ * <p>See also {@link BaseChatModelConnection} for the common resource abstractions and lifecycle.
  *
  * <p>Example usage:
  *
  * <pre>{@code
  * public class MyAgent extends Agent {
- *   // Register the chat model via @ChatModel metadata.
- *   @ChatModel
- *   public static Map<String, Object> ollama() {
- *     Map<String, Object> meta = new HashMap<>();
- *     meta.put(ChatModel.CHAT_MODEL_CLASS_NAME, OllamaChatModel.class.getName());
- *     meta.put(ChatModel.CHAT_MODEL_ARGUMENTS,
- *         List.of("http://localhost:11434",   // endpoint
- *                 "qwen3:4b",                  // model name
- *                 "myPrompt",                  // optional prompt resource name
- *                 List.of("myTool") // optional tools
- *         ));
- *     meta.put(ChatModel.CHAT_MODEL_ARGUMENTS_TYPES,
- *         List.of(String.class.getName(), String.class.getName(),
- *                String.class.getName(), List.class.getName()));
- *     return meta;
+ *   // Register the chat model connection via @ChatModelConnection metadata.
+ *   @ChatModelConnection
+ *   public static ResourceDesc ollama() {
+ *     return ResourceDescriptor.Builder.newBuilder(OllamaChatModelConnection.class.getName())
+ *                 .addInitialArgument("endpoint", "http://localhost:11434") // the ollama server endpoint
+ *                 .build();
  *   }
  * }
  * }</pre>
  */
-public class OllamaChatModel extends BaseChatModel {
-
+public class OllamaChatModelConnection extends BaseChatModelConnection {
     private final OllamaAPI client;
-    private final String modelName;
-
     /**
-     * Creates a new OllamaChatModel.
+     * Creates a new ollama chat model connection.
      *
+     * @param descriptor a resource descriptor contains the initial parameters
      * @param getResource a function to resolve resources (e.g., tools) by name and type
-     * @param endpoint the Ollama server endpoint (e.g., http://localhost:11434)
-     * @param modelName the Ollama model name to use for chat completions
-     * @param promptName optional prompt resource name to be used by higher-level orchestration
-     * @param toolNames optional list of tool resource names to register as callable functions
      * @throws IllegalArgumentException if endpoint is null or empty
      */
-    public OllamaChatModel(
-            BiFunction<String, ResourceType, Resource> getResource,
-            String endpoint,
-            String modelName,
-            String promptName,
-            List<String> toolNames) {
-        super(getResource, promptName, toolNames);
+    public OllamaChatModelConnection(
+            ResourceDescriptor descriptor, BiFunction<String, ResourceType, Resource> getResource) {
+        super(descriptor, getResource);
+        String endpoint = descriptor.getArgument("endpoint");
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalArgumentException("endpoint should not be null or empty.");
         }
-
         this.client = new OllamaAPI(endpoint);
-        this.modelName = modelName;
+    }
 
-        if (toolNames != null && !toolNames.isEmpty()) {
-            this.registerTools(toolNames);
-        }
+    /**
+     * Creates a new ollama chat model connection.
+     *
+     * @param endpoint the endpoint of the ollama server.
+     * @param getResource a function to resolve resources (e.g., tools) by name and type
+     * @throws IllegalArgumentException if endpoint is null or empty
+     */
+    public OllamaChatModelConnection(
+            String endpoint, BiFunction<String, ResourceType, Resource> getResource) {
+        this(
+                new ResourceDescriptor(
+                        OllamaChatModelConnection.class.getName(), Map.of("endpoint", endpoint)),
+                getResource);
     }
 
     /**
@@ -112,16 +104,14 @@ public class OllamaChatModel extends BaseChatModel {
      * "required" keys. The schema is converted into the function/tool specification that Ollama
      * understands, and a callable is wired to invoke the underlying BaseTool with ToolParameters.
      *
-     * @param toolNames names of tools to resolve via getResource and register with the client
+     * @param tools tools to be registered to the client
      * @throws RuntimeException if schema parsing or registration fails
      */
     @SuppressWarnings("unchecked")
-    private void registerTools(List<String> toolNames) {
+    private void registerTools(List<BaseTool> tools) {
         final ObjectMapper mapper = new ObjectMapper();
         try {
-            for (String toolName : toolNames) {
-                final BaseTool tool =
-                        (BaseTool) this.getResource.apply(toolName, ResourceType.TOOL);
+            for (BaseTool tool : tools) {
                 final Map<String, Object> schema =
                         mapper.readValue(
                                 tool.getMetadata().getInputSchema(), new TypeReference<>() {});
@@ -198,15 +188,17 @@ public class OllamaChatModel extends BaseChatModel {
     }
 
     @Override
-    public ChatMessage chat(List<ChatMessage> messages) {
+    public ChatMessage chat(
+            List<ChatMessage> messages, List<BaseTool> tools, Map<String, Object> arguments) {
         try {
+            registerTools(tools);
             final List<OllamaChatMessage> ollamaChatMessages =
                     messages.stream()
                             .map(this::convertToOllamaChatMessages)
                             .collect(Collectors.toList());
 
             final OllamaChatResult ollamaChatResult =
-                    this.client.chat(this.modelName, ollamaChatMessages);
+                    this.client.chat((String) arguments.get("model"), ollamaChatMessages);
 
             return ChatMessage.assistant(ollamaChatResult.getResponse());
         } catch (Exception e) {
