@@ -19,44 +19,24 @@
 package org.apache.flink.agents.api.event;
 
 import org.apache.flink.agents.api.Event;
+import org.apache.flink.agents.api.chat.messages.ChatMessage;
 
 import java.util.List;
-import java.util.Map;
 
-/** Event representing a tool call request */
-public class ToolRequestEvent extends Event {
+public class ChatRequestEvent extends Event {
     private final String model;
-    private final List<Map<String, Object>> toolCalls;
-    private final long timestamp;
+    private final List<ChatMessage> messages;
 
-    public ToolRequestEvent(String model, List<Map<String, Object>> toolCalls) {
+    public ChatRequestEvent(String model, List<ChatMessage> messages) {
         this.model = model;
-        this.toolCalls = toolCalls;
-        this.timestamp = System.currentTimeMillis();
+        this.messages = messages;
     }
 
     public String getModel() {
         return model;
     }
 
-    public List<Map<String, Object>> getToolCalls() {
-        return toolCalls;
-    }
-
-    public long getTimestamp() {
-        return timestamp;
-    }
-
-    @Override
-    public String toString() {
-        return "ToolRequestEvent{"
-                + "model='"
-                + model
-                + '\''
-                + ", toolCalls="
-                + toolCalls
-                + ", timestamp="
-                + timestamp
-                + '}';
+    public List<ChatMessage> getMessages() {
+        return messages;
     }
 }

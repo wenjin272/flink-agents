@@ -18,7 +18,6 @@
 
 package org.apache.flink.agents.api.chat.messages;
 
-import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.ArrayList;
@@ -43,19 +42,20 @@ public class ChatMessage {
 
     /** Default constructor with SYSTEM role */
     public ChatMessage() {
-        this.role = MessageRole.SYSTEM;
-        this.content = "";
-        this.toolCalls = new ArrayList<>();
-        this.extraArgs = new HashMap<>();
+        this(MessageRole.SYSTEM, null, null, null);
     }
 
     /** Constructor with role and content */
     public ChatMessage(MessageRole role, String content) {
-        this.role = role != null ? role : MessageRole.SYSTEM;
-        this.content = content != null ? content : "";
-        this.toolCalls = new ArrayList<>();
-        this.extraArgs = new HashMap<>();
-        this.extraArgs.put(MESSAGE_TYPE, this.role);
+        this(role, content, null, null);
+    }
+
+    public ChatMessage(MessageRole role, String content, Map<String, Object> extraArgs) {
+        this(role, content, null, extraArgs);
+    }
+
+    public ChatMessage(MessageRole role, String content, List<Map<String, Object>> toolCalls) {
+        this(role, content, toolCalls, null);
     }
 
     /** Full constructor */
@@ -67,16 +67,6 @@ public class ChatMessage {
         this.role = role != null ? role : MessageRole.SYSTEM;
         this.content = content != null ? content : "";
         this.toolCalls = toolCalls != null ? toolCalls : new ArrayList<>();
-        this.extraArgs = extraArgs != null ? new HashMap<>(extraArgs) : new HashMap<>();
-        this.extraArgs.put(MESSAGE_TYPE, this.role);
-    }
-
-    /** Constructor with resource */
-    public ChatMessage(MessageRole role, Resource resource, Map<String, Object> extraArgs) {
-        if (resource == null) throw new IllegalArgumentException("resource must not be null");
-        // TODO handle resource content properly
-        this.role = role != null ? role : MessageRole.SYSTEM;
-        this.toolCalls = new ArrayList<>();
         this.extraArgs = extraArgs != null ? new HashMap<>(extraArgs) : new HashMap<>();
         this.extraArgs.put(MESSAGE_TYPE, this.role);
     }

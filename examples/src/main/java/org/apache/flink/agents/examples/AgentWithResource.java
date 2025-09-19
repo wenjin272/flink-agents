@@ -29,18 +29,18 @@ import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.chat.model.BaseChatModelSetup;
 import org.apache.flink.agents.api.context.RunnerContext;
+import org.apache.flink.agents.api.event.ChatRequestEvent;
+import org.apache.flink.agents.api.event.ChatResponseEvent;
 import org.apache.flink.agents.api.prompt.Prompt;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.tools.BaseTool;
-import org.apache.flink.agents.api.tools.ToolParameters;
-import org.apache.flink.agents.api.tools.ToolResponse;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.function.BiFunction;
 
 public class AgentWithResource extends Agent {
@@ -69,30 +69,49 @@ public class AgentWithResource extends Agent {
 
         @Override
         public ChatMessage chat(List<ChatMessage> messages, Map<String, Object> parameters) {
-            Prompt prompt = (Prompt) getResource.apply((String) this.prompt, ResourceType.PROMPT);
-            BaseTool tool = (BaseTool) getResource.apply(this.tools.get(0), ResourceType.TOOL);
-            Map<String, Object> params = new HashMap<>();
-            params.put("a", 1);
-            params.put("b", 2);
-            params.put("operation", "add");
-            ToolParameters toolParameters = new ToolParameters(params);
-            ToolResponse result = tool.call(toolParameters);
-            String output =
-                    String.format(
-                            "Prompt: %s, input: %s, endpoint: %s, topP: %s, topK: %s, tool call result: %s",
-                            prompt.formatString(new HashMap<>()),
-                            messages.get(0).getContent(),
-                            endpoint,
-                            topP,
-                            topK,
-                            result.getResult());
-            return new ChatMessage(MessageRole.ASSISTANT, output);
+            if (messages.size() == 1) {
+                Map<String, Object> toolCall = new HashMap<>();
+                toolCall.put("id", "1");
+                toolCall.put(
+                        "function",
+                        new HashMap<String, Object>() {
+                            {
+                                put("name", tools.get(0));
+                                put("arguments", Map.of("a", 1, "b", 2, "operation", "add"));
+                            }
+                        });
+                return new ChatMessage(
+                        MessageRole.ASSISTANT,
+                        String.format("I will call tool %s", tools.get(0)),
+                        List.of(toolCall));
+            } else {
+                StringJoiner content = new StringJoiner("\n");
+                content.add(
+                        String.format("endpoint: %s, topP: %s, topK: %s", endpoint, topP, topK));
+
+                Map<String, String> arguments = new HashMap<>();
+                for (ChatMessage message : messages) {
+                    for (Map.Entry<String, Object> entry : message.getExtraArgs().entrySet()) {
+                        arguments.put(entry.getKey(), entry.getValue().toString());
+                    }
+                }
+                Prompt prompt =
+                        (Prompt) getResource.apply((String) this.prompt, ResourceType.PROMPT);
+                List<ChatMessage> formatMessages =
+                        prompt.formatMessages(MessageRole.USER, arguments);
+                content.add("Prompt: " + formatMessages.get(0).getContent());
+
+                for (ChatMessage message : messages) {
+                    content.add(message.getContent());
+                }
+                return new ChatMessage(MessageRole.ASSISTANT, content.toString());
+            }
         }
     }
 
     @org.apache.flink.agents.api.annotation.Prompt
     public static Prompt myPrompt() {
-        return new Prompt("This is a test prompt");
+        return new Prompt("What is {a} + {b}?");
     }
 
     @ChatModelSetup
@@ -128,13 +147,22 @@ public class AgentWithResource extends Agent {
 
     @Action(listenEvents = {InputEvent.class})
     public static void process(InputEvent event, RunnerContext ctx) throws Exception {
-        BaseChatModelSetup chatModel =
-                (BaseChatModelSetup) ctx.getResource("myChatModel", ResourceType.CHAT_MODEL);
-        ChatMessage response =
-                chatModel.chat(
-                        Collections.singletonList(
-                                new ChatMessage(MessageRole.USER, (String) event.getInput())),
-                        Collections.emptyMap());
-        ctx.sendEvent(new OutputEvent(response.getContent()));
+        Map<String, Integer> input = (Map<String, Integer>) event.getInput();
+
+        ChatMessage message =
+                new ChatMessage(
+                        MessageRole.USER,
+                        String.format("What is %s + %s?", input.get("a"), input.get("b")),
+                        Map.of("a", input.get("a"), "b", input.get("b")));
+
+        List<ChatMessage> messages = new ArrayList<>();
+        messages.add(message);
+        ctx.sendEvent(new ChatRequestEvent("myChatModel", messages));
+    }
+
+    @Action(listenEvents = {ChatResponseEvent.class})
+    public static void output(ChatResponseEvent event, RunnerContext ctx) throws Exception {
+        String output = event.getResponse().getContent();
+        ctx.sendEvent(new OutputEvent(output));
     }
 }
