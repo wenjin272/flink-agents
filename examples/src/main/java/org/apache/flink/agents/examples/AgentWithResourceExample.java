@@ -20,7 +20,11 @@ package org.apache.flink.agents.examples;
 import org.apache.flink.agents.api.AgentsExecutionEnvironment;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Example to test MemoryObject in a complete Java Flink execution environment. This job triggers
@@ -33,8 +37,10 @@ public class AgentWithResourceExample {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
 
-        // Use two different keys (1 and 2) to show that memory is isolated per key.
-        DataStream<String> inputStream = env.fromElements("This is the test input");
+        Map<String, Integer> element = new HashMap<>();
+        element.put("a", 1);
+        element.put("b", 2);
+        DataStreamSource<Map<String, Integer>> inputStream = env.fromElements(element);
 
         // Create agents execution environment
         AgentsExecutionEnvironment agentsEnv =
@@ -43,7 +49,10 @@ public class AgentWithResourceExample {
         // Apply agent to the DataStream and use the integer itself as the key
         DataStream<Object> outputStream =
                 agentsEnv
-                        .fromDataStream(inputStream, (KeySelector<String, String>) value -> value)
+                        .fromDataStream(
+                                inputStream,
+                                (KeySelector<Map<String, Integer>, Integer>)
+                                        value -> value.get("a"))
                         .apply(new AgentWithResource())
                         .toDataStream();
 

@@ -18,46 +18,60 @@
 
 package org.apache.flink.agents.api.event;
 
-import java.util.Objects;
+import org.apache.flink.agents.api.Event;
+import org.apache.flink.agents.api.tools.ToolResponse;
+
+import java.util.Map;
+import java.util.UUID;
 
 /** Event representing a result from tool call */
-public class ToolResponseEvent {
-
-    private final ToolRequestEvent request;
-    private final Object response;
-    private final boolean success;
-    private final String error;
+public class ToolResponseEvent extends Event {
+    private final UUID requestId;
+    private final Map<String, ToolResponse> responses;
+    private final Map<String, String> externalIds;
+    private final Map<String, Boolean> success;
+    private final Map<String, String> error;
     private final long timestamp;
 
-    public ToolResponseEvent(ToolRequestEvent request, Object response) {
-        this.request = Objects.requireNonNull(request, "request cannot be null");
-        this.response = response;
-        this.success = true;
-        this.error = null;
+    public ToolResponseEvent(
+            UUID requestId,
+            Map<String, ToolResponse> responses,
+            Map<String, Boolean> success,
+            Map<String, String> error,
+            Map<String, String> externalIds) {
+        this.requestId = requestId;
+        this.responses = responses;
+        this.success = success;
+        this.error = error;
+        this.externalIds = externalIds;
         this.timestamp = System.currentTimeMillis();
     }
 
-    public ToolResponseEvent(ToolRequestEvent request, String error) {
-        this.request = Objects.requireNonNull(request, "request cannot be null");
-        this.response = null;
-        this.success = false;
-        this.error = Objects.requireNonNull(error, "error cannot be null");
-        this.timestamp = System.currentTimeMillis();
+    public ToolResponseEvent(
+            UUID requestId,
+            Map<String, ToolResponse> responses,
+            Map<String, Boolean> success,
+            Map<String, String> error) {
+        this(requestId, responses, success, error, Map.of());
     }
 
-    public ToolRequestEvent getRequest() {
-        return request;
+    public UUID getRequestId() {
+        return requestId;
     }
 
-    public Object getResponse() {
-        return response;
+    public Map<String, ToolResponse> getResponses() {
+        return responses;
     }
 
-    public boolean isSuccess() {
+    public Map<String, String> getExternalIds() {
+        return externalIds;
+    }
+
+    public Map<String, Boolean> getSuccess() {
         return success;
     }
 
-    public String getError() {
+    public Map<String, String> getError() {
         return error;
     }
 
@@ -67,27 +81,14 @@ public class ToolResponseEvent {
 
     @Override
     public String toString() {
-        if (success) {
-            return "ToolResponseEvent{"
-                    + "request="
-                    + request
-                    + ", response="
-                    + response
-                    + ", success=true"
-                    + ", timestamp="
-                    + timestamp
-                    + '}';
-        } else {
-            return "ToolResponseEvent{"
-                    + "request="
-                    + request
-                    + ", error='"
-                    + error
-                    + '\''
-                    + ", success=false"
-                    + ", timestamp="
-                    + timestamp
-                    + '}';
-        }
+        return "ToolResponseEvent{"
+                + "requestId="
+                + requestId
+                + ", response="
+                + responses
+                + ", success=true"
+                + ", timestamp="
+                + timestamp
+                + '}';
     }
 }

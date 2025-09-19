@@ -115,10 +115,6 @@ def process_chat_request_or_tool_response(event: Event, ctx: RunnerContext) -> N
     """
     short_term_memory = ctx.get_short_term_memory()
     if isinstance(event, ChatRequestEvent):
-        cast(
-            "BaseChatModelSetup", ctx.get_resource(event.model, ResourceType.CHAT_MODEL)
-        )
-
         chat(
             initial_request_id=event.id,
             model=event.model,

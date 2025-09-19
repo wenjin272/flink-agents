@@ -30,6 +30,8 @@ import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.resource.SerializableResource;
 import org.apache.flink.agents.api.tools.ToolMetadata;
 import org.apache.flink.agents.plan.actions.Action;
+import org.apache.flink.agents.plan.actions.ChatModelAction;
+import org.apache.flink.agents.plan.actions.ToolCallAction;
 import org.apache.flink.agents.plan.resourceprovider.JavaResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.JavaSerializableResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
@@ -236,7 +238,21 @@ public class AgentPlan implements Serializable {
         }
     }
 
+    private void addBuiltAction(Action action) {
+        // Add to actions map
+        actions.put(action.getName(), action);
+
+        // Add to actionsByEvent map
+        for (String eventTypeName : action.getListenEventTypes()) {
+            actionsByEvent.computeIfAbsent(eventTypeName, k -> new ArrayList<>()).add(action);
+        }
+    }
+
     private void extractActionsFromAgent(Agent agent) throws Exception {
+        // Add built-in actions
+        addBuiltAction(ChatModelAction.getChatModelAction());
+        addBuiltAction(ToolCallAction.getToolCallAction());
+
         // Scan the agent class for methods annotated with @Action
         Class<?> agentClass = agent.getClass();
         for (Method method : agentClass.getDeclaredMethods()) {
