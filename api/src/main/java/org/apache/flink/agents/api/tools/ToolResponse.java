@@ -175,17 +175,9 @@ public class ToolResponse {
     @Override
     public String toString() {
         if (success) {
-            return String.format(
-                    "ToolResponse{success=true, result=%s, executionTime=%dms%s}",
-                    result,
-                    executionTimeMs,
-                    toolName != null ? ", toolName='" + toolName + "'" : "");
+            return result.toString();
         } else {
-            return String.format(
-                    "ToolResponse{success=false, error='%s', executionTime=%dms%s}",
-                    error,
-                    executionTimeMs,
-                    toolName != null ? ", toolName='" + toolName + "'" : "");
+            return error;
         }
     }
 }

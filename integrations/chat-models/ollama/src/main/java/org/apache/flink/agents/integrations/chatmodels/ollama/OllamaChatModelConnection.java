@@ -39,6 +39,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -65,6 +67,7 @@ import java.util.stream.Collectors;
  */
 public class OllamaChatModelConnection extends BaseChatModelConnection {
     private final OllamaAPI client;
+    private final Pattern pattern;
     /**
      * Creates a new ollama chat model connection.
      *
@@ -80,6 +83,10 @@ public class OllamaChatModelConnection extends BaseChatModelConnection {
             throw new IllegalArgumentException("endpoint should not be null or empty.");
         }
         this.client = new OllamaAPI(endpoint);
+        Integer maxChatToolCallRetries = descriptor.getArgument("maxChatToolCallRetries");
+        this.client.setMaxChatToolCallRetries(
+                maxChatToolCallRetries != null ? maxChatToolCallRetries : 10);
+        this.pattern = Pattern.compile("<think>(.*?)</think>", Pattern.DOTALL);
     }
 
     /**
@@ -200,9 +207,23 @@ public class OllamaChatModelConnection extends BaseChatModelConnection {
             final OllamaChatResult ollamaChatResult =
                     this.client.chat((String) arguments.get("model"), ollamaChatMessages);
 
-            return ChatMessage.assistant(ollamaChatResult.getResponse());
+            return extraReasoning(ollamaChatResult.getResponse());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private ChatMessage extraReasoning(String response) {
+        Matcher matcher = pattern.matcher(response);
+        StringBuilder reasoning = new StringBuilder();
+        while (matcher.find()) {
+            reasoning.append(matcher.group(1));
+        }
+        response = matcher.replaceAll("").strip();
+        ChatMessage responseMessage = ChatMessage.assistant(response);
+        Map<String, Object> extraArgs = new HashMap<>();
+        extraArgs.put("reasoning", reasoning.toString().strip());
+        responseMessage.setExtraArgs(extraArgs);
+        return responseMessage;
     }
 }
