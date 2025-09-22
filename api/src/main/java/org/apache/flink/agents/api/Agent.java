@@ -82,7 +82,10 @@ public class Agent {
     }
 
     public void addResourcesIfAbsent(Map<ResourceType, Map<String, Object>> resources) {
-        resources.forEach(this.resources::putIfAbsent);
+        for (ResourceType type : resources.keySet()) {
+            Map<String, Object> typedResources = resources.get(type);
+            typedResources.forEach(this.resources.get(type)::putIfAbsent);
+        }
     }
 
     /**
