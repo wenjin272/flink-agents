@@ -55,8 +55,9 @@ class RunnerContext(ABC):
             The type of the resource.
         """
 
+    @property
     @abstractmethod
-    def get_action_config(self) -> Dict[str, Any]:
+    def action_config(self) -> Dict[str, Any]:
         """Get config of the action.
 
         Returns:
@@ -80,8 +81,9 @@ class RunnerContext(ABC):
             The config option value.
         """
 
+    @property
     @abstractmethod
-    def get_short_term_memory(self) -> "MemoryObject":
+    def short_term_memory(self) -> "MemoryObject":
         """Get the short-term memory.
 
         Returns:
@@ -90,8 +92,9 @@ class RunnerContext(ABC):
           The root object of the short-term memory.
         """
 
+    @property
     @abstractmethod
-    def get_agent_metric_group(self) -> MetricGroup:
+    def agent_metric_group(self) -> MetricGroup:
         """Get the metric group for flink agents.
 
         Returns:
@@ -100,8 +103,9 @@ class RunnerContext(ABC):
             The metric group shared across all actions.
         """
 
+    @property
     @abstractmethod
-    def get_action_metric_group(self) -> MetricGroup:
+    def action_metric_group(self) -> MetricGroup:
         """Get the individual metric group dedicated for each action.
 
         Returns:
@@ -135,8 +139,9 @@ class RunnerContext(ABC):
             The result of the function.
         """
 
+    @property
     @abstractmethod
-    def get_config(self) -> ReadableConfiguration:
+    def config(self) -> ReadableConfiguration:
         """Get the readable configuration for flink agents.
 
         Returns:
