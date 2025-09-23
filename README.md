@@ -63,6 +63,18 @@ python -m build
 python -m pip install dist/*.whl
 ```
 
+### Build Python with Flink-Agents jars
+
+This will also package flink-agents jars in wheel, which
+is necessary when run agent as pyflink job.
+
+```shell
+# Build java and python
+bash -x tools/build.sh
+
+# Skip building java (must be built already)
+bash -x tools/build.sh -p
+```
 
 ## How to Contribute
 
