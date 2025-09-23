@@ -59,6 +59,7 @@ under the License.
         <module>runtime</module>
         <module>e2e-test</module>
         <module>integrations</module>
+        <module>dist</module>
     </modules>
 
     <dependencies>
