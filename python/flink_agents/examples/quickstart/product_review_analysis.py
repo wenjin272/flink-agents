@@ -54,18 +54,6 @@ def main() -> None:
         request_timeout=120,
     )
 
-    # TODO: Remove this once https://github.com/apache/flink-agents/issues/173 is fixed.
-    # Add required flink-agents jars to the environment.
-    env.add_jars(
-        f"file:///{current_dir}/../../../../runtime/target/flink-agents-runtime-0.1-SNAPSHOT.jar"
-    )
-    env.add_jars(
-        f"file:///{current_dir}/../../../../plan/target/flink-agents-plan-0.1-SNAPSHOT.jar"
-    )
-    env.add_jars(
-        f"file:///{current_dir}/../../../../api/target/flink-agents-api-0.1-SNAPSHOT.jar"
-    )
-
     # Read product reviews from a text file as a streaming source.
     # Each line in the file should be a JSON string representing a ProductReview.
     product_review_stream = env.from_source(
