@@ -56,6 +56,15 @@ dependencies = [
     "chromadb==1.0.21",
 ]
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = [""]
+
+[tool.setuptools.package-data]
+"flink_agents.lib" = ["*.jar"]
+
 # Optional dependencies (dependency groups)
 [project.optional-dependencies]
 # Development dependencies - includes all tools needed for development
