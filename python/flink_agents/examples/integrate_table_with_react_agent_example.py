@@ -55,17 +55,6 @@ current_dir = Path(__file__).parent
 if __name__ == "__main__":
     stream_env = StreamExecutionEnvironment.get_execution_environment()
 
-    # should compile flink-agents jars before run this example.
-    stream_env.add_jars(
-        f"file:///{current_dir}/../../../runtime/target/flink-agents-runtime-0.1-SNAPSHOT.jar"
-    )
-    stream_env.add_jars(
-        f"file:///{current_dir}/../../../plan/target/flink-agents-plan-0.1-SNAPSHOT.jar"
-    )
-    stream_env.add_jars(
-        f"file:///{current_dir}/../../../api/target/flink-agents-api-0.1-SNAPSHOT.jar"
-    )
-
     stream_env.set_parallelism(1)
 
     t_env = StreamTableEnvironment.create(stream_execution_environment=stream_env)

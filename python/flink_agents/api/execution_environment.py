@@ -19,6 +19,7 @@ import importlib
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Type
 
+from importlib_resources import files
 from pyflink.common import TypeInformation
 from pyflink.datastream import DataStream, KeySelector, StreamExecutionEnvironment
 from pyflink.table import Schema, StreamTableEnvironment, Table
@@ -134,6 +135,8 @@ class AgentsExecutionEnvironment(ABC):
                 "flink_agents.runtime.local_execution_environment"
             ).create_instance(env=env, **kwargs)
         else:
+            for path in files("flink_agents.lib").iterdir():
+                env.add_jars(f"file://{path}")
             return importlib.import_module(
                 "flink_agents.runtime.remote_execution_environment"
             ).create_instance(env=env, **kwargs)

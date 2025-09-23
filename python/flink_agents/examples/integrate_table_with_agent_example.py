@@ -51,17 +51,6 @@ class MyKeySelector(KeySelector):
 if __name__ == "__main__":
     env = StreamExecutionEnvironment.get_execution_environment()
 
-    # should compile flink-agents jars before run this example.
-    env.add_jars(
-        f"file:///{current_dir}/../../../runtime/target/flink-agents-runtime-0.1-SNAPSHOT.jar"
-    )
-    env.add_jars(
-        f"file:///{current_dir}/../../../plan/target/flink-agents-plan-0.1-SNAPSHOT.jar"
-    )
-    env.add_jars(
-        f"file:///{current_dir}/../../../api/target/flink-agents-api-0.1-SNAPSHOT.jar"
-    )
-
     env.set_runtime_mode(RuntimeExecutionMode.STREAMING)
     env.set_parallelism(1)
 
