@@ -40,7 +40,6 @@ import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
@@ -117,7 +116,7 @@ public class ReActAgentExample {
     }
 
     // create ReAct agent.
-    private static @NotNull Agent getAgent() {
+    private static Agent getAgent() {
         ResourceDescriptor chatModelDescriptor =
                 ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
                         .addInitialArgument("connection", "ollama")

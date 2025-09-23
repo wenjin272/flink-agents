@@ -90,6 +90,7 @@ under the License.
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-test-utils-junit</artifactId>
             <version>${flink.version}</version>
+            <scope>test</scope>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>
@@ -107,6 +108,7 @@ under the License.
             <groupId>com.alibaba</groupId>
             <artifactId>pemja</artifactId>
             <version>${pemja.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>

@@ -28,6 +28,7 @@ header:
     - '**/*.json'
     - '**/*.txt'
     - '**/dependency-reduced-pom.xml'
+    - '**/LICENSE.*'
   comment: on-failure
   dependency:
     files:
