@@ -17,7 +17,7 @@
 #################################################################################
 import importlib
 import json
-from typing import Any, List, cast
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 from pyflink.common import Row
@@ -25,12 +25,11 @@ from pyflink.common.typeinfo import BasicType, BasicTypeInfo, RowTypeInfo
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import BaseChatModelSetup
 from flink_agents.api.decorators import action
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.prompts.prompt import Prompt
-from flink_agents.api.resource import ResourceType
+from flink_agents.api.resource import ResourceDescriptor, ResourceType
 from flink_agents.api.runner_context import RunnerContext
 
 _DEFAULT_CHAT_MODEL = "_default_chat_model"
@@ -106,11 +105,12 @@ class ReActAgent(Agent):
 
             # register resource to execution environment
             (
-                env.add_chat_model_connection(
-                    name="ollama", connection=OllamaChatModelConnection, model=model
+                env.add_resource(
+                    "ollama",
+                    ResourceDescriptor(clazz=OllamaChatModelConnection, model=model),
                 )
-                .add_tool("add", add)
-                .add_tool("multiply", multiply)
+                .add_resource("add", add)
+                .add_resource("multiply", multiply)
             )
 
             # prepare prompt
@@ -128,57 +128,39 @@ class ReActAgent(Agent):
 
             # create ReAct agent.
             agent = ReActAgent(
-                chat_model=OllamaChatModelSetup,
-                connection="ollama",
+                chat_model=ResourceDescriptor(
+                    clazz=OllamaChatModelSetup,
+                    connection="ollama_server",
+                    tools=["notify_shipping_manager"],
+                ),
                 prompt=prompt,
-                tools=["add", "multiply"],
-                output_schema=OutputData,
+                output_schema=OutputData
             )
     """
 
     def __init__(
         self,
         *,
-        chat_model_setup: type[BaseChatModelSetup],
-        connection: str,
+        chat_model: ResourceDescriptor,
         prompt: Prompt | None = None,
-        tools: List[str] | None = None,
         output_schema: type[BaseModel] | RowTypeInfo | None = None,
-        **kwargs: Any,
     ) -> None:
         """Init method of ReActAgent.
 
         Parameters
         ----------
-        chat_model_setup : BaseChatModelSetup
-            The type of the chat model setup used in this ReAct agent.
-        connection: str
-            The name of the chat model connection used in chat model setup. The
-            connection should be registered in environment.
+        chat_model : ResourceDescriptor
+            The descriptor of the chat model used in this ReAct agent.
         prompt : Optional[Prompt] = None
             Prompt to instruct the llm, could include input and output example,
             task and so on.
-        tools : Optional[List[str]]
-            Tools names can be used in this ReAct agent. The tools should be registered
-            in environment.
         output_schema : Optional[Union[type[BaseModel], RowTypeInfo]] = None
             The schema should be RowTypeInfo or subclass of BaseModel. When user
             provide output schema, ReAct agent will add system prompt to instruct
             response format of llm, and add output parser according to the schema.
-        **kwargs: Any
-            The initialize arguments of chat_model_setup.
         """
         super().__init__()
-        settings = {
-            "name": _DEFAULT_CHAT_MODEL,
-            "connection": connection,
-            "tools": tools,
-        }
-        settings.update(kwargs)
-        self._resources[ResourceType.CHAT_MODEL][_DEFAULT_CHAT_MODEL] = (
-            chat_model_setup,
-            settings,
-        )
+        self.add_resource(_DEFAULT_CHAT_MODEL, chat_model)
 
         if output_schema:
             if isinstance(output_schema, type) and issubclass(output_schema, BaseModel):

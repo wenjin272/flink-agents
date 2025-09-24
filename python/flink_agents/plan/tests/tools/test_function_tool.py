@@ -45,7 +45,7 @@ def foo(bar: int, baz: str) -> str:
 
 @pytest.fixture(scope="module")
 def func_tool() -> FunctionTool:  # noqa: D103
-    return from_callable("foo", foo)
+    return from_callable(foo)
 
 
 def test_serialize_function_tool(func_tool: FunctionTool) -> None:  # noqa: D103

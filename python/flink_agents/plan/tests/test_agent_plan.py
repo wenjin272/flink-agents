@@ -17,7 +17,7 @@
 #################################################################################
 import json
 from pathlib import Path
-from typing import Any, Dict, Sequence, Tuple, Type
+from typing import Any, Dict, Sequence
 
 import pytest
 
@@ -37,7 +37,7 @@ from flink_agents.api.embedding_models.embedding_model import (
     BaseEmbeddingModelSetup,
 )
 from flink_agents.api.events.event import Event, InputEvent, OutputEvent
-from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.resource import ResourceDescriptor, ResourceType
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.api.vector_stores.vector_store import (
     BaseVectorStoreConnection,
@@ -109,7 +109,7 @@ class MockChatModelImpl(BaseChatModelSetup):  # noqa: D101
         )
 
 
-class MockEmbeddingModelConnection(BaseEmbeddingModelConnection): # noqa: D101
+class MockEmbeddingModelConnection(BaseEmbeddingModelConnection):  # noqa: D101
     api_key: str
 
     def embed(self, text: str, **kwargs: Any) -> list[float]:
@@ -127,19 +127,21 @@ class MockVectorStoreConnection(BaseVectorStoreConnection):  # noqa: D101
     host: str
     port: int
 
-    def query(self, embedding: list[float], limit: int = 10, **kwargs: Any) -> list[Document]:
+    def query(
+        self, embedding: list[float], limit: int = 10, **kwargs: Any
+    ) -> list[Document]:
         """Testing Implementation."""
         return [
             Document(
                 content="Mock document content",
                 metadata={"source": "test", "id": "doc1"},
-                id="doc1"
+                id="doc1",
             ),
             Document(
                 content="Another mock document",
                 metadata={"source": "test", "id": "doc2"},
-                id="doc2"
-            )
+                id="doc2",
+            ),
         ][:limit]
 
 
@@ -154,49 +156,46 @@ class MockVectorStoreSetup(BaseVectorStoreSetup):  # noqa: D101
 class MyAgent(Agent):  # noqa: D101
     @chat_model_setup
     @staticmethod
-    def mock() -> Tuple[Type[Resource], Dict[str, Any]]:  # noqa: D102
-        return MockChatModelImpl, {
-            "name": "mock",
-            "host": "8.8.8.8",
-            "desc": "mock resource just for testing.",
-            "connection": "mock",
-        }
+    def mock() -> ResourceDescriptor:  # noqa: D102
+        return ResourceDescriptor(
+            clazz=MockChatModelImpl,
+            host="8.8.8.8",
+            desc="mock resource just for testing.",
+            connection="mock",
+        )
 
     @embedding_model_connection
     @staticmethod
-    def mock_embedding_conn() -> Tuple[Type[Resource], Dict[str, Any]]:  # noqa: D102
-        return MockEmbeddingModelConnection, {
-            "name": "mock_embedding_conn",
-            "api_key": "mock-api-key",
-        }
+    def mock_embedding_conn() -> ResourceDescriptor:  # noqa: D102
+        return ResourceDescriptor(
+            clazz=MockEmbeddingModelConnection, api_key="mock-api-key"
+        )
 
     @embedding_model_setup
     @staticmethod
-    def mock_embedding() -> Tuple[Type[Resource], Dict[str, Any]]:  # noqa: D102
-        return MockEmbeddingModelSetup, {
-            "name": "mock_embedding",
-            "model": "test-model",
-            "connection": "mock_embedding_conn",
-        }
+    def mock_embedding() -> ResourceDescriptor:  # noqa: D102
+        return ResourceDescriptor(
+            clazz=MockEmbeddingModelSetup,
+            model="test-model",
+            connection="mock_embedding_conn",
+        )
 
     @vector_store_connection
     @staticmethod
-    def mock_vector_conn() -> Tuple[Type[Resource], Dict[str, Any]]:  # noqa: D102
-        return MockVectorStoreConnection, {
-            "name": "mock_vector_conn",
-            "host": "localhost",
-            "port": 8000,
-        }
+    def mock_vector_conn() -> ResourceDescriptor:  # noqa: D102
+        return ResourceDescriptor(
+            clazz=MockVectorStoreConnection, host="localhost", port=8000
+        )
 
     @vector_store_setup
     @staticmethod
-    def mock_vector_store() -> Tuple[Type[Resource], Dict[str, Any]]:  # noqa: D102
-        return MockVectorStoreSetup, {
-            "name": "mock_vector_store",
-            "connection": "mock_vector_conn",
-            "embedding_model": "mock_embedding",
-            "collection_name": "test_collection",
-        }
+    def mock_vector_store() -> ResourceDescriptor:  # noqa: D102
+        return ResourceDescriptor(
+            clazz=MockVectorStoreSetup,
+            connection="mock_vector_conn",
+            embedding_model="mock_embedding",
+            collection_name="test_collection",
+        )
 
     @action(InputEvent)
     @staticmethod
@@ -211,7 +210,9 @@ class MyAgent(Agent):  # noqa: D101
 
 @pytest.fixture(scope="module")
 def agent_plan() -> AgentPlan:  # noqa: D103
-    return AgentPlan.from_agent(MyAgent(), AgentConfiguration({"mock.key": "mock.value"}))
+    return AgentPlan.from_agent(
+        MyAgent(), AgentConfiguration({"mock.key": "mock.value"})
+    )
 
 
 current_dir = Path(__file__).parent
@@ -250,38 +251,48 @@ def test_add_action_and_resource_to_agent() -> None:  # noqa: D103
     my_agent.add_action(
         name="second_action", events=[InputEvent, MyEvent], func=MyAgent.second_action
     )
-    my_agent.add_chat_model_setup(
+    my_agent.add_resource(
         name="mock",
-        chat_model=MockChatModelImpl,
-        host="8.8.8.8",
-        desc="mock resource just for testing.",
-        connection="mock",
+        instance=ResourceDescriptor(
+            clazz=MockChatModelImpl,
+            host="8.8.8.8",
+            desc="mock resource just for testing.",
+            connection="mock",
+        ),
     )
-    my_agent.add_embedding_model_connection(
+
+    my_agent.add_resource(
         name="mock_embedding_conn",
-        connection=MockEmbeddingModelConnection,
-        api_key="mock-api-key",
+        instance=ResourceDescriptor(
+            clazz=MockEmbeddingModelConnection, api_key="mock-api-key"
+        ),
     )
-    my_agent.add_embedding_model_setup(
+    my_agent.add_resource(
         name="mock_embedding",
-        embedding_model=MockEmbeddingModelSetup,
-        model="test-model",
-        connection="mock_embedding_conn",
+        instance=ResourceDescriptor(
+            clazz=MockEmbeddingModelSetup,
+            model="test-model",
+            connection="mock_embedding_conn",
+        ),
     )
-    my_agent.add_vector_store_connection(
+    my_agent.add_resource(
         name="mock_vector_conn",
-        connection=MockVectorStoreConnection,
-        host="localhost",
-        port=8000,
+        instance=ResourceDescriptor(
+            clazz=MockVectorStoreConnection, host="localhost", port=8000
+        ),
     )
-    my_agent.add_vector_store_setup(
+    my_agent.add_resource(
         name="mock_vector_store",
-        vector_store=MockVectorStoreSetup,
-        connection="mock_vector_conn",
-        embedding_model="mock_embedding",
-        collection_name="test_collection",
+        instance=ResourceDescriptor(
+            clazz=MockVectorStoreSetup,
+            connection="mock_vector_conn",
+            embedding_model="mock_embedding",
+            collection_name="test_collection",
+        ),
     )
-    agent_plan = AgentPlan.from_agent(my_agent, AgentConfiguration({"mock.key": "mock.value"}))
+    agent_plan = AgentPlan.from_agent(
+        my_agent, AgentConfiguration({"mock.key": "mock.value"})
+    )
     json_value = agent_plan.model_dump_json(serialize_as_any=True, indent=4)
     with Path.open(Path(f"{current_dir}/resources/agent_plan.json")) as f:
         expected_json = f.read()

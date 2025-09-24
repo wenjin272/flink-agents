@@ -79,7 +79,7 @@ def test_anthropic_chat_with_tools() -> None:  # noqa : D103
         if type == ResourceType.CHAT_MODEL_CONNECTION:
             return connection
         else:
-            return from_callable(name=name, func=add)
+            return from_callable(func=add)
 
     chat_model = AnthropicChatModelSetup(
         name="anthropic",

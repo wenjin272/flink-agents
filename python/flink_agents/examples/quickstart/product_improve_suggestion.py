@@ -27,6 +27,7 @@ from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
 from pyflink.datastream.window import TumblingProcessingTimeWindows
 
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
+from flink_agents.api.resource import ResourceDescriptor
 from flink_agents.examples.quickstart.agents.product_suggestion_agent import (
     ProductReviewSummary,
     ProductSuggestionAgent,
@@ -90,13 +91,12 @@ def main() -> None:
 
     # Add Ollama chat model connection to be used by the ReviewAnalysisAgent
     # and ProductSuggestionAgent.
-    agents_env.add_chat_model_connection(
+    agents_env.add_resource(
         "ollama_server",
-        OllamaChatModelConnection,
-        model="qwen3:8b",
-        request_timeout=120,
+        ResourceDescriptor(
+            clazz=OllamaChatModelConnection, model="qwen3:8b", request_timeout=120
+        ),
     )
-
 
     # Read product reviews from a text file as a streaming source.
     # Each line in the file should be a JSON string representing a ProductReview.

@@ -15,13 +15,14 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, Sequence, Tuple, Type
+from typing import Any, Dict, Sequence
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage
 from flink_agents.api.chat_models.chat_model import BaseChatModelSetup
 from flink_agents.api.decorators import action, chat_model_setup, tool
 from flink_agents.api.events.event import Event, InputEvent
+from flink_agents.api.resource import ResourceDescriptor
 from flink_agents.api.runner_context import RunnerContext
 
 
@@ -56,13 +57,11 @@ class PythonAgentPlanCompatibilityTestAgent(Agent):
 
     @chat_model_setup
     @staticmethod
-    def chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
+    def chat_model() -> ResourceDescriptor:
         """ChatModel can be used in action."""
-        return MockChatModel, {
-            "name": "chat_model",
-            "prompt": "prompt",
-            "tools": ["add"],
-        }
+        return ResourceDescriptor(
+            clazz=MockChatModel, name="chat_model", prompt="prompt", tools=["add"]
+        )
 
     @tool
     @staticmethod

@@ -64,7 +64,7 @@ def add(a: int, b: int) -> int:
 
 def get_tool(name: str, type: ResourceType) -> FunctionTool:
     """Helper function to create a tool for testing."""
-    return from_callable(name=name, func=add)
+    return from_callable(func=add)
 
 
 @pytest.mark.skipif(not api_key_available, reason="DashScope API key is not set")

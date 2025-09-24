@@ -39,11 +39,11 @@ from typing_extensions import override
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import ResourceType, SerializableResource
-from flink_agents.api.tools.tool import BaseTool, ToolMetadata, ToolType
+from flink_agents.api.tools.tool import Tool, ToolMetadata, ToolType
 from flink_agents.api.tools.utils import extract_mcp_content_item
 
 
-class MCPTool(BaseTool):
+class MCPTool(Tool):
     """MCP tool definition that can be called directly.
 
     This represents a single tool from an MCP server.

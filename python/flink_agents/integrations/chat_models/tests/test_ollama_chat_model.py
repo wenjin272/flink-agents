@@ -85,7 +85,7 @@ def add(a: int, b: int) -> int:
 
 
 def get_tool(name: str, type: ResourceType) -> FunctionTool:  # noqa :D103
-    return from_callable(name=name, func=add)
+    return from_callable(func=add)
 
 
 @pytest.mark.skipif(

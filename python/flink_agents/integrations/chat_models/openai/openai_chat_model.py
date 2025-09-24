@@ -26,7 +26,7 @@ from flink_agents.api.chat_models.chat_model import (
     BaseChatModelConnection,
     BaseChatModelSetup,
 )
-from flink_agents.api.tools.tool import BaseTool
+from flink_agents.api.tools.tool import Tool
 from flink_agents.integrations.chat_models.chat_model_utils import to_openai_tool
 from flink_agents.integrations.chat_models.openai.openai_utils import (
     convert_from_openai_message,
@@ -136,7 +136,7 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
     def chat(
         self,
         messages: Sequence[ChatMessage],
-        tools: List[BaseTool] | None = None,
+        tools: List[Tool] | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
         """Direct communication with model service for chat conversation.

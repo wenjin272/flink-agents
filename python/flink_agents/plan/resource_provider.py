@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from flink_agents.api.resource import (
     Resource,
+    ResourceDescriptor,
     ResourceType,
     SerializableResource,
 )
@@ -91,6 +92,19 @@ class PythonResourceProvider(ResourceProvider):
     module: str
     clazz: str
     kwargs: Dict[str, Any]
+
+    @staticmethod
+    def get(name: str, descriptor: ResourceDescriptor) -> "PythonResourceProvider":
+        """Create PythonResourceProvider instance."""
+        clazz = descriptor.clazz
+        return PythonResourceProvider(
+                    name=name,
+                    type=clazz.resource_type(),
+                    module=clazz.__module__,
+                    clazz=clazz.__name__,
+                    kwargs=descriptor.arguments,
+                )
+
 
     def provide(self, get_resource: Callable, config: AgentConfiguration) -> Resource:
         """Create resource in runtime."""

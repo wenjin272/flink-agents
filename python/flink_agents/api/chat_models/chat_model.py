@@ -25,7 +25,7 @@ from typing_extensions import override
 from flink_agents.api.chat_message import ChatMessage
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import Resource, ResourceType
-from flink_agents.api.tools.tool import BaseTool
+from flink_agents.api.tools.tool import Tool
 
 
 class BaseChatModelConnection(Resource, ABC):
@@ -96,7 +96,7 @@ class BaseChatModelConnection(Resource, ABC):
     def chat(
         self,
         messages: Sequence[ChatMessage],
-        tools: List[BaseTool] | None = None,
+        tools: List[Tool] | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
         """Direct communication with model service for chat conversation.

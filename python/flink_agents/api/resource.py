@@ -17,7 +17,7 @@
 #################################################################################
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Callable
+from typing import Any, Callable, Dict, Type
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -72,3 +72,25 @@ class SerializableResource(Resource, ABC):
         """Ensure resource is serializable."""
         self.model_dump_json()
         return self
+
+
+class ResourceDescriptor:
+    """Descriptor of resource, includes the class and the initialize arguments."""
+
+    _clazz: Type[Resource]
+    _arguments: Dict[str, Any]
+
+    def __init__(self, *, clazz: Type[Resource], **arguments: Any) -> None:
+        """Init method."""
+        self._clazz = clazz
+        self._arguments = arguments
+
+    @property
+    def clazz(self) -> Type[Resource]:
+        """Get the class of the resource."""
+        return self._clazz
+
+    @property
+    def arguments(self) -> Dict[str, Any]:
+        """Get the initialize arguments of the resource."""
+        return self._arguments

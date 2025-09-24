@@ -28,7 +28,7 @@ from flink_agents.api.chat_models.chat_model import (
     BaseChatModelConnection,
     BaseChatModelSetup,
 )
-from flink_agents.api.tools.tool import BaseTool, ToolMetadata
+from flink_agents.api.tools.tool import Tool, ToolMetadata
 
 
 def to_anthropic_tool(*, metadata: ToolMetadata, skip_length_check: bool = False) -> ToolParam:
@@ -150,7 +150,7 @@ class AnthropicChatModelConnection(BaseChatModelConnection):
             self._client = Anthropic(api_key=self.api_key, max_retries=self.max_retries, timeout=self.timeout)
         return self._client
 
-    def chat(self, messages: Sequence[ChatMessage], tools: List[BaseTool] | None = None,
+    def chat(self, messages: Sequence[ChatMessage], tools: List[Tool] | None = None,
              **kwargs: Any) -> ChatMessage:
         """Direct communication with Anthropic model service for chat conversation."""
         anthropic_tools = None

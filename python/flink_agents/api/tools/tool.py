@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Type
 
-from pydantic import BaseModel, field_serializer, model_validator
+from pydantic import BaseModel, Field, field_serializer, model_validator
 from typing_extensions import override
 
 from flink_agents.api.resource import ResourceType, SerializableResource
@@ -100,7 +100,20 @@ class ToolMetadata(BaseModel):
         return parameters
 
 
-class BaseTool(SerializableResource, ABC):
+class FunctionTool(SerializableResource):
+    """Tool container keeps a callable, mainly used to represent
+    a function which will be converted to BaseTool after compile.
+    """
+
+    func: typing.Callable = Field(exclude=True)
+
+    @classmethod
+    def resource_type(cls) -> ResourceType:
+        """Get the resource type."""
+        return ResourceType.TOOL
+
+
+class Tool(SerializableResource, ABC):
     """Base abstract class of all kinds of tools.
 
     Attributes:
@@ -110,6 +123,11 @@ class BaseTool(SerializableResource, ABC):
     """
 
     metadata: ToolMetadata
+
+    @staticmethod
+    def from_callable(func: typing.Callable) -> FunctionTool:
+        """Create a function tool from a callable."""
+        return FunctionTool(func=func)
 
     @property
     def name(self) -> str:

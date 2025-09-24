@@ -16,14 +16,10 @@
 # limitations under the License.
 #################################################################################
 import os
-from typing import Any, Dict, List, Tuple, Type
+from typing import List
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import (
-    BaseChatModelConnection,
-    BaseChatModelSetup,
-)
 from flink_agents.api.decorators import (
     action,
     chat_model_connection,
@@ -36,6 +32,7 @@ from flink_agents.api.events.event import (
     OutputEvent,
 )
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
+from flink_agents.api.resource import ResourceDescriptor
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelConnection,
@@ -50,57 +47,57 @@ TONGYI_MODEL = os.environ.get("TONGYI_CHAT_MODEL", "qwen-plus")
 OLLAMA_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:0.6b")
 BACKENDS_TO_RUN: List[str] = ["Tongyi", "Ollama"]
 
+
 class MyAgent(Agent):
     """Example agent demonstrating the new ChatModel architecture."""
 
     @chat_model_connection
     @staticmethod
-    def tongyi_connection() -> Tuple[Type[BaseChatModelConnection], Dict[str, Any]]:
+    def tongyi_connection() -> ResourceDescriptor:
         """ChatModelConnection responsible for tongyi model service connection."""
         if not os.environ.get("DASHSCOPE_API_KEY"):
             msg = "Please set the 'DASHSCOPE_API_KEY' environment variable."
             raise ValueError(msg)
-        return TongyiChatModelConnection, {
-            "model": TONGYI_MODEL,
-        }
+        return ResourceDescriptor(clazz=TongyiChatModelConnection, model=TONGYI_MODEL)
 
     @chat_model_connection
     @staticmethod
-    def ollama_connection() -> Tuple[Type[BaseChatModelConnection], Dict[str, Any]]:
+    def ollama_connection() -> ResourceDescriptor:
         """ChatModelConnection responsible for ollama model service connection."""
-        return OllamaChatModelConnection, {
-            "model": OLLAMA_MODEL,
-        }
+        return ResourceDescriptor(clazz=OllamaChatModelConnection, model=OLLAMA_MODEL)
 
     @chat_model_setup
     @staticmethod
-    def math_chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
+    def math_chat_model() -> ResourceDescriptor:
         """ChatModel which focus on math, and reuse ChatModelConnection."""
         if CURRENT_BACKEND == "Tongyi":
-            return TongyiChatModelSetup, {
-                "connection": "tongyi_connection",
-                "tools": ["add"],
-            }
+            return ResourceDescriptor(
+                clazz=TongyiChatModelSetup,
+                connection="tongyi_connection",
+                tools=["add"],
+            )
         else:
-            return OllamaChatModelSetup, {
-                "connection": "ollama_connection",
-                "tools": ["add"],
-                "extract_reasoning": True,
-            }
+            return ResourceDescriptor(
+                clazz=OllamaChatModelSetup,
+                connection="ollama_connection",
+                tools=["add"],
+                extract_reasoning=True,
+            )
 
     @chat_model_setup
     @staticmethod
-    def creative_chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
+    def creative_chat_model() -> ResourceDescriptor:
         """ChatModel which focus on text generate, and reuse ChatModelConnection."""
         if CURRENT_BACKEND == "Tongyi":
-            return TongyiChatModelSetup, {
-                "connection": "tongyi_connection",
-            }
+            return ResourceDescriptor(
+                clazz=TongyiChatModelSetup, connection="tongyi_connection"
+            )
         else:
-            return OllamaChatModelSetup, {
-                "connection": "ollama_connection",
-                "extract_reasoning": True,
-            }
+            return ResourceDescriptor(
+                clazz=TongyiChatModelSetup,
+                connection="ollama_connection",
+                extract_reasoning=True,
+            )
 
     @tool
     @staticmethod
@@ -129,8 +126,17 @@ class MyAgent(Agent):
         In this action, we will send ChatRequestEvent to trigger built-in actions.
         """
         input_text = event.input.lower()
-        model_name = "math_chat_model" if ("calculate" in input_text or "sum" in input_text) else "creative_chat_model"
-        ctx.send_event(ChatRequestEvent(model=model_name, messages=[ChatMessage(role=MessageRole.USER, content=event.input)]))
+        model_name = (
+            "math_chat_model"
+            if ("calculate" in input_text or "sum" in input_text)
+            else "creative_chat_model"
+        )
+        ctx.send_event(
+            ChatRequestEvent(
+                model=model_name,
+                messages=[ChatMessage(role=MessageRole.USER, content=event.input)],
+            )
+        )
 
     @action(ChatResponseEvent)
     @staticmethod
@@ -150,7 +156,9 @@ if __name__ == "__main__":
             print("[SKIP] TongyiChatModel because DASHSCOPE_API_KEY is not set.")
             continue
 
-        print(f"\nRunning {backend}ChatModel while the using model is {CURRENT_MODEL}...")
+        print(
+            f"\nRunning {backend}ChatModel while the using model is {CURRENT_MODEL}..."
+        )
 
         env = AgentsExecutionEnvironment.get_execution_environment()
         input_list = []
@@ -166,4 +174,3 @@ if __name__ == "__main__":
         for output in output_list:
             for key, value in output.items():
                 print(f"{key}: {value}")
-

@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Any, Dict, Sequence, Tuple, Type
+from typing import Any, Dict, Sequence
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -23,7 +23,7 @@ from flink_agents.api.chat_models.chat_model import BaseChatModelSetup
 from flink_agents.api.decorators import action, chat_model_setup, tool
 from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
-from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.resource import ResourceDescriptor, ResourceType
 from flink_agents.api.runner_context import RunnerContext
 
 
@@ -45,13 +45,9 @@ class MockChatModelImpl(BaseChatModelSetup):  # noqa: D101
 class MyAgent(Agent):  # noqa: D101
     @chat_model_setup
     @staticmethod
-    def mock_chat_model() -> Tuple[Type[Resource], Dict[str, Any]]:  # noqa: D102
-        return MockChatModelImpl, {
-            "name": "mock_chat_model",
-            "host": "8.8.8.8",
-            "desc": "mock chat model just for testing.",
-            "connection": "mock",
-        }
+    def mock_chat_model() -> ResourceDescriptor:  # noqa: D102
+        return ResourceDescriptor(clazz=MockChatModelImpl, host="8.8.8.8",
+                                  desc="mock chat model just for testing.", connection="mock")
 
     @tool
     @staticmethod

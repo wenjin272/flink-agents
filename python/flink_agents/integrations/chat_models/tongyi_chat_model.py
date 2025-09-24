@@ -29,7 +29,7 @@ from flink_agents.api.chat_models.chat_model import (
     BaseChatModelConnection,
     BaseChatModelSetup,
 )
-from flink_agents.api.tools.tool import BaseTool, ToolMetadata
+from flink_agents.api.tools.tool import Tool, ToolMetadata
 
 DEFAULT_REQUEST_TIMEOUT = 60.0
 DEFAULT_MODEL = "qwen-plus"
@@ -103,7 +103,7 @@ class TongyiChatModelConnection(BaseChatModelConnection):
     def chat(
         self,
         messages: Sequence[ChatMessage],
-        tools: List[BaseTool] | None = None,
+        tools: List[Tool] | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
         """Process a sequence of messages, and return a response."""

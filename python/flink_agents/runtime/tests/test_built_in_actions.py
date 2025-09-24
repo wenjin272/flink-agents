@@ -16,7 +16,7 @@
 # limitations under the License.
 #################################################################################
 import uuid
-from typing import Any, Dict, List, Sequence, Tuple, Type
+from typing import Any, Dict, List, Sequence
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -35,7 +35,7 @@ from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEve
 from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.prompts.prompt import Prompt
-from flink_agents.api.resource import ResourceType
+from flink_agents.api.resource import ResourceDescriptor, ResourceType
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.api.tools.tool import ToolType
 
@@ -122,22 +122,20 @@ class MyAgent(Agent):
 
     @chat_model_connection
     @staticmethod
-    def mock_connection() -> Tuple[Type[BaseChatModelConnection], Dict[str, Any]]:
+    def mock_connection() -> ResourceDescriptor:
         """Chat model server can be used by ChatModel."""
-        return MockChatModelConnection, {
-            "name": "mock_connection",
-        }
+        return ResourceDescriptor(clazz=MockChatModelConnection)
 
     @chat_model_setup
     @staticmethod
-    def mock_chat_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
+    def mock_chat_model() -> ResourceDescriptor:
         """Chat model can be used in action."""
-        return MockChatModel, {
-            "name": "mock_chat_model",
-            "connection": "mock_connection",
-            "prompt": "prompt",
-            "tools": ["add"],
-        }
+        return ResourceDescriptor(
+            clazz=MockChatModel,
+            connection="mock_connection",
+            prompt="prompt",
+            tools=["add"],
+        )
 
     @tool
     @staticmethod

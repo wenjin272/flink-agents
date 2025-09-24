@@ -18,22 +18,13 @@
 from abc import ABC
 from typing import Any, Callable, Dict, List, Tuple, Type
 
-from flink_agents.api.chat_models.chat_model import (
-    BaseChatModelConnection,
-    BaseChatModelSetup,
-)
-from flink_agents.api.embedding_models.embedding_model import (
-    BaseEmbeddingModelConnection,
-    BaseEmbeddingModelSetup,
-)
 from flink_agents.api.events.event import Event
-from flink_agents.api.prompts.prompt import Prompt
-from flink_agents.api.resource import ResourceType
-from flink_agents.api.tools.mcp import MCPServer
-from flink_agents.api.vector_stores.vector_store import (
-    BaseVectorStoreConnection,
-    BaseVectorStoreSetup,
+from flink_agents.api.resource import (
+    ResourceDescriptor,
+    ResourceType,
+    SerializableResource,
 )
+from flink_agents.api.tools.mcp import MCPServer
 
 
 class Agent(ABC):
@@ -54,17 +45,17 @@ class Agent(ABC):
 
                 @chat_model_connection
                 @staticmethod
-                def my_connection() -> Tuple[Type[BaseChatModelConnection],
-                                       Dict[str, Any]]:
-                    return OllamaChatModelConnection, {"name": "my_connection",
-                                                       "model": "qwen2:7b",
-                                                       "base_url": "http://localhost:11434"}
+                def my_connection() -> ResourceDescriptor:
+                    return ResourceDescriptor(clazz=OllamaChatModelConnection,
+                                              model="qwen2:7b",
+                                              base_url="http://localhost:11434")
 
                 @chat_model_setup
                 @staticmethod
-                def my_chat_model() -> Tuple[Type[ChatModel], Dict[str, Any]]:
-                    return OllamaChatModel, {"name": "model",
-                                             "connection": "my_connection"}
+                def my_chat_model() -> ResourceDescriptor:
+                    return ResourceDescriptor(clazz=OllamaChatModel,
+                                              connection="my_connection")
+
         * Add actions and resources to an Agent instance
         ::
 
@@ -72,12 +63,25 @@ class Agent(ABC):
             my_agent.add_action(name="my_action",
                                 events=[InputEvent],
                                 func=action_function)
-                    .add_chat_model_connection(name="my_connection",
-                                               connection=OllamaChatModelConnection,
-                                               arg1=xxx)
-                    .add_chat_model_setup(name="my_chat_model",
-                                          chat_model=OllamaChatModelSetup,
-                                          connection="my_connection")
+                    .add_resource(name="my_connection",
+                                  instance=ResourceDescriptor(
+                                        clazz=OllamaChatModelConnection,
+                                        arg1=xxx
+                                )
+                    .add_resource(
+                        name="my_connection",
+                        instance=ResourceDescriptor(
+                            clazz=OllamaChatModelConnection,
+                            arg1=xxx
+                        )
+                    )
+                    .add_resource(
+                        name="my_chat_model",
+                        instance=ResourceDescriptor(
+                            clazz=OllamaChatModelSetup,
+                            connection="my_connection"
+                        )
+                    )
     """
 
     _actions: Dict[str, Tuple[List[Type[Event]], Callable, Dict[str, Any]]]
@@ -128,239 +132,34 @@ class Agent(ABC):
         self._actions[name] = (events, func, config if config else None)
         return self
 
-    def add_prompt(self, name: str, prompt: Prompt) -> "Agent":
-        """Add prompt to agent.
+    def add_resource(
+        self, name: str, instance: SerializableResource | ResourceDescriptor
+    ) -> "Agent":
+        """Add resource to agent instance.
 
         Parameters
         ----------
         name : str
             The name of the prompt, should be unique in the same Agent.
-        prompt: Prompt
-            The prompt to be used in the agent.
+        instance: SerializableResource | ResourceDescriptor
+            The serializable resource instance, or the descriptor of resource.
 
         Returns:
         -------
         Agent
-            The modified Agent instance.
+            The agent to add the resource.
         """
-        if ResourceType.PROMPT not in self._resources:
-            self._resources[ResourceType.PROMPT] = {}
-        if name in self._resources[ResourceType.PROMPT]:
-            msg = f"Prompt {name} already defined"
+        if isinstance(instance, SerializableResource):
+            resource_type = instance.resource_type()
+        elif isinstance(instance, ResourceDescriptor):
+            resource_type = instance.clazz.resource_type()
+        else:
+            err_msg = f"Unexpected resource {instance}"
+            raise TypeError(err_msg)
+
+        if name in self._resources[resource_type]:
+            msg = f"{resource_type.value} {name} already defined"
             raise ValueError(msg)
-        self._resources[ResourceType.PROMPT][name] = prompt
-        return self
 
-    def add_tool(self, name: str, func: Callable) -> "Agent":
-        """Add function tool to agent.
-
-        Parameters
-        ----------
-        name : str
-            The name of the tool, should be unique in the same Agent.
-        func: Callable
-            The execution function of the tool.
-
-        Returns:
-        -------
-        Agent
-            The modified Agent instance.
-        """
-        if ResourceType.TOOL not in self._resources:
-            self._resources[ResourceType.TOOL] = {}
-        if name in self._resources[ResourceType.TOOL]:
-            msg = f"Function tool {name} already defined"
-            raise ValueError(msg)
-        self._resources[ResourceType.TOOL][name] = func
-        return self
-
-    def add_chat_model_connection(
-        self, name: str, connection: Type[BaseChatModelConnection], **kwargs: Any
-    ) -> "Agent":
-        """Add chat model connection to agent.
-
-        Parameters
-        ----------
-        name : str
-            The name of the chat model connection, should be unique in the same Agent.
-        connection: Type[BaseChatModelConnection]
-            The type of chat model connection.
-        **kwargs: Any
-            Initialize keyword arguments passed to the chat model connection.
-
-        Returns:
-        -------
-        Agent
-            The modified Agent instance.
-        """
-        if ResourceType.CHAT_MODEL_CONNECTION not in self._resources:
-            self._resources[ResourceType.CHAT_MODEL_CONNECTION] = {}
-        if name in self._resources[ResourceType.CHAT_MODEL_CONNECTION]:
-            msg = f"Chat model connection {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.CHAT_MODEL_CONNECTION][name] = (connection, kwargs)
-        return self
-
-    def add_chat_model_setup(
-        self, name: str, chat_model: Type[BaseChatModelSetup], **kwargs: Any
-    ) -> "Agent":
-        """Add chat model setup to agent.
-
-        Parameters
-        ----------
-        name : str
-            The name of the chat model, should be unique in the same Agent.
-        chat_model: Type[BaseChatModel]
-            The type of chat model.
-        **kwargs: Any
-            Initialize keyword arguments passed to the chat model setup.
-
-        Returns:
-        -------
-        Agent
-            The modified Agent instance.
-        """
-        if ResourceType.CHAT_MODEL not in self._resources:
-            self._resources[ResourceType.CHAT_MODEL] = {}
-        if name in self._resources[ResourceType.CHAT_MODEL]:
-            msg = f"Chat model setup {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.CHAT_MODEL][name] = (chat_model, kwargs)
-        return self
-
-    def add_embedding_model_connection(
-        self, name: str, connection: Type[BaseEmbeddingModelConnection], **kwargs: Any
-    ) -> "Agent":
-        """Add embedding model connection to agent.
-
-        Parameters
-        ----------
-        name : str
-            The name of the embedding model connection, should be unique in the same
-            Agent.
-        connection: Type[BaseEmbeddingModelConnection]
-            The type of embedding model connection.
-        **kwargs: Any
-            Initialize keyword arguments passed to the embedding model connection.
-
-        Returns:
-        -------
-        Agent
-            The modified Agent instance.
-        """
-        if ResourceType.EMBEDDING_MODEL_CONNECTION not in self._resources:
-            self._resources[ResourceType.EMBEDDING_MODEL_CONNECTION] = {}
-        if name in self._resources[ResourceType.EMBEDDING_MODEL_CONNECTION]:
-            msg = f"Embedding model connection {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.EMBEDDING_MODEL_CONNECTION][name] = (connection, kwargs)
-        return self
-
-    def add_embedding_model_setup(
-        self, name: str, embedding_model: Type[BaseEmbeddingModelSetup], **kwargs: Any
-    ) -> "Agent":
-        """Add embedding model setup to agent.
-
-        Parameters
-        ----------
-        name : str
-            The name of the embedding model, should be unique in the same Agent.
-        embedding_model: Type[BaseEmbeddingModelSetup]
-            The type of embedding model.
-        **kwargs: Any
-            Initialize keyword arguments passed to the embedding model setup.
-
-        Returns:
-        -------
-        Agent
-            The modified Agent instance.
-        """
-        if ResourceType.EMBEDDING_MODEL not in self._resources:
-            self._resources[ResourceType.EMBEDDING_MODEL] = {}
-        if name in self._resources[ResourceType.EMBEDDING_MODEL]:
-            msg = f"Embedding model setup {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.EMBEDDING_MODEL][name] = (embedding_model, kwargs)
-        return self
-
-    def add_mcp_server(self, name: str, mcp_server: MCPServer) -> "Agent":
-        """Add an MCP server to the agent.
-
-        Parameters
-        ----------
-        name : str
-            The name of the MCP server, should be unique in the same Agent.
-        mcp_server : MCPServer
-            The MCP server resource instance.
-
-        Returns:
-        -------
-        Agent
-            The modified Agent instance.
-        """
-        if name in self._resources[ResourceType.MCP_SERVER]:
-            msg = f"MCP server {name} already defined"
-            raise ValueError(msg)
-        self._resources[ResourceType.MCP_SERVER][name] = mcp_server
-        return self
-
-    def add_vector_store_connection(
-            self, name: str, connection: Type[BaseVectorStoreConnection], **kwargs: Any
-    ) -> "Agent":
-        """Add vector store connection to agent.
-
-        Parameters
-        ----------
-        name : str
-            The name of the vector store connection, should be unique in the same
-            Agent.
-        connection: Type[BaseVectorStoreConnection]
-            The type of vector store connection.
-        **kwargs: Any
-            Initialize keyword arguments passed to the vector store connection.
-
-        Returns:
-        -------
-        Agent
-            The modified Agent instance.
-        """
-        if ResourceType.VECTOR_STORE_CONNECTION not in self._resources:
-            self._resources[ResourceType.VECTOR_STORE_CONNECTION] = {}
-        if name in self._resources[ResourceType.VECTOR_STORE_CONNECTION]:
-            msg = f"Vector store connection {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.VECTOR_STORE_CONNECTION][name] = (connection, kwargs)
-        return self
-
-    def add_vector_store_setup(
-            self, name: str, vector_store: Type[BaseVectorStoreSetup], **kwargs: Any
-    ) -> "Agent":
-        """Add vector store setup to agent.
-
-        Parameters
-        ----------
-        name : str
-            The name of the vector store, should be unique in the same Agent.
-        vector_store: Type[BaseVectorStoreSetup]
-            The type of vector store.
-        **kwargs: Any
-            Initialize keyword arguments passed to the vector store setup.
-
-        Returns:
-        -------
-        Agent
-            The modified Agent instance.
-        """
-        if ResourceType.VECTOR_STORE not in self._resources:
-            self._resources[ResourceType.VECTOR_STORE] = {}
-        if name in self._resources[ResourceType.VECTOR_STORE]:
-            msg = f"Vector store setup {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.VECTOR_STORE][name] = (vector_store, kwargs)
+        self._resources[resource_type][name] = instance
         return self
