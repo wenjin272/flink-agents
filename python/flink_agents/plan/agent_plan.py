@@ -270,98 +270,31 @@ def _get_actions(agent: Agent) -> List[Action]:
 
 def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
     resource_providers = []
+    # retrieve resource declared by decorator
     for name, value in agent.__class__.__dict__.items():
-        if hasattr(value, "_is_chat_model_setup"):
+        if (
+            hasattr(value, "_is_chat_model_setup")
+            or hasattr(value, "_is_chat_model_connection")
+            or hasattr(value, "_is_embedding_model_setup")
+            or hasattr(value, "_is_embedding_model_connection")
+            or hasattr(value, "_is_vector_store_setup")
+            or hasattr(value, "_is_vector_store_connection")
+        ):
             if isinstance(value, staticmethod):
                 value = value.__func__
 
             if callable(value):
-                clazz, kwargs = value()
-                provider = PythonResourceProvider(
-                    name=name,
-                    type=clazz.resource_type(),
-                    module=clazz.__module__,
-                    clazz=clazz.__name__,
-                    kwargs=kwargs,
+                resource_providers.append(
+                    PythonResourceProvider.get(name=name, descriptor=value())
                 )
-                resource_providers.append(provider)
-        elif hasattr(value, "_is_chat_model_connection"):
-            if isinstance(value, staticmethod):
-                value = value.__func__
 
-            if callable(value):
-                clazz, kwargs = value()
-                provider = PythonResourceProvider(
-                    name=name,
-                    type=clazz.resource_type(),
-                    module=clazz.__module__,
-                    clazz=clazz.__name__,
-                    kwargs=kwargs,
-                )
-                resource_providers.append(provider)
-        elif hasattr(value, "_is_embedding_model_setup"):
-            if isinstance(value, staticmethod):
-                value = value.__func__
-
-            if callable(value):
-                clazz, kwargs = value()
-                provider = PythonResourceProvider(
-                    name=name,
-                    type=clazz.resource_type(),
-                    module=clazz.__module__,
-                    clazz=clazz.__name__,
-                    kwargs=kwargs,
-                )
-                resource_providers.append(provider)
-        elif hasattr(value, "_is_embedding_model_connection"):
-            if isinstance(value, staticmethod):
-                value = value.__func__
-
-            if callable(value):
-                clazz, kwargs = value()
-                provider = PythonResourceProvider(
-                    name=name,
-                    type=clazz.resource_type(),
-                    module=clazz.__module__,
-                    clazz=clazz.__name__,
-                    kwargs=kwargs,
-                )
-                resource_providers.append(provider)
-        elif hasattr(value, "_is_vector_store_setup"):
-            if isinstance(value, staticmethod):
-                value = value.__func__
-
-            if callable(value):
-                clazz, kwargs = value()
-                provider = PythonResourceProvider(
-                    name=name,
-                    type=clazz.resource_type(),
-                    module=clazz.__module__,
-                    clazz=clazz.__name__,
-                    kwargs=kwargs,
-                )
-                resource_providers.append(provider)
-        elif hasattr(value, "_is_vector_store_connection"):
-            if isinstance(value, staticmethod):
-                value = value.__func__
-
-            if callable(value):
-                clazz, kwargs = value()
-                provider = PythonResourceProvider(
-                    name=name,
-                    type=clazz.resource_type(),
-                    module=clazz.__module__,
-                    clazz=clazz.__name__,
-                    kwargs=kwargs,
-                )
-                resource_providers.append(provider)
         elif hasattr(value, "_is_tool"):
             if isinstance(value, staticmethod):
                 value = value.__func__
 
             if callable(value):
                 # TODO: support other tool type.
-                tool = from_callable(name=name, func=value)
+                tool = from_callable(func=value)
                 resource_providers.append(
                     PythonSerializableResourceProvider.from_resource(
                         name=name, resource=tool
@@ -383,86 +316,35 @@ def _get_resource_providers(agent: Agent) -> List[ResourceProvider]:
             mcp_server = value()
             _add_mcp_server(name, resource_providers, mcp_server)
 
+    # retrieve resource declared by add interface
     for name, prompt in agent.resources[ResourceType.PROMPT].items():
         resource_providers.append(
             PythonSerializableResourceProvider.from_resource(name=name, resource=prompt)
         )
 
-    for name, func in agent.resources[ResourceType.TOOL].items():
-        tool = from_callable(name=name, func=func)
+    for name, tool in agent.resources[ResourceType.TOOL].items():
         resource_providers.append(
-            PythonSerializableResourceProvider.from_resource(name=name, resource=tool)
+            PythonSerializableResourceProvider.from_resource(
+                name=name, resource=from_callable(tool.func)
+            )
         )
 
     for name, mcp_server in agent.resources[ResourceType.MCP_SERVER].items():
         mcp_server = cast("MCPServer", mcp_server)
         _add_mcp_server(name, resource_providers, mcp_server)
 
-    for name, chat_model in agent.resources[ResourceType.CHAT_MODEL].items():
-        clazz, kwargs = chat_model
-        provider = PythonResourceProvider(
-            name=name,
-            type=clazz.resource_type(),
-            module=clazz.__module__,
-            clazz=clazz.__name__,
-            kwargs=kwargs,
-        )
-        resource_providers.append(provider)
-
-    for name, connection in agent.resources[ResourceType.CHAT_MODEL_CONNECTION].items():
-        clazz, kwargs = connection
-        provider = PythonResourceProvider(
-            name=name,
-            type=clazz.resource_type(),
-            module=clazz.__module__,
-            clazz=clazz.__name__,
-            kwargs=kwargs,
-        )
-        resource_providers.append(provider)
-
-    for name, embedding_model in agent.resources[ResourceType.EMBEDDING_MODEL].items():
-        clazz, kwargs = embedding_model
-        provider = PythonResourceProvider(
-            name=name,
-            type=clazz.resource_type(),
-            module=clazz.__module__,
-            clazz=clazz.__name__,
-            kwargs=kwargs,
-        )
-        resource_providers.append(provider)
-
-    for name, connection in agent.resources[ResourceType.EMBEDDING_MODEL_CONNECTION].items():
-        clazz, kwargs = connection
-        provider = PythonResourceProvider(
-            name=name,
-            type=clazz.resource_type(),
-            module=clazz.__module__,
-            clazz=clazz.__name__,
-            kwargs=kwargs,
-        )
-        resource_providers.append(provider)
-
-    for name, vector_store in agent.resources[ResourceType.VECTOR_STORE].items():
-        clazz, kwargs = vector_store
-        provider = PythonResourceProvider(
-            name=name,
-            type=clazz.resource_type(),
-            module=clazz.__module__,
-            clazz=clazz.__name__,
-            kwargs=kwargs,
-        )
-        resource_providers.append(provider)
-
-    for name, connection in agent.resources[ResourceType.VECTOR_STORE_CONNECTION].items():
-        clazz, kwargs = connection
-        provider = PythonResourceProvider(
-            name=name,
-            type=clazz.resource_type(),
-            module=clazz.__module__,
-            clazz=clazz.__name__,
-            kwargs=kwargs,
-        )
-        resource_providers.append(provider)
+    for resource_type in [
+        ResourceType.CHAT_MODEL,
+        ResourceType.CHAT_MODEL_CONNECTION,
+        ResourceType.EMBEDDING_MODEL,
+        ResourceType.EMBEDDING_MODEL_CONNECTION,
+        ResourceType.VECTOR_STORE,
+        ResourceType.VECTOR_STORE_CONNECTION,
+    ]:
+        for name, descriptor in agent.resources[resource_type].items():
+            resource_providers.append(
+                PythonResourceProvider.get(name=name, descriptor=descriptor)
+            )
 
     return resource_providers
 

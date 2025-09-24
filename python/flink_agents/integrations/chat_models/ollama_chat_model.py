@@ -26,7 +26,7 @@ from flink_agents.api.chat_models.chat_model import (
     BaseChatModelConnection,
     BaseChatModelSetup,
 )
-from flink_agents.api.tools.tool import BaseTool
+from flink_agents.api.tools.tool import Tool
 from flink_agents.integrations.chat_models.chat_model_utils import to_openai_tool
 
 DEFAULT_CONTEXT_WINDOW = 2048
@@ -89,7 +89,7 @@ class OllamaChatModelConnection(BaseChatModelConnection):
     def chat(
         self,
         messages: Sequence[ChatMessage],
-        tools: List[BaseTool] | None = None,
+        tools: List[Tool] | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
         """Process a sequence of messages, and return a response."""

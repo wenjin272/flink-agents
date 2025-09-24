@@ -17,7 +17,7 @@
 #################################################################################
 import importlib
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Type
+from typing import Any, Callable, Dict, List
 
 from importlib_resources import files
 from pyflink.common import TypeInformation
@@ -25,21 +25,11 @@ from pyflink.datastream import DataStream, KeySelector, StreamExecutionEnvironme
 from pyflink.table import Schema, StreamTableEnvironment, Table
 
 from flink_agents.api.agent import Agent
-from flink_agents.api.chat_models.chat_model import (
-    BaseChatModelConnection,
-    BaseChatModelSetup,
-)
 from flink_agents.api.configuration import Configuration
-from flink_agents.api.embedding_models.embedding_model import (
-    BaseEmbeddingModelConnection,
-    BaseEmbeddingModelSetup,
-)
-from flink_agents.api.prompts.prompt import Prompt
-from flink_agents.api.resource import ResourceType
-from flink_agents.api.tools.mcp import MCPServer
-from flink_agents.api.vector_stores.vector_store import (
-    BaseVectorStoreConnection,
-    BaseVectorStoreSetup,
+from flink_agents.api.resource import (
+    ResourceDescriptor,
+    ResourceType,
+    SerializableResource,
 )
 
 
@@ -214,228 +204,34 @@ class AgentsExecutionEnvironment(ABC):
     def execute(self) -> None:
         """Execute agent individually."""
 
-    def add_prompt(self, name: str, prompt: Prompt) -> "AgentsExecutionEnvironment":
-        """Register prompt to agent execution environment.
+    def add_resource(
+        self, name: str, instance: SerializableResource | ResourceDescriptor
+    ) -> "AgentsExecutionEnvironment":
+        """Register resource to agent execution environment.
 
         Parameters
         ----------
         name : str
             The name of the prompt, should be unique in the same Agent.
-        prompt: Prompt
-            The prompt to be used in the agent.
+        instance: SerializableResource | ResourceDescriptor
+            The serializable resource instance, or the descriptor of resource.
 
         Returns:
         -------
         AgentsExecutionEnvironment
-            The environment contains registered prompt.
+            The environment to register the resource.
         """
-        if name in self._resources[ResourceType.PROMPT]:
-            msg = f"Prompt {name} already defined"
+        if isinstance(instance, SerializableResource):
+            resource_type = instance.resource_type()
+        elif isinstance(instance, ResourceDescriptor):
+            resource_type = instance.clazz.resource_type()
+        else:
+            err_msg = f"Unexpected resource {instance}"
+            raise TypeError(err_msg)
+
+        if name in self._resources[resource_type]:
+            msg = f"{resource_type.value} {name} already defined"
             raise ValueError(msg)
-        self._resources[ResourceType.PROMPT][name] = prompt
-        return self
 
-    def add_tool(self, name: str, func: Callable) -> "AgentsExecutionEnvironment":
-        """Register function tool to agent execution environment.
-
-        Parameters
-        ----------
-        name : str
-            The name of the tool, should be unique in the same Agent.
-        func: Callable
-            The execution function of the tool.
-
-        Returns:
-        -------
-        AgentsExecutionEnvironment
-            The environment contains registered tool.
-        """
-        if name in self._resources[ResourceType.TOOL]:
-            msg = f"Function tool {name} already defined"
-            raise ValueError(msg)
-        self._resources[ResourceType.TOOL][name] = func
-        return self
-
-    def add_chat_model_connection(
-        self, name: str, connection: Type[BaseChatModelConnection], **kwargs: Any
-    ) -> "AgentsExecutionEnvironment":
-        """Register chat model connection to agent execution environment.
-
-        Parameters
-        ----------
-        name : str
-            The name of the chat model connection, should be unique in the same Agent.
-        connection: Type[BaseChatModelConnection]
-            The type of chat model connection.
-        **kwargs: Any
-            Initialize keyword arguments passed to the chat model connection.
-
-        Returns:
-        -------
-        AgentsExecutionEnvironment
-            The environment contains registered chat model connection.
-        """
-        if name in self._resources[ResourceType.CHAT_MODEL_CONNECTION]:
-            msg = f"Chat model connection {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.CHAT_MODEL_CONNECTION][name] = (connection, kwargs)
-        return self
-
-    def add_chat_model_setup(
-        self, name: str, chat_model: Type[BaseChatModelSetup], **kwargs: Any
-    ) -> "AgentsExecutionEnvironment":
-        """Register chat model setup to agent execution environment.
-
-        Parameters
-        ----------
-        name : str
-            The name of the chat model, should be unique in the same Agent.
-        chat_model: Type[BaseChatModel]
-            The type of chat model.
-        **kwargs: Any
-            Initialize keyword arguments passed to the chat model.
-
-        Returns:
-        -------
-        AgentsExecutionEnvironment
-            The environment contains registered chat model setup.
-        """
-        if name in self._resources[ResourceType.CHAT_MODEL]:
-            msg = f"Chat model setup {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.CHAT_MODEL][name] = (chat_model, kwargs)
-        return self
-
-    def add_embedding_model_connection(
-        self, name: str, connection: Type[BaseEmbeddingModelConnection], **kwargs: Any
-    ) -> "AgentsExecutionEnvironment":
-        """Register embedding model connection to agent execution environment.
-
-        Parameters
-        ----------
-        name : str
-            The name of the embedding model connection, should be unique in the same
-            Agent.
-        connection: Type[BaseEmbeddingModelConnection]
-            The type of embedding model connection.
-        **kwargs: Any
-            Initialize keyword arguments passed to the embedding model connection.
-
-        Returns:
-        -------
-        AgentsExecutionEnvironment
-            The environment contains registered embedding model connection.
-        """
-        if name in self._resources[ResourceType.EMBEDDING_MODEL_CONNECTION]:
-            msg = f"Embedding model connection {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.EMBEDDING_MODEL_CONNECTION][name] = (
-            connection,
-            kwargs,
-        )
-        return self
-
-    def add_embedding_model_setup(
-        self, name: str, embedding_model: Type[BaseEmbeddingModelSetup], **kwargs: Any
-    ) -> "AgentsExecutionEnvironment":
-        """Register embedding model setup to agent execution environment.
-
-        Parameters
-        ----------
-        name : str
-            The name of the embedding model, should be unique in the same Agent.
-        embedding_model: Type[BaseEmbeddingModelSetup]
-            The type of embedding model.
-        **kwargs: Any
-            Initialize keyword arguments passed to the embedding model.
-
-        Returns:
-        -------
-        AgentsExecutionEnvironment
-            The environment contains registered embedding model setup.
-        """
-        if name in self._resources[ResourceType.EMBEDDING_MODEL]:
-            msg = f"Embedding model setup {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.EMBEDDING_MODEL][name] = (embedding_model, kwargs)
-        return self
-
-    def add_mcp_server(
-        self, name: str, mcp_server: MCPServer
-    ) -> "AgentsExecutionEnvironment":
-        """Add an MCP server to the agent execution environment.
-
-        Parameters
-        ----------
-        name : str
-            The name of the MCP server, should be unique in the same Agent.
-        mcp_server : MCPServer
-            The MCP server resource instance.
-
-        Returns:
-        -------
-        AgentsExecutionEnvironment
-            The environment contains registered embedding model setup.
-        """
-        if name in self._resources[ResourceType.MCP_SERVER]:
-            msg = f"MCP server {name} already defined"
-            raise ValueError(msg)
-        self._resources[ResourceType.MCP_SERVER][name] = mcp_server
-        return self
-
-    def add_vector_store_connection(
-            self, name: str, connection: Type[BaseVectorStoreConnection], **kwargs: Any
-    ) -> "AgentsExecutionEnvironment":
-        """Register vector store connection to agent execution environment.
-
-        Parameters
-        ----------
-        name : str
-            The name of the vector store connection, should be unique in the same
-            Agent.
-        connection: Type[BaseVectorStoreConnection]
-            The type of vector store connection.
-        **kwargs: Any
-            Initialize keyword arguments passed to the vector store connection.
-
-        Returns:
-        -------
-        AgentsExecutionEnvironment
-            The environment contains registered vector store connection.
-        """
-        if name in self._resources[ResourceType.VECTOR_STORE_CONNECTION]:
-            msg = f"Vector store connection {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.VECTOR_STORE_CONNECTION][name] = (connection, kwargs)
-        return self
-
-    def add_vector_store_setup(
-            self, name: str, vector_store: Type[BaseVectorStoreSetup], **kwargs: Any
-    ) -> "AgentsExecutionEnvironment":
-        """Register vector store setup to agent execution environment.
-
-        Parameters
-        ----------
-        name : str
-            The name of the vector store, should be unique in the same Agent.
-        vector_store: Type[BaseVectorStoreSetup]
-            The type of vector store.
-        **kwargs: Any
-            Initialize keyword arguments passed to the vector store.
-
-        Returns:
-        -------
-        AgentsExecutionEnvironment
-            The environment contains registered vector store setup.
-        """
-        if name in self._resources[ResourceType.VECTOR_STORE]:
-            msg = f"Vector store setup {name} already defined"
-            raise ValueError(msg)
-        kwargs["name"] = name
-        self._resources[ResourceType.VECTOR_STORE][name] = (vector_store, kwargs)
+        self._resources[resource_type][name] = instance
         return self

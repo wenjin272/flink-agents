@@ -20,12 +20,12 @@ from typing import Any, Callable
 from docstring_parser import parse
 from typing_extensions import override
 
-from flink_agents.api.tools.tool import BaseTool, ToolMetadata, ToolType
+from flink_agents.api.tools.tool import Tool, ToolMetadata, ToolType
 from flink_agents.api.tools.utils import create_schema_from_function
 from flink_agents.plan.function import JavaFunction, PythonFunction
 
 
-class FunctionTool(BaseTool):
+class FunctionTool(Tool):
     """Tool that takes in a function.
 
     Attributes:
@@ -47,22 +47,18 @@ class FunctionTool(BaseTool):
         return self.func(*args, **kwargs)
 
 
-def from_callable(name: str, func: Callable) -> FunctionTool:
+def from_callable(func: Callable) -> FunctionTool:
     """Create FunctionTool from a user defined function.
 
     Parameters
     ----------
-    name : str
-        Name of the tool function.
     func : Callable
         The function to analyze.
     """
     description = parse(func.__doc__).description
     metadata = ToolMetadata(
-        name=name,
+        name=func.__name__,
         description=description,
-        args_schema=create_schema_from_function(name=name, func=func),
+        args_schema=create_schema_from_function(func.__name__, func=func),
     )
-    return FunctionTool(
-        name=name, func=PythonFunction.from_callable(func), metadata=metadata
-    )
+    return FunctionTool(func=PythonFunction.from_callable(func), metadata=metadata)

@@ -23,6 +23,8 @@ from flink_agents.api.agents.react_agent import ReActAgent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.prompts.prompt import Prompt
+from flink_agents.api.resource import ResourceDescriptor
+from flink_agents.api.tools.tool import Tool
 from flink_agents.examples.common_tools import add, multiply
 from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelConnection,
@@ -47,11 +49,11 @@ if __name__ == "__main__":
 
     # register resource to execution environment
     (
-        env.add_chat_model_connection(
-            name="ollama", connection=OllamaChatModelConnection, model=model
+        env.add_resource(
+            "ollama", ResourceDescriptor(clazz=OllamaChatModelConnection, model=model)
         )
-        .add_tool("add", add)
-        .add_tool("multiply", multiply)
+        .add_resource("add", Tool.from_callable(add))
+        .add_resource("multiply", Tool.from_callable(multiply))
     )
 
     # prepare prompt
@@ -67,10 +69,10 @@ if __name__ == "__main__":
 
     # create ReAct agent.
     agent = ReActAgent(
-        chat_model_setup=OllamaChatModelSetup,
-        connection="ollama",
+        chat_model=ResourceDescriptor(
+            clazz=OllamaChatModelSetup, connection="ollama", tools=["add", "multiply"]
+        ),
         prompt=prompt,
-        tools=["add", "multiply"],
         output_schema=OutputData,
     )
 

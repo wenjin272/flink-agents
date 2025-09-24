@@ -17,15 +17,11 @@
 #################################################################################
 import json
 import logging
-from typing import Any, Dict, Tuple, Type
 
 from pydantic import BaseModel
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import (
-    BaseChatModelSetup,
-)
 from flink_agents.api.decorators import (
     action,
     chat_model_setup,
@@ -34,6 +30,7 @@ from flink_agents.api.decorators import (
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.prompts.prompt import Prompt
+from flink_agents.api.resource import ResourceDescriptor
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelSetup,
@@ -111,13 +108,10 @@ class ReviewAnalysisAgent(Agent):
 
     @chat_model_setup
     @staticmethod
-    def review_analysis_model() -> Tuple[Type[BaseChatModelSetup], Dict[str, Any]]:
+    def review_analysis_model() -> ResourceDescriptor:
         """ChatModel which focus on review analysis."""
-        return OllamaChatModelSetup, {
-            "connection": "ollama_server",
-            "prompt": "review_analysis_prompt",
-            "extract_reasoning": True,
-        }
+        return ResourceDescriptor(clazz=OllamaChatModelSetup, connection="ollama_server",
+                                  prompt="review_analysis_prompt", extract_reasoning=True)
 
     @action(InputEvent)
     @staticmethod

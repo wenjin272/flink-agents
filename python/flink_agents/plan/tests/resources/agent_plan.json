@@ -77,7 +77,6 @@
                 "module": "flink_agents.plan.tests.test_agent_plan",
                 "clazz": "MockChatModelImpl",
                 "kwargs": {
-                    "name": "mock",
                     "host": "8.8.8.8",
                     "desc": "mock resource just for testing.",
                     "connection": "mock"
@@ -92,7 +91,6 @@
                 "module": "flink_agents.plan.tests.test_agent_plan",
                 "clazz": "MockEmbeddingModelSetup",
                 "kwargs": {
-                    "name": "mock_embedding",
                     "model": "test-model",
                     "connection": "mock_embedding_conn"
                 },
@@ -106,7 +104,6 @@
                 "module": "flink_agents.plan.tests.test_agent_plan",
                 "clazz": "MockEmbeddingModelConnection",
                 "kwargs": {
-                    "name": "mock_embedding_conn",
                     "api_key": "mock-api-key"
                 },
                 "__resource_provider_type__": "PythonResourceProvider"
@@ -119,7 +116,6 @@
                 "module": "flink_agents.plan.tests.test_agent_plan",
                 "clazz": "MockVectorStoreSetup",
                 "kwargs": {
-                    "name": "mock_vector_store",
                     "connection": "mock_vector_conn",
                     "embedding_model": "mock_embedding",
                     "collection_name": "test_collection"
@@ -134,7 +130,6 @@
                 "module": "flink_agents.plan.tests.test_agent_plan",
                 "clazz": "MockVectorStoreConnection",
                 "kwargs": {
-                    "name": "mock_vector_conn",
                     "host": "localhost",
                     "port": 8000
                 },
