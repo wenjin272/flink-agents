@@ -19,23 +19,35 @@ package org.apache.flink.agents.runtime.actionstate;
 
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.context.MemoryUpdate;
-import org.apache.flink.agents.runtime.operator.ActionTask;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
+/** Class representing the state of an action after processing an event. */
 public class ActionState {
     private final Event taskEvent;
     private final List<MemoryUpdate> memoryUpdates;
     private final List<Event> outputEvents;
-    private ActionTask generatedActionTask;
 
     /** Constructs a new TaskActionState instance. */
     public ActionState(final Event taskEvent) {
         this.taskEvent = taskEvent;
-        memoryUpdates = new ArrayList<>();
-        outputEvents = new ArrayList<>();
+        this.memoryUpdates = new ArrayList<>();
+        this.outputEvents = new ArrayList<>();
+    }
+
+    public ActionState() {
+        this.taskEvent = null;
+        this.memoryUpdates = new ArrayList<>();
+        this.outputEvents = new ArrayList<>();
+    }
+
+    /** Constructor for deserialization purposes. */
+    public ActionState(
+            Event taskEvent, List<MemoryUpdate> memoryUpdates, List<Event> outputEvents) {
+        this.taskEvent = taskEvent;
+        this.memoryUpdates = memoryUpdates != null ? memoryUpdates : new ArrayList<>();
+        this.outputEvents = outputEvents != null ? outputEvents : new ArrayList<>();
     }
 
     /** Getters for the fields */
@@ -51,10 +63,6 @@ public class ActionState {
         return outputEvents;
     }
 
-    public Optional<ActionTask> getGeneratedActionTask() {
-        return Optional.ofNullable(generatedActionTask);
-    }
-
     /** Setters for the fields */
     public void addMemoryUpdate(MemoryUpdate memoryUpdate) {
         memoryUpdates.add(memoryUpdate);
@@ -64,16 +72,11 @@ public class ActionState {
         outputEvents.add(event);
     }
 
-    public void setGeneratedActionTask(ActionTask generatedActionTask) {
-        this.generatedActionTask = generatedActionTask;
-    }
-
     @Override
     public int hashCode() {
         int result = taskEvent != null ? taskEvent.hashCode() : 0;
         result = 31 * result + (memoryUpdates != null ? memoryUpdates.hashCode() : 0);
         result = 31 * result + (outputEvents != null ? outputEvents.hashCode() : 0);
-        result = 31 * result + (generatedActionTask != null ? generatedActionTask.hashCode() : 0);
         return result;
     }
 
@@ -86,8 +89,6 @@ public class ActionState {
                 + memoryUpdates
                 + ", outputEvents="
                 + outputEvents
-                + ", generatedActionTask="
-                + generatedActionTask
                 + '}';
     }
 }
