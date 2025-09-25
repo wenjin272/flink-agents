@@ -27,7 +27,9 @@ from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
 from pyflink.datastream.window import TumblingProcessingTimeWindows
 
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
-from flink_agents.api.resource import ResourceDescriptor
+from flink_agents.examples.quickstart.agents.custom_types_and_resources import (
+    ollama_server_descriptor,
+)
 from flink_agents.examples.quickstart.agents.product_suggestion_agent import (
     ProductReviewSummary,
     ProductSuggestionAgent,
@@ -36,9 +38,6 @@ from flink_agents.examples.quickstart.agents.review_analysis_agent import (
     ProductReview,
     ProductReviewAnalysisRes,
     ReviewAnalysisAgent,
-)
-from flink_agents.integrations.chat_models.ollama_chat_model import (
-    OllamaChatModelConnection,
 )
 
 current_dir = Path(__file__).parent
@@ -93,9 +92,7 @@ def main() -> None:
     # and ProductSuggestionAgent.
     agents_env.add_resource(
         "ollama_server",
-        ResourceDescriptor(
-            clazz=OllamaChatModelConnection, model="qwen3:8b", request_timeout=120
-        ),
+        ollama_server_descriptor,
     )
 
     # Read product reviews from a text file as a streaming source.

@@ -21,45 +21,53 @@ from pyflink.common import Duration, WatermarkStrategy
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
 
+from flink_agents.api.agents.react_agent import ReActAgent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.resource import ResourceDescriptor
-from flink_agents.examples.quickstart.agents.review_analysis_agent import (
+from flink_agents.api.tools.tool import Tool
+from flink_agents.examples.quickstart.agents.custom_types_and_resources import (
     ProductReview,
-    ReviewAnalysisAgent,
+    ProductReviewAnalysisRes,
+    notify_shipping_manager,
+    review_analysis_react_prompt,
 )
 from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelConnection,
+    OllamaChatModelSetup,
 )
 
 current_dir = Path(__file__).parent
 
 
 def main() -> None:
-    """Main function for the product review analysis quickstart example.
+    """Main function for the product shipping question record quickstart example.
 
-    This example demonstrates how to use Flink Agents to analyze product reviews in a
-    streaming pipeline. The pipeline reads product reviews from a file, deserializes
-    each review, and uses an LLM agent to extract review scores and unsatisfied reasons.
-    The results are printed to stdout. This serves as a minimal, end-to-end example of
-    integrating LLM-powered agents with Flink streaming jobs.
+    This example demonstrates how to use the Flink Agents to analyze product reviews
+    and record shipping questions in a streaming pipeline. The pipeline reads product
+    reviews from a file, deserializes each review, and uses an LLM agent to extract
+    review scores and unsatisfied reasons. If the unsatisfied reasons are related to
+    shipping, the agent will notify the shipping manager. This serves as a minimal,
+    end-to-end example of integrating LLM-powered react agent with Flink streaming jobs.
     """
     # Set up the Flink streaming environment and the Agents execution environment.
     env = StreamExecutionEnvironment.get_execution_environment()
     agents_env = AgentsExecutionEnvironment.get_execution_environment(env)
 
-    # Add Ollama chat model connection to be used by the ReviewAnalysisAgent.
+    # Add Ollama chat model connection and record shipping question tool to be used
+    # by the Agent.
     agents_env.add_resource(
         "ollama_server",
         ResourceDescriptor(
             clazz=OllamaChatModelConnection, model="qwen3:8b", request_timeout=120
         ),
-    )
+    ).add_resource("notify_shipping_manager", Tool.from_callable(notify_shipping_manager))
 
     # Read product reviews from a text file as a streaming source.
     # Each line in the file should be a JSON string representing a ProductReview.
     product_review_stream = env.from_source(
         source=FileSource.for_record_stream_format(
-            StreamFormat.text_line_format(), f"file:///{current_dir}/resources"
+            StreamFormat.text_line_format(),
+            f"file:///{current_dir}/resources/",
         )
         .monitor_continuously(Duration.of_minutes(1))
         .build(),
@@ -71,12 +79,24 @@ def main() -> None:
         )  # Deserialize JSON to ProductReview.
     )
 
-    # Use the ReviewAnalysisAgent to analyze each product review.
+    # Create react agent
+    review_analysis_react_agent = ReActAgent(
+        chat_model=ResourceDescriptor(
+            clazz=OllamaChatModelSetup,
+            connection="ollama_server",
+            tools=["notify_shipping_manager"],
+        ),
+        prompt=review_analysis_react_prompt,
+        output_schema=ProductReviewAnalysisRes,
+    )
+
+    # Use the ReAct agent to analyze each product review and
+    # record shipping question.
     review_analysis_res_stream = (
         agents_env.from_datastream(
             input=product_review_stream, key_selector=lambda x: x.id
         )
-        .apply(ReviewAnalysisAgent())
+        .apply(review_analysis_react_agent)
         .to_datastream()
     )
 
