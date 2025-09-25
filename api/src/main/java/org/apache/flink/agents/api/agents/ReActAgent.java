@@ -69,7 +69,7 @@ public class ReActAgent extends Agent {
 
     public ReActAgent(
             ResourceDescriptor descriptor, @Nullable Prompt prompt, @Nullable Object outputSchema) {
-        this.addChatModelSetup(DEFAULT_CHAT_MODEL, descriptor);
+        this.addResource(DEFAULT_CHAT_MODEL, ResourceType.CHAT_MODEL, descriptor);
 
         if (outputSchema != null) {
             String jsonSchema;
@@ -91,11 +91,11 @@ public class ReActAgent extends Agent {
                             String.format(
                                     "The final response should be json format, and match the schema %s",
                                     jsonSchema));
-            this.addPrompt(DEFAULT_SCHEMA_PROMPT, schemaPrompt);
+            this.addResource(DEFAULT_SCHEMA_PROMPT, ResourceType.PROMPT, schemaPrompt);
         }
 
         if (prompt != null) {
-            this.addPrompt(DEFAULT_USER_PROMPT, prompt);
+            this.addResource(DEFAULT_USER_PROMPT, ResourceType.PROMPT, prompt);
         }
 
         Map<String, Object> actionConfig = new HashMap<>();

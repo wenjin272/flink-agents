@@ -140,10 +140,15 @@ class AgentPlanDeclareToolMethodTest {
     @DisplayName("Check tools added to agent instance.")
     void testAgentAddTool() throws Exception {
         Agent agent = new Agent();
-        agent.addTool(
+        agent.addResource(
+                        "calculate",
+                        ResourceType.TOOL,
                         TestAgent.class.getMethod(
                                 "calculate", Double.class, Double.class, String.class))
-                .addTool(TestAgent.class.getMethod("getWeather", String.class, String.class));
+                .addResource(
+                        "getWeather",
+                        ResourceType.TOOL,
+                        TestAgent.class.getMethod("getWeather", String.class, String.class));
         checkToolCall(new AgentPlan(agent));
     }
 
