@@ -182,10 +182,17 @@ class BaseChatModelSetup(Resource):
                 prompt = self.prompt
 
             input_variable = {}
+
+            # fill the prompt template
             for msg in messages:
                 input_variable.update(msg.extra_args)
-            messages = prompt.format_messages(**input_variable)
+            prompt_messages = prompt.format_messages(**input_variable)
 
+            # append meaningful messages
+            for msg in messages:
+                if msg.content is not None and msg.content != "":
+                    prompt_messages.append(msg)
+            messages = prompt_messages
         # Bind tools
         tools = None
         if self.tools is not None:
