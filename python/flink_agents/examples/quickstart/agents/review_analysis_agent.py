@@ -17,8 +17,7 @@
 #################################################################################
 import json
 import logging
-
-from pydantic import BaseModel
+from typing import TYPE_CHECKING
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -26,48 +25,26 @@ from flink_agents.api.decorators import (
     action,
     chat_model_setup,
     prompt,
+    tool,
 )
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import ResourceDescriptor
 from flink_agents.api.runner_context import RunnerContext
+from flink_agents.examples.quickstart.agents.custom_types_and_resources import (
+    ProductReviewAnalysisRes,
+    notify_shipping_manager,
+    review_analysis_prompt,
+)
 from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelSetup,
 )
 
-
-class ProductReview(BaseModel):
-    """Data model representing a product review.
-
-    Attributes:
-    ----------
-    id : str
-        The unique identifier for the product being reviewed.
-    review : str
-        The review of the product.
-    """
-
-    id: str
-    review: str
-
-
-class ProductReviewAnalysisRes(BaseModel):
-    """Data model representing analysis result of a product review.
-
-    Attributes:
-    ----------
-    id : str
-        The unique identifier for the product being reviewed.
-    score : int
-        The satisfaction score given by the reviewer.
-    reasons : List[str]
-        A list of reasons provided by the reviewer for dissatisfaction, if any.
-    """
-
-    id: str
-    score: int
-    reasons: list[str]
+if TYPE_CHECKING:
+    from flink_agents.examples.quickstart.agents.custom_types_and_resources import (
+        ProductReview,
+    )
 
 
 class ReviewAnalysisAgent(Agent):
@@ -83,35 +60,36 @@ class ReviewAnalysisAgent(Agent):
     @staticmethod
     def review_analysis_prompt() -> Prompt:
         """Prompt for review analysis."""
-        prompt_str = """
-    Analyze the user review and product information to determine a
-    satisfaction score (1-5) and potential reasons for dissatisfaction.
+        return review_analysis_prompt
 
-    Example input format:
-    {{
-        "id": "12345",
-        "review": "The headphones broke after one week of use. Very poor quality."
-    }}
+    @tool
+    @staticmethod
+    def notify_shipping_manager(id: str, review: str) -> None:
+        """Notify the shipping manager when product received a negative review due to
+        shipping damage.
 
-    Ensure your response can be parsed by Python JSON, using this format as an example:
-    {{
-     "score": 1,
-     "reasons": [
-       "poor quality"
-       ]
-    }}
-
-    input:
-    {input}
-    """
-        return Prompt.from_text(prompt_str)
+        Parameters
+        ----------
+        id : str
+            The id of the product that received a negative review due to shipping damage
+        review: str
+            The negative review content
+        """
+        # reuse the declared function, but for parsing the tool metadata, we write doc
+        # string here again.
+        notify_shipping_manager(id=id, review=review)
 
     @chat_model_setup
     @staticmethod
     def review_analysis_model() -> ResourceDescriptor:
         """ChatModel which focus on review analysis."""
-        return ResourceDescriptor(clazz=OllamaChatModelSetup, connection="ollama_server",
-                                  prompt="review_analysis_prompt", extract_reasoning=True)
+        return ResourceDescriptor(
+            clazz=OllamaChatModelSetup,
+            connection="ollama_server",
+            prompt="review_analysis_prompt",
+            tools=["notify_shipping_manager"],
+            extract_reasoning=True,
+        )
 
     @action(InputEvent)
     @staticmethod

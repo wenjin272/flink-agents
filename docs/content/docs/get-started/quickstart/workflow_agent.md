@@ -103,10 +103,10 @@ git clone https://github.com/apache/flink-agents.git
 export PYTHONPATH=$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 
 # Run review analysis example
-./flink-1.20.3/bin/flink run -py ./flink-agents/python/flink_agents/examples/quickstart/product_review_analysis.py
+./flink-1.20.3/bin/flink run -py ./flink-agents/python/flink_agents/examples/quickstart/workflow_single_agent_example.py
 
 # Run product suggestion example
-./flink-1.20.3/bin/flink run -py ./flink-agents/python/flink_agents/examples/quickstart/product_improve_suggestion.py
+./flink-1.20.3/bin/flink run -py ./flink-agents/python/flink_agents/examples/quickstart/workflow_multiple_agent_example.py
 ```
 
 Now you should see a Flink job submitted to the Flink Cluster in Flink web UI [localhost:8081](localhost:8081)

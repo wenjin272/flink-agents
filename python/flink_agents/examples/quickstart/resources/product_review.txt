@@ -1,5 +1,6 @@
 {"id": "B010RRWKT4", "review": "Love these! I have 3 pairs...they're so comfortable - I'm on my feet all day & my feet actually don't hurt at the end of the day when I wear these :)\nI've learned to get these 1/2 size smaller....I'm normally a size 7 and the 6 1/2 fit perfectly"}
 {"id": "B000YFSR4W", "review": "comfy fit"}
+{"id": "B000YFSR4W", "review": "The magazine was already damaged when I received it — the whole book was wet!"}
 {"id": "B010RRWKT4", "review": "I ordered a 1/2 size smaller than my usual size, and they are perfect. These shoes are hard to find. Great customer service as well."}
 {"id": "B001IKJOLW", "review": "I wear them for Zumba and my heel slips on turns. A little annoying because I have to pay attention but they are so cute and comfy, it balances out."}
 {"id": "B009MA34NY", "review": "I love these, I had the previous iteration (or maybe two earlier?) and finally wore them out after several years. They are definitely a light-weight training shoe so I wouldn't get them if you are going to be doing a lot of running. But this also makes them extremely comfortable, I hadn't realized how hot running shoes made my feet until I switched to these. Good support and my feet stay cool all day, also noticeably light but well-made and long lasting.\n\nI have worn them hiking in a pinch but don't really recommend it because the material is mesh-like and will let a lot of dirt in. But if you mainly take cardio classes and/or do weight training or just need something to wear around town look no further."}
@@ -15,6 +16,7 @@
 {"id": "B0058YEJ5K", "review": "second pair. Comfortable and great for people with bunion issues or previous surgeries.  Sole wears great"}
 {"id": "B010RRWKT4", "review": "Fit is fine, but not much cushioning in the footbed. The first time wearing them on a long walk I developed a blister on the bottom of my foot."}
 {"id": "B0058YEJ5K", "review": "daughter loves them"}
+{"id": "B001IKJOLW", "review": "The magazine was already damaged when I received it — the whole book was wet!"}
 {"id": "B000YFSR5G", "review": "Did not fit well. Was not comfortable. Switched to \"Fruit of the loom\". Fruit of the loom are somewhat oversized but fit well and are very comfortable."}
 {"id": "B0014F7B98", "review": "Cute and comfortable"}
 {"id": "B000YFSR5G", "review": "As described."}
@@ -153,6 +155,7 @@
 {"id": "B0092UF54A", "review": "Took other reviewers advice and went up half size and it was too large. I thought this was a more sock-like fit but it had a tongue that came up high on my ankle not at all sock like. Nice looking and very light weight with a rounded square toe that left plenty of room front foot and toes. These just weren't what I was looking for."}
 {"id": "B009MA34NY", "review": "i bought a pair from DSW for 50$ and they are very comfortable but i bought a size 6.5 when I normally where a size 7.  and even the 6.5 feels a little roomy.  I have wide flat feet btw.  im not sure if I will keep them even though i love their look and comfort.  I've been having feet problems while taking a gym class and I think they won't give me enough support when running.  they're great for wearing at home or gym and doing exercises in one place- extremely light weight and flexible, but i don't know if they'll last long if you use them everywhere else.  :(  i really like them but i cant just buy 2 different shoes.\nalso, i really like the strings inside the lining on the side of the shoes to adjust and make the shoe fit snug. it makes me feel secure :D"}
 {"id": "B0014F7B98", "review": "Fit my size perfectly and very comfortable!"}
+{"id": "B014IBJKNO", "review": "The magazine was already damaged when I received it — the whole book was wet!"}
 {"id": "B0092UF54A", "review": "I have gotten so many compliments on the blue color and look of this shoe.  It is super comfortable.  The grip is wonderful for my indoor gym cross training classes.  I always order a half size larger in Nike brand shoes and thy fit perfectly as I did with this shoe."}
 {"id": "B0058YEJ5K", "review": "This pair fits perfect.....the first pair was wrong size in the right box.....definitely order again!!!!!"}
 {"id": "B005AGO4LU", "review": "Perfect fit, very comfortable, and a great color. They also fit as expected."}
