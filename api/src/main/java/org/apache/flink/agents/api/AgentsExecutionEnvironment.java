@@ -20,9 +20,9 @@ package org.apache.flink.agents.api;
 
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.configuration.Configuration;
-import org.apache.flink.agents.api.prompt.Prompt;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.resource.SerializableResource;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -201,72 +201,38 @@ public abstract class AgentsExecutionEnvironment {
     public abstract void execute() throws Exception;
 
     /**
-     * Register prompt to agent environment.
+     * Register resource to agents execution environment.
      *
-     * @param name The name indicate the prompt.
-     * @param prompt The prompt instance.
+     * @param name The name indicate the resource.
+     * @param type The type of the resource.
+     * @param instance The serializable resource object, or the resource descriptor, or the tool
+     *     method.
      */
-    public AgentsExecutionEnvironment addPrompt(String name, Prompt prompt) {
-        if (resources.get(ResourceType.PROMPT).containsKey(name)) {
-            throw new IllegalArgumentException(String.format("Prompt %s already defined.", name));
-        }
-        resources.get(ResourceType.PROMPT).put(name, prompt);
-        return this;
-    }
-
-    /**
-     * Register tool to agent environment.
-     *
-     * @param tool The tool method, should be static method and annotated with @Tool.
-     */
-    public AgentsExecutionEnvironment addTool(Method tool) {
-        if (!Modifier.isStatic(tool.getModifiers())) {
-            throw new IllegalArgumentException("Only static methods are supported");
-        }
-
-        Tool toolAnnotation = tool.getAnnotation(Tool.class);
-        if (toolAnnotation == null) {
-            throw new IllegalArgumentException("Method must be annotated with @Tool");
-        }
-
-        String name = tool.getName();
-
-        if (resources.get(ResourceType.TOOL).containsKey(name)) {
-            throw new IllegalArgumentException(String.format("Tool %s already defined.", name));
-        }
-        resources.get(ResourceType.TOOL).put(name, tool);
-        return this;
-    }
-
-    /**
-     * Register chat model connection to agent environment.
-     *
-     * @param name The name indicate the prompt.
-     * @param descriptor The resource descriptor of the chat model connection.
-     */
-    public AgentsExecutionEnvironment addChatModelConnection(
-            String name, ResourceDescriptor descriptor) {
-        addResource(name, ResourceType.CHAT_MODEL_CONNECTION, descriptor);
-        return this;
-    }
-
-    /**
-     * Register chat model setup to agent environment.
-     *
-     * @param name The name indicate the prompt.
-     * @param descriptor The resource descriptor of the chat model setup.
-     */
-    public AgentsExecutionEnvironment addChatModelSetup(
-            String name, ResourceDescriptor descriptor) {
-        addResource(name, ResourceType.CHAT_MODEL, descriptor);
-        return this;
-    }
-
-    private void addResource(String name, ResourceType type, ResourceDescriptor descriptor) {
+    public AgentsExecutionEnvironment addResource(String name, ResourceType type, Object instance) {
         if (resources.get(type).containsKey(name)) {
-            throw new IllegalArgumentException(
-                    String.format("%s %s already defined.", type.getValue(), name));
+            throw new IllegalArgumentException(String.format("%s %s already defined.", type, name));
         }
-        resources.get(type).put(name, descriptor);
+
+        if (instance instanceof Method) {
+            Method tool = (Method) instance;
+            if (!Modifier.isStatic(tool.getModifiers())) {
+                throw new IllegalArgumentException("Only static methods are supported");
+            }
+
+            Tool toolAnnotation = tool.getAnnotation(Tool.class);
+            if (toolAnnotation == null) {
+                throw new IllegalArgumentException("Method must be annotated with @Tool");
+            }
+
+            resources.get(ResourceType.TOOL).put(name, tool);
+        } else if (instance instanceof SerializableResource) {
+            resources.get(type).put(name, instance);
+        } else if (instance instanceof ResourceDescriptor) {
+            resources.get(type).put(name, instance);
+        } else {
+            throw new IllegalArgumentException(
+                    String.format("Unsupported resource %s", instance.getClass().getName()));
+        }
+        return this;
     }
 }

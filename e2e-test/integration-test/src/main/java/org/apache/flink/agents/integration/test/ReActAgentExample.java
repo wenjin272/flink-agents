@@ -27,6 +27,7 @@ import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.prompt.Prompt;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
+import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelConnection;
 import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSetup;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -70,14 +71,21 @@ public class ReActAgentExample {
 
         // register resource to agents execution environment.
         agentsEnv
-                .addChatModelConnection(
+                .addResource(
                         "ollama",
+                        ResourceType.CHAT_MODEL,
                         ResourceDescriptor.Builder.newBuilder(
                                         OllamaChatModelConnection.class.getName())
                                 .addInitialArgument("endpoint", "http://localhost:11434")
                                 .build())
-                .addTool(ReActAgentExample.class.getMethod("add", Double.class, Double.class))
-                .addTool(ReActAgentExample.class.getMethod("multiply", Double.class, Double.class));
+                .addResource(
+                        "add",
+                        ResourceType.TOOL,
+                        ReActAgentExample.class.getMethod("add", Double.class, Double.class))
+                .addResource(
+                        "multiply",
+                        ResourceType.TOOL,
+                        ReActAgentExample.class.getMethod("multiply", Double.class, Double.class));
 
         // Declare the ReAct agent.
         Agent agent = getAgent();

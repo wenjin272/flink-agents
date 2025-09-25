@@ -135,8 +135,9 @@ class AgentPlanDeclareChatModelTest {
     @Test
     void testAddChatModel() throws Exception {
         Agent agent = new Agent();
-        agent.addChatModelSetup(
+        agent.addResource(
                 "testChatModel",
+                ResourceType.CHAT_MODEL,
                 ResourceDescriptor.Builder.newBuilder(MockChatModel.class.getName())
                         .addInitialArgument("endpoint", "127.0.0.1")
                         .addInitialArgument("topK", 5)
