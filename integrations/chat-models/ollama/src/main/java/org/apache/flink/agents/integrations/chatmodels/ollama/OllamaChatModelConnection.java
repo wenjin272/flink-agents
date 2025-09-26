@@ -32,7 +32,7 @@ import org.apache.flink.agents.api.chat.model.BaseChatModelConnection;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.tools.BaseTool;
+import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.agents.api.tools.ToolParameters;
 
 import java.util.HashMap;
@@ -115,10 +115,10 @@ public class OllamaChatModelConnection extends BaseChatModelConnection {
      * @throws RuntimeException if schema parsing or registration fails
      */
     @SuppressWarnings("unchecked")
-    private void registerTools(List<BaseTool> tools) {
+    private void registerTools(List<Tool> tools) {
         final ObjectMapper mapper = new ObjectMapper();
         try {
-            for (BaseTool tool : tools) {
+            for (Tool tool : tools) {
                 final Map<String, Object> schema =
                         mapper.readValue(
                                 tool.getMetadata().getInputSchema(), new TypeReference<>() {});
@@ -196,7 +196,7 @@ public class OllamaChatModelConnection extends BaseChatModelConnection {
 
     @Override
     public ChatMessage chat(
-            List<ChatMessage> messages, List<BaseTool> tools, Map<String, Object> arguments) {
+            List<ChatMessage> messages, List<Tool> tools, Map<String, Object> arguments) {
         try {
             registerTools(tools);
             final List<OllamaChatMessage> ollamaChatMessages =

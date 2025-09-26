@@ -24,7 +24,7 @@ import org.apache.flink.agents.api.prompt.Prompt;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.tools.BaseTool;
+import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.annotation.VisibleForTesting;
 
 import java.util.ArrayList;
@@ -76,10 +76,10 @@ public abstract class BaseChatModelSetup extends Resource {
         }
 
         // Get tools can be used.
-        List<BaseTool> tools = new ArrayList<>();
+        List<Tool> tools = new ArrayList<>();
         if (this.tools != null) {
             for (String name : this.tools) {
-                tools.add((BaseTool) this.getResource.apply(name, ResourceType.TOOL));
+                tools.add((Tool) this.getResource.apply(name, ResourceType.TOOL));
             }
         }
 
