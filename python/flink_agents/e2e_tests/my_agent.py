@@ -21,6 +21,7 @@ import time
 from typing import Any
 
 from pydantic import BaseModel
+from pyflink.common import Row
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.decorators import action, tool
@@ -50,6 +51,7 @@ class ItemData(BaseModel):
 
 class MyEvent(Event):  # noqa D101
     value: Any
+
 
 class DataStreamAgent(Agent):
     """Agent used for explaining integrating agents with DataStream.
@@ -138,3 +140,30 @@ class TableAgent(Agent):
         content = input
         content["review"] += " second action"
         ctx.send_event(OutputEvent(output=content))
+
+
+class DataStreamToTableAgent(Agent):
+    """Agent used for explaining integrating agents from table to datastream.
+
+    Because pemja will find action in this class when execute Agent, we can't
+    define this class directly in example.py for module name will be set
+    to __main__.
+    """
+
+    @action(InputEvent)
+    @staticmethod
+    def first_action(event: Event, ctx: RunnerContext):  # noqa D102
+        input = event.input
+        content = copy.deepcopy(input)
+        content.review += " first action"
+        ctx.send_event(MyEvent(value=content))
+
+    @action(MyEvent)
+    @staticmethod
+    def second_action(event: Event, ctx: RunnerContext):  # noqa D102
+        input = event.value
+        content = input
+        content.review += " second action"
+        ctx.send_event(
+            OutputEvent(output=Row(**content.model_dump(exclude="memory_info")))
+        )

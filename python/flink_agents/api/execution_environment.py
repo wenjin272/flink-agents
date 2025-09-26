@@ -106,7 +106,9 @@ class AgentsExecutionEnvironment(ABC):
 
     @staticmethod
     def get_execution_environment(
-        env: StreamExecutionEnvironment | None = None, **kwargs: Dict[str, Any]
+        env: StreamExecutionEnvironment | None = None,
+        t_env: StreamTableEnvironment | None = None,
+        **kwargs: Dict[str, Any],
     ) -> "AgentsExecutionEnvironment":
         """Get agents execution environment.
 
@@ -123,13 +125,13 @@ class AgentsExecutionEnvironment(ABC):
         if env is None:
             return importlib.import_module(
                 "flink_agents.runtime.local_execution_environment"
-            ).create_instance(env=env, **kwargs)
+            ).create_instance(env=env, t_env=t_env, **kwargs)
         else:
             for path in files("flink_agents.lib").iterdir():
                 env.add_jars(f"file://{path}")
             return importlib.import_module(
                 "flink_agents.runtime.remote_execution_environment"
-            ).create_instance(env=env, **kwargs)
+            ).create_instance(env=env, t_env=t_env, **kwargs)
 
     @abstractmethod
     def get_config(self, path: str | None = None) -> Configuration:
@@ -180,7 +182,6 @@ class AgentsExecutionEnvironment(ABC):
     def from_table(
         self,
         input: Table,
-        t_env: StreamTableEnvironment,
         key_selector: KeySelector | Callable | None = None,
     ) -> AgentBuilder:
         """Set input for agents. Used for remote execution.

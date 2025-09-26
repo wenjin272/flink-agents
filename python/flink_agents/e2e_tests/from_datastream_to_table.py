@@ -17,33 +17,32 @@
 #################################################################################
 from pathlib import Path
 
-from pyflink.common import Row
+from pyflink.common import Duration, WatermarkStrategy
 from pyflink.common.typeinfo import BasicTypeInfo, ExternalTypeInfo, RowTypeInfo
 from pyflink.datastream import (
     KeySelector,
     RuntimeExecutionMode,
     StreamExecutionEnvironment,
 )
-from pyflink.table import (
-    DataTypes,
-    Schema,
-    StreamTableEnvironment,
-    TableDescriptor,
-)
+from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
+from pyflink.table import DataTypes, Schema, StreamTableEnvironment, TableDescriptor
 
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
-from flink_agents.e2e_tests.my_agent import TableAgent
-
-current_dir = Path(__file__).parent
+from flink_agents.e2e_tests.my_agent import (
+    DataStreamToTableAgent,
+    ItemData,
+)
 
 
 class MyKeySelector(KeySelector):
     """KeySelector for extracting key."""
 
-    def get_key(self, value: Row) -> int:
-        """Extract key from Row."""
-        return value[0]
+    def get_key(self, value: ItemData) -> int:
+        """Extract key from ItemData."""
+        return value.id
 
+
+current_dir = Path(__file__).parent
 
 # if this example raises exception "No module named 'flink_agents'", you could set
 # PYTHONPATH like "os.environ["PYTHONPATH"] = ($VENV_HOME/lib/$PYTHON_VERSION/
@@ -53,28 +52,27 @@ if __name__ == "__main__":
 
     env.set_runtime_mode(RuntimeExecutionMode.STREAMING)
     env.set_parallelism(1)
-
     t_env = StreamTableEnvironment.create(stream_execution_environment=env)
 
-    t_env.create_temporary_table(
-        "source",
-        TableDescriptor.for_connector("filesystem")
-        .schema(
-            Schema.new_builder()
-            .column("id", DataTypes.BIGINT())
-            .column("review", DataTypes.STRING())
-            .column("review_score", DataTypes.FLOAT())
-            .build()
+    # currently, bounded source is not supported due to runtime implementation, so
+    # we use continuous file source here.
+    input_datastream = env.from_source(
+        source=FileSource.for_record_stream_format(
+            StreamFormat.text_line_format(), f"file:///{current_dir}/resources"
         )
-        .option("format", "json")
-        .option("path", f"file:///{current_dir}/resources")
-        .option("source.monitor-interval", "60s")
+        .monitor_continuously(Duration.of_minutes(1))
         .build(),
+        watermark_strategy=WatermarkStrategy.no_watermarks(),
+        source_name="streaming_agent_example",
     )
 
-    table = t_env.from_path("source")
+    deserialize_datastream = input_datastream.map(
+        lambda x: ItemData.model_validate_json(x)
+    )
 
-    agents_env = AgentsExecutionEnvironment.get_execution_environment(env=env, t_env=t_env)
+    agents_env = AgentsExecutionEnvironment.get_execution_environment(
+        env=env, t_env=t_env
+    )
 
     output_type = ExternalTypeInfo(
         RowTypeInfo(
@@ -95,8 +93,10 @@ if __name__ == "__main__":
     ).build()
 
     output_table = (
-        agents_env.from_table(input=table, key_selector=MyKeySelector())
-        .apply(TableAgent())
+        agents_env.from_datastream(
+            input=deserialize_datastream, key_selector=MyKeySelector()
+        )
+        .apply(DataStreamToTableAgent())
         .to_table(schema=schema, output_type=output_type)
     )
 
