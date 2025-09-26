@@ -36,6 +36,7 @@ import org.apache.flink.agents.runtime.actionstate.ActionStateStore;
 import org.apache.flink.agents.runtime.actionstate.KafkaActionStateStore;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
 import org.apache.flink.agents.runtime.env.PythonEnvironmentManager;
+import org.apache.flink.agents.runtime.memory.CachedMemoryStore;
 import org.apache.flink.agents.runtime.memory.MemoryObjectImpl;
 import org.apache.flink.agents.runtime.metrics.BuiltInMetrics;
 import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
@@ -83,7 +84,6 @@ import java.util.Optional;
 import static org.apache.flink.agents.api.configuration.AgentConfigOptions.ACTION_STATE_STORE_BACKEND;
 import static org.apache.flink.agents.runtime.actionstate.ActionStateStore.BackendType.KAFKA;
 import static org.apache.flink.agents.runtime.utils.StateUtil.*;
-import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
@@ -151,6 +151,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     private transient ListState<Object> recoveryMarkerOpState;
     private transient Map<Long, Map<Object, Long>> checkpointIdToSeqNums;
 
+    // This in memory map keep track of the runner context for the async action task that having
+    // been finished
+    private final transient Map<ActionTask, RunnerContextImpl> actionTaskRunnerContexts;
+
     public ActionExecutionOperator(
             AgentPlan agentPlan,
             Boolean inputIsJava,
@@ -166,6 +170,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         this.eventListeners = new ArrayList<>();
         this.actionStateStore = actionStateStore;
         this.checkpointIdToSeqNums = new HashMap<>();
+        this.actionTaskRunnerContexts = new HashMap<>();
     }
 
     @Override
@@ -374,6 +379,11 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         } else {
             maybeInitActionState(key, sequenceNumber, actionTask.action, actionTask.event);
             ActionTask.ActionTaskResult actionTaskResult = actionTask.invoke();
+
+            // We remove the RunnerContext of the action task from the map after it is finished. The
+            // RunnerContext will be added later if the action task has a generated action task,
+            // meaning it is not finished.
+            actionTaskRunnerContexts.remove(actionTask);
             maybePersistTaskResult(
                     key,
                     sequenceNumber,
@@ -394,13 +404,23 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         if (isFinished) {
             builtInMetrics.markActionExecuted(actionTask.action.getName());
             currentInputEventFinished = !currentKeyHasMoreActionTask();
+
+            // Persist memory to the Flink state when the action task is finished.
+            actionTask.getRunnerContext().persistMemory();
         } else {
+            checkState(
+                    generatedActionTaskOpt.isPresent(),
+                    "ActionTask not finished, but the generated action task is null.");
+
             // If the action task is not finished, we should get a new action task to continue the
             // execution.
-            checkNotNull(
-                    generatedActionTaskOpt.get(),
-                    "ActionTask not finished, but the generated action task is null.");
-            actionTasksKState.add(generatedActionTaskOpt.get());
+            ActionTask generatedActionTask = generatedActionTaskOpt.get();
+
+            // If the action task is not finished, we keep the runner context in the memory for the
+            // next generated ActionTask to be invoked.
+            actionTaskRunnerContexts.put(generatedActionTask, actionTask.getRunnerContext());
+
+            actionTasksKState.add(generatedActionTask);
         }
 
         // 3. Process the next InputEvent or next action task
@@ -602,14 +622,22 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         }
 
         RunnerContextImpl runnerContext;
-        if (actionTask.action.getExec() instanceof JavaFunction) {
+        if (actionTaskRunnerContexts.containsKey(actionTask)) {
+            runnerContext = actionTaskRunnerContexts.get(actionTask);
+        } else if (actionTask.action.getExec() instanceof JavaFunction) {
             runnerContext =
                     new RunnerContextImpl(
-                            shortTermMemState, metricGroup, this::checkMailboxThread, agentPlan);
+                            new CachedMemoryStore(shortTermMemState),
+                            metricGroup,
+                            this::checkMailboxThread,
+                            agentPlan);
         } else if (actionTask.action.getExec() instanceof PythonFunction) {
             runnerContext =
                     new PythonRunnerContextImpl(
-                            shortTermMemState, metricGroup, this::checkMailboxThread, agentPlan);
+                            new CachedMemoryStore(shortTermMemState),
+                            metricGroup,
+                            this::checkMailboxThread,
+                            agentPlan);
         } else {
             throw new IllegalStateException(
                     "Unsupported action type: " + actionTask.action.getExec().getClass());
