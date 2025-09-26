@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.agents.examples;
+package org.apache.flink.agents.integration.test;
 
 import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
@@ -25,6 +25,7 @@ import org.apache.flink.agents.api.annotation.Action;
 import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.MemoryRef;
 import org.apache.flink.agents.api.context.RunnerContext;
+import org.apache.flink.agents.integration.test.DataStreamIntegrationExample.ItemData;
 
 /**
  * A simple example agent used for explaining integrating agents with DataStream.
@@ -32,18 +33,18 @@ import org.apache.flink.agents.api.context.RunnerContext;
  * <p>This agent processes input events by adding a prefix and a suffix to the input data, counting
  * the number of visits, and emitting an output event.
  */
-public class TableAgent extends Agent {
+public class DataStreamAgent extends Agent {
 
     /** Custom event type for internal agent communication. */
     public static class ProcessedEvent extends Event {
-        private final MemoryRef inputRef;
+        private final MemoryRef itemRef;
 
-        public ProcessedEvent(MemoryRef inputRef) {
-            this.inputRef = inputRef;
+        public ProcessedEvent(MemoryRef itemRef) {
+            this.itemRef = itemRef;
         }
 
-        public MemoryRef getInputRef() {
-            return inputRef;
+        public MemoryRef getItemRef() {
+            return itemRef;
         }
     }
 
@@ -56,7 +57,7 @@ public class TableAgent extends Agent {
     @Action(listenEvents = {InputEvent.class})
     public static void processInput(Event event, RunnerContext ctx) throws Exception {
         InputEvent inputEvent = (InputEvent) event;
-        Object input = inputEvent.getInput();
+        ItemData item = (ItemData) inputEvent.getInput();
 
         // Get short-term memory and update the visit counter for the current key.
         MemoryObject stm = ctx.getShortTermMemory();
@@ -67,9 +68,9 @@ public class TableAgent extends Agent {
         int newCount = currentCount + 1;
         stm.set("visit_count", newCount);
 
-        // Send a custom event with the original input and the new count.
-        MemoryRef inputRef = stm.set("input_data", input);
-        ctx.sendEvent(new ProcessedEvent(inputRef));
+        // Send a custom event for further processing
+        MemoryRef itemRef = stm.set("input_data", item);
+        ctx.sendEvent(new ProcessedEvent(itemRef));
     }
 
     /**
@@ -81,18 +82,15 @@ public class TableAgent extends Agent {
     @Action(listenEvents = {ProcessedEvent.class})
     public static void generateOutput(Event event, RunnerContext ctx) throws Exception {
         ProcessedEvent processedEvent = (ProcessedEvent) event;
-        MemoryRef inputRef = processedEvent.getInputRef();
+        MemoryRef itemRef = processedEvent.getItemRef();
 
-        // Get input data and visitCount using short-term memory
+        // Process the input data using short-term memory
         MemoryObject stm = ctx.getShortTermMemory();
-        Object originalInput = stm.get(inputRef).getValue();
-        int visitCount = (int) stm.get("visit_count").getValue();
+        ItemData originalData = (ItemData) stm.get(itemRef).getValue();
+        originalData.visit_count = (int) stm.get("visit_count").getValue();
 
         // Generate final output
-        String output =
-                String.format(
-                        "Processed: %s, visit_count=%d [Agent Complete]",
-                        originalInput.toString(), visitCount);
+        String output = "Processed: " + originalData.toString() + " [Agent Complete]";
         ctx.sendEvent(new OutputEvent(output));
     }
 }

@@ -15,36 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.agents.examples;
+
+package org.apache.flink.agents.integration.test;
 
 import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
 import org.apache.flink.agents.api.annotation.Action;
-import org.apache.flink.agents.api.context.MemoryObject;
-import org.apache.flink.agents.api.context.MemoryRef;
 import org.apache.flink.agents.api.context.RunnerContext;
-import org.apache.flink.agents.examples.DataStreamIntegrationExample.ItemData;
 
 /**
- * A simple example agent used for explaining integrating agents with DataStream.
+ * A simple example agent that demonstrates basic agent functionality.
  *
- * <p>This agent processes input events by adding a prefix and a suffix to the input data, counting
- * the number of visits, and emitting an output event.
+ * <p>This agent processes input events by adding a prefix to the input data and emitting an output
+ * event.
  */
-public class DataStreamAgent extends Agent {
+public class SimpleAgent extends Agent {
 
     /** Custom event type for internal agent communication. */
     public static class ProcessedEvent extends Event {
-        private final MemoryRef itemRef;
+        private final String processedData;
 
-        public ProcessedEvent(MemoryRef itemRef) {
-            this.itemRef = itemRef;
+        public ProcessedEvent(String processedData) {
+            this.processedData = processedData;
         }
 
-        public MemoryRef getItemRef() {
-            return itemRef;
+        public String getProcessedData() {
+            return processedData;
         }
     }
 
@@ -55,22 +53,15 @@ public class DataStreamAgent extends Agent {
      * @param ctx The runner context for sending events
      */
     @Action(listenEvents = {InputEvent.class})
-    public static void processInput(Event event, RunnerContext ctx) throws Exception {
+    public static void processInput(Event event, RunnerContext ctx) {
         InputEvent inputEvent = (InputEvent) event;
-        ItemData item = (ItemData) inputEvent.getInput();
+        Object input = inputEvent.getInput();
 
-        // Get short-term memory and update the visit counter for the current key.
-        MemoryObject stm = ctx.getShortTermMemory();
-        int currentCount = 0;
-        if (stm.isExist("visit_count")) {
-            currentCount = (int) stm.get("visit_count").getValue();
-        }
-        int newCount = currentCount + 1;
-        stm.set("visit_count", newCount);
+        // Process the input data
+        String processedData = "Processed: " + input.toString();
 
         // Send a custom event for further processing
-        MemoryRef itemRef = stm.set("input_data", item);
-        ctx.sendEvent(new ProcessedEvent(itemRef));
+        ctx.sendEvent(new ProcessedEvent(processedData));
     }
 
     /**
@@ -80,17 +71,12 @@ public class DataStreamAgent extends Agent {
      * @param ctx The runner context for sending events
      */
     @Action(listenEvents = {ProcessedEvent.class})
-    public static void generateOutput(Event event, RunnerContext ctx) throws Exception {
+    public static void generateOutput(Event event, RunnerContext ctx) {
         ProcessedEvent processedEvent = (ProcessedEvent) event;
-        MemoryRef itemRef = processedEvent.getItemRef();
-
-        // Process the input data using short-term memory
-        MemoryObject stm = ctx.getShortTermMemory();
-        ItemData originalData = (ItemData) stm.get(itemRef).getValue();
-        originalData.visit_count = (int) stm.get("visit_count").getValue();
+        String processedData = processedEvent.getProcessedData();
 
         // Generate final output
-        String output = "Processed: " + originalData.toString() + " [Agent Complete]";
+        String output = processedData + " [Agent Complete]";
         ctx.sendEvent(new OutputEvent(output));
     }
 }
