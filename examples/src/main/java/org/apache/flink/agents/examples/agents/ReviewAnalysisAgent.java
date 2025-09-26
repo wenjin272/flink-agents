@@ -18,12 +18,9 @@
 
 package org.apache.flink.agents.examples.agents;
 
-import static org.apache.flink.agents.examples.agents.CustomTypesAndResources.REVIEW_ANALYSIS_PROMPT;
-
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
@@ -45,6 +42,8 @@ import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSet
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static org.apache.flink.agents.examples.agents.CustomTypesAndResources.REVIEW_ANALYSIS_PROMPT;
 
 /**
  * An agent that uses a large language model (LLM) to analyze product reviews and generate a
