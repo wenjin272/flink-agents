@@ -18,7 +18,6 @@
 
 package org.apache.flink.agents.api;
 
-import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.configuration.Configuration;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
@@ -31,8 +30,6 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 import javax.annotation.Nullable;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -205,27 +202,14 @@ public abstract class AgentsExecutionEnvironment {
      *
      * @param name The name indicate the resource.
      * @param type The type of the resource.
-     * @param instance The serializable resource object, or the resource descriptor, or the tool
-     *     method.
+     * @param instance The serializable resource object, or the resource descriptor.
      */
     public AgentsExecutionEnvironment addResource(String name, ResourceType type, Object instance) {
         if (resources.get(type).containsKey(name)) {
             throw new IllegalArgumentException(String.format("%s %s already defined.", type, name));
         }
 
-        if (instance instanceof Method) {
-            Method tool = (Method) instance;
-            if (!Modifier.isStatic(tool.getModifiers())) {
-                throw new IllegalArgumentException("Only static methods are supported");
-            }
-
-            Tool toolAnnotation = tool.getAnnotation(Tool.class);
-            if (toolAnnotation == null) {
-                throw new IllegalArgumentException("Method must be annotated with @Tool");
-            }
-
-            resources.get(ResourceType.TOOL).put(name, tool);
-        } else if (instance instanceof SerializableResource) {
+        if (instance instanceof SerializableResource) {
             resources.get(type).put(name, instance);
         } else if (instance instanceof ResourceDescriptor) {
             resources.get(type).put(name, instance);

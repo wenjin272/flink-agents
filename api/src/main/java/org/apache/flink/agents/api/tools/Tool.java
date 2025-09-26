@@ -21,6 +21,8 @@ package org.apache.flink.agents.api.tools;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.resource.SerializableResource;
 
+import java.lang.reflect.Method;
+
 /**
  * Simplified base class for all tools. Focus on essential tool functionality without
  * overcomplicated features.
@@ -58,5 +60,10 @@ public abstract class Tool extends SerializableResource {
     /** Get the tool description from metadata. */
     public final String getDescription() {
         return metadata.getDescription();
+    }
+
+    /** Get tool keeps a method. */
+    public static FunctionTool fromMethod(Method method) {
+        return new FunctionTool(method);
     }
 }

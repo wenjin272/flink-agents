@@ -143,12 +143,15 @@ class AgentPlanDeclareToolMethodTest {
         agent.addResource(
                         "calculate",
                         ResourceType.TOOL,
-                        TestAgent.class.getMethod(
-                                "calculate", Double.class, Double.class, String.class))
+                        Tool.fromMethod(
+                                TestAgent.class.getMethod(
+                                        "calculate", Double.class, Double.class, String.class)))
                 .addResource(
                         "getWeather",
                         ResourceType.TOOL,
-                        TestAgent.class.getMethod("getWeather", String.class, String.class));
+                        Tool.fromMethod(
+                                TestAgent.class.getMethod(
+                                        "getWeather", String.class, String.class)));
         checkToolCall(new AgentPlan(agent));
     }
 

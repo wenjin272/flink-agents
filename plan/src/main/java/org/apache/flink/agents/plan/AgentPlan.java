@@ -396,7 +396,9 @@ public class AgentPlan implements Serializable {
                 }
             } else if (type == ResourceType.TOOL) {
                 for (Map.Entry<String, Object> kv : entry.getValue().entrySet()) {
-                    extractTool((Method) kv.getValue());
+                    extractTool(
+                            ((org.apache.flink.agents.api.tools.FunctionTool) kv.getValue())
+                                    .getMethod());
                 }
             }
         }
