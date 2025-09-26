@@ -29,6 +29,8 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
+import javax.annotation.Nullable;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
@@ -63,10 +65,11 @@ public abstract class AgentsExecutionEnvironment {
      *
      * @param env Optional StreamExecutionEnvironment for remote execution. If null, a local
      *     execution environment will be created.
+     * @param tEnv Optional StreamTableEnvironment for table-to-stream conversion.
      * @return AgentsExecutionEnvironment appropriate for the execution context.
      */
     public static AgentsExecutionEnvironment getExecutionEnvironment(
-            StreamExecutionEnvironment env) {
+            StreamExecutionEnvironment env, @Nullable StreamTableEnvironment tEnv) {
         if (env == null) {
             // Return local execution environment for testing/development
             try {
@@ -86,12 +89,29 @@ public abstract class AgentsExecutionEnvironment {
                                 "org.apache.flink.agents.runtime.env.RemoteExecutionEnvironment");
                 return (AgentsExecutionEnvironment)
                         remoteEnvClass
-                                .getDeclaredConstructor(StreamExecutionEnvironment.class)
-                                .newInstance(env);
+                                .getDeclaredConstructor(
+                                        StreamExecutionEnvironment.class,
+                                        StreamTableEnvironment.class)
+                                .newInstance(env, tEnv);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to create RemoteExecutionEnvironment", e);
             }
         }
+    }
+
+    /**
+     * Convenience method to get execution environment without Flink StreamTableEnvironment. If
+     * StreamTableEnvironment is needed during execution, the environment will auto crate using
+     * StreamExecutionEnvironment.
+     *
+     * <p>* @param env Optional StreamExecutionEnvironment for remote execution. If null, a local
+     * execution environment will be created.
+     *
+     * @return Remote execution environment for testing and development.
+     */
+    public static AgentsExecutionEnvironment getExecutionEnvironment(
+            StreamExecutionEnvironment env) {
+        return getExecutionEnvironment(env, null);
     }
 
     /**
@@ -155,23 +175,20 @@ public abstract class AgentsExecutionEnvironment {
      * and processing it through agents.
      *
      * @param input Table to be processed by agents.
-     * @param tableEnv StreamTableEnvironment for table-to-stream conversion.
      * @param keySelector Optional KeySelector for extracting keys from table rows.
      * @param <K> Type of the key extracted by the KeySelector.
      * @return AgentBuilder for configuring the agent pipeline.
      */
-    public abstract <K> AgentBuilder fromTable(
-            Table input, StreamTableEnvironment tableEnv, KeySelector<Object, K> keySelector);
+    public abstract <K> AgentBuilder fromTable(Table input, KeySelector<Object, K> keySelector);
 
     /**
      * Set input for agents from a Table without keying.
      *
      * @param input Table to be processed by agents.
-     * @param tableEnv StreamTableEnvironment for table-to-stream conversion.
      * @return AgentBuilder for configuring the agent pipeline.
      */
-    public AgentBuilder fromTable(Table input, StreamTableEnvironment tableEnv) {
-        return fromTable(input, tableEnv, null);
+    public AgentBuilder fromTable(Table input) {
+        return fromTable(input, null);
     }
 
     /**

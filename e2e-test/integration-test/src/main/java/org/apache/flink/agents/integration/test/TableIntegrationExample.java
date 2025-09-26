@@ -78,7 +78,7 @@ public class TableIntegrationExample {
 
         // Create agents execution environment
         AgentsExecutionEnvironment agentsEnv =
-                AgentsExecutionEnvironment.getExecutionEnvironment(env);
+                AgentsExecutionEnvironment.getExecutionEnvironment(env, tableEnv);
 
         // Define output schema
         Schema outputSchema = Schema.newBuilder().column("f0", DataTypes.STRING()).build();
@@ -86,7 +86,7 @@ public class TableIntegrationExample {
         // Apply agent to the Table
         Table outputTable =
                 agentsEnv
-                        .fromTable(inputTable, tableEnv, new RowKeySelector())
+                        .fromTable(inputTable, new RowKeySelector())
                         .apply(new TableAgent())
                         .toTable(outputSchema);
 

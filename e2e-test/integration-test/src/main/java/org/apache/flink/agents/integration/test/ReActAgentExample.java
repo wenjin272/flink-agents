@@ -66,7 +66,7 @@ public class ReActAgentExample {
 
         // Create agents execution environment
         AgentsExecutionEnvironment agentsEnv =
-                AgentsExecutionEnvironment.getExecutionEnvironment(env);
+                AgentsExecutionEnvironment.getExecutionEnvironment(env, tableEnv);
 
         // register resource to agents execution environment.
         agentsEnv
@@ -102,7 +102,6 @@ public class ReActAgentExample {
                 agentsEnv
                         .fromTable(
                                 inputTable,
-                                tableEnv,
                                 (KeySelector<Object, Double>)
                                         value -> (Double) ((Row) value).getField("a"))
                         .apply(agent)

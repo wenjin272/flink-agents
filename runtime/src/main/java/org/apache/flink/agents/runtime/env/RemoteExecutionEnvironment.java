@@ -34,6 +34,8 @@ import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
+import javax.annotation.Nullable;
+
 import java.io.File;
 import java.util.HashMap;
 import java.util.List;
@@ -48,15 +50,25 @@ import java.util.Map;
 public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
 
     private final StreamExecutionEnvironment env;
+    private @Nullable StreamTableEnvironment tEnv;
 
     private final AgentConfiguration config;
 
     public static final String FLINK_CONF_FILENAME = "config.yaml";
 
-    public RemoteExecutionEnvironment(StreamExecutionEnvironment env) {
+    public RemoteExecutionEnvironment(
+            StreamExecutionEnvironment env, @Nullable StreamTableEnvironment tEnv) {
         this.env = env;
+        this.tEnv = tEnv;
         final String configDir = System.getenv(ConfigConstants.ENV_FLINK_CONF_DIR);
         this.config = loadAgentConfiguration(configDir);
+    }
+
+    private StreamTableEnvironment getTableEnvironment() {
+        if (tEnv == null) {
+            tEnv = StreamTableEnvironment.create(env);
+        }
+        return tEnv;
     }
 
     @Override
@@ -72,13 +84,13 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
 
     @Override
     public <T, K> AgentBuilder fromDataStream(DataStream<T> input, KeySelector<T, K> keySelector) {
-        return new RemoteAgentBuilder<>(input, keySelector, env, config, resources);
+        return new RemoteAgentBuilder<>(input, tEnv, keySelector, env, config, resources);
     }
 
     @Override
-    public <K> AgentBuilder fromTable(
-            Table input, StreamTableEnvironment tableEnv, KeySelector<Object, K> keySelector) {
-        return new RemoteAgentBuilder<>(input, tableEnv, keySelector, env, config, resources);
+    public <K> AgentBuilder fromTable(Table input, KeySelector<Object, K> keySelector) {
+        return new RemoteAgentBuilder<>(
+                input, getTableEnvironment(), keySelector, env, config, resources);
     }
 
     @Override
@@ -110,7 +122,7 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
         private final DataStream<T> inputDataStream;
         private final KeySelector<T, K> keySelector;
         private final StreamExecutionEnvironment env;
-        private final StreamTableEnvironment tableEnv;
+        private @Nullable StreamTableEnvironment tableEnv;
         private final AgentConfiguration config;
         private final Map<ResourceType, Map<String, Object>> resources;
 
@@ -120,6 +132,7 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
         // Constructor for DataStream input
         public RemoteAgentBuilder(
                 DataStream<T> inputDataStream,
+                @Nullable StreamTableEnvironment tableEnv,
                 KeySelector<T, K> keySelector,
                 StreamExecutionEnvironment env,
                 AgentConfiguration config,
@@ -127,7 +140,7 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
             this.inputDataStream = inputDataStream;
             this.keySelector = keySelector;
             this.env = env;
-            this.tableEnv = null;
+            this.tableEnv = tableEnv;
             this.config = config;
             this.resources = resources;
         }
@@ -147,6 +160,13 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
             this.tableEnv = tableEnv;
             this.config = config;
             this.resources = resources;
+        }
+
+        private StreamTableEnvironment getTableEnvironment() {
+            if (tableEnv == null) {
+                tableEnv = StreamTableEnvironment.create(env);
+            }
+            return tableEnv;
         }
 
         @Override
@@ -189,13 +209,8 @@ public class RemoteExecutionEnvironment extends AgentsExecutionEnvironment {
 
         @Override
         public Table toTable(Schema schema) {
-            if (tableEnv == null) {
-                throw new IllegalStateException(
-                        "Table environment not available. Use fromTable() method to enable table output.");
-            }
-
             DataStream<Object> dataStream = toDataStream();
-            return tableEnv.fromDataStream(dataStream, schema);
+            return getTableEnvironment().fromDataStream(dataStream, schema);
         }
     }
 }
