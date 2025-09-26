@@ -32,7 +32,7 @@ from pyflink.table import (
 )
 
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
-from flink_agents.examples.my_agent import TableAgent
+from flink_agents.e2e_tests.my_agent import TableAgent
 
 current_dir = Path(__file__).parent
 
