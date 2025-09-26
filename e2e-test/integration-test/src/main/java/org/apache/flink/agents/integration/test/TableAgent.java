@@ -15,34 +15,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.flink.agents.examples;
+package org.apache.flink.agents.integration.test;
 
 import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
 import org.apache.flink.agents.api.annotation.Action;
+import org.apache.flink.agents.api.context.MemoryObject;
+import org.apache.flink.agents.api.context.MemoryRef;
 import org.apache.flink.agents.api.context.RunnerContext;
 
 /**
- * A simple example agent that demonstrates basic agent functionality.
+ * A simple example agent used for explaining integrating agents with DataStream.
  *
- * <p>This agent processes input events by adding a prefix to the input data and emitting an output
- * event.
+ * <p>This agent processes input events by adding a prefix and a suffix to the input data, counting
+ * the number of visits, and emitting an output event.
  */
-public class SimpleAgent extends Agent {
+public class TableAgent extends Agent {
 
     /** Custom event type for internal agent communication. */
     public static class ProcessedEvent extends Event {
-        private final String processedData;
+        private final MemoryRef inputRef;
 
-        public ProcessedEvent(String processedData) {
-            this.processedData = processedData;
+        public ProcessedEvent(MemoryRef inputRef) {
+            this.inputRef = inputRef;
         }
 
-        public String getProcessedData() {
-            return processedData;
+        public MemoryRef getInputRef() {
+            return inputRef;
         }
     }
 
@@ -53,15 +54,22 @@ public class SimpleAgent extends Agent {
      * @param ctx The runner context for sending events
      */
     @Action(listenEvents = {InputEvent.class})
-    public static void processInput(Event event, RunnerContext ctx) {
+    public static void processInput(Event event, RunnerContext ctx) throws Exception {
         InputEvent inputEvent = (InputEvent) event;
         Object input = inputEvent.getInput();
 
-        // Process the input data
-        String processedData = "Processed: " + input.toString();
+        // Get short-term memory and update the visit counter for the current key.
+        MemoryObject stm = ctx.getShortTermMemory();
+        int currentCount = 0;
+        if (stm.isExist("visit_count")) {
+            currentCount = (int) stm.get("visit_count").getValue();
+        }
+        int newCount = currentCount + 1;
+        stm.set("visit_count", newCount);
 
-        // Send a custom event for further processing
-        ctx.sendEvent(new ProcessedEvent(processedData));
+        // Send a custom event with the original input and the new count.
+        MemoryRef inputRef = stm.set("input_data", input);
+        ctx.sendEvent(new ProcessedEvent(inputRef));
     }
 
     /**
@@ -71,12 +79,20 @@ public class SimpleAgent extends Agent {
      * @param ctx The runner context for sending events
      */
     @Action(listenEvents = {ProcessedEvent.class})
-    public static void generateOutput(Event event, RunnerContext ctx) {
+    public static void generateOutput(Event event, RunnerContext ctx) throws Exception {
         ProcessedEvent processedEvent = (ProcessedEvent) event;
-        String processedData = processedEvent.getProcessedData();
+        MemoryRef inputRef = processedEvent.getInputRef();
+
+        // Get input data and visitCount using short-term memory
+        MemoryObject stm = ctx.getShortTermMemory();
+        Object originalInput = stm.get(inputRef).getValue();
+        int visitCount = (int) stm.get("visit_count").getValue();
 
         // Generate final output
-        String output = processedData + " [Agent Complete]";
+        String output =
+                String.format(
+                        "Processed: %s, visit_count=%d [Agent Complete]",
+                        originalInput.toString(), visitCount);
         ctx.sendEvent(new OutputEvent(output));
     }
 }

@@ -30,5 +30,6 @@ under the License.
     <name>Flink Agents : E2E Tests: </name>
     <modules>
         <module>agent-plan-compatibility-test</module>
+        <module>integration-test</module>
     </modules>
 </project>

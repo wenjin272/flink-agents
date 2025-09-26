@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.agents.examples;
+package org.apache.flink.agents.integration.test;
 
 import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.InputEvent;
