@@ -24,11 +24,10 @@ import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.annotation.Action;
-import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.tools.BaseTool;
+import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.agents.api.tools.ToolMetadata;
 import org.apache.flink.agents.api.tools.ToolParameters;
 import org.apache.flink.agents.api.tools.ToolResponse;
@@ -51,7 +50,8 @@ class AgentPlanDeclareToolMethodTest {
     private AgentPlan agentPlan;
 
     static class TestAgent extends Agent {
-        @Tool(description = "Performs basic arithmetic operations")
+        @org.apache.flink.agents.api.annotation.Tool(
+                description = "Performs basic arithmetic operations")
         public static double calculate(
                 @ToolParam(name = "a") Double a,
                 @ToolParam(name = "b") Double b,
@@ -71,7 +71,8 @@ class AgentPlanDeclareToolMethodTest {
             }
         }
 
-        @Tool(description = "Get weather information for a location")
+        @org.apache.flink.agents.api.annotation.Tool(
+                description = "Get weather information for a location")
         public static String getWeather(
                 @ToolParam(name = "location") String location,
                 @ToolParam(name = "units") String units) {
@@ -104,7 +105,7 @@ class AgentPlanDeclareToolMethodTest {
     }
 
     void checkToolCall(AgentPlan agentPlan) throws Exception {
-        BaseTool calculator = (BaseTool) agentPlan.getResource("calculate", ResourceType.TOOL);
+        Tool calculator = (Tool) agentPlan.getResource("calculate", ResourceType.TOOL);
         ToolParameters tp =
                 new ToolParameters(
                         new HashMap<>(
@@ -116,7 +117,7 @@ class AgentPlanDeclareToolMethodTest {
         assertTrue(r.isSuccess());
         assertEquals(45.0, (Double) r.getResult(), 0.001);
 
-        BaseTool weather = (BaseTool) agentPlan.getResource("getWeather", ResourceType.TOOL);
+        Tool weather = (Tool) agentPlan.getResource("getWeather", ResourceType.TOOL);
         ToolResponse wr =
                 weather.call(
                         new ToolParameters(
@@ -149,7 +150,7 @@ class AgentPlanDeclareToolMethodTest {
     @Test
     @DisplayName("Parameter conversion and errors")
     void paramConversionAndErrors() throws Exception {
-        BaseTool calculator = (BaseTool) agentPlan.getResource("calculate", ResourceType.TOOL);
+        Tool calculator = (Tool) agentPlan.getResource("calculate", ResourceType.TOOL);
 
         ToolResponse r =
                 calculator.call(
@@ -204,7 +205,7 @@ class AgentPlanDeclareToolMethodTest {
     @Test
     @DisplayName("Metadata and schema shape")
     void metadataSchema() throws Exception {
-        BaseTool calculator = (BaseTool) agentPlan.getResource("calculate", ResourceType.TOOL);
+        Tool calculator = (Tool) agentPlan.getResource("calculate", ResourceType.TOOL);
         ToolMetadata md = calculator.getMetadata();
         assertEquals("calculate", md.getName());
         assertEquals("Performs basic arithmetic operations", md.getDescription());
@@ -221,7 +222,7 @@ class AgentPlanDeclareToolMethodTest {
         ObjectMapper mapper = new ObjectMapper();
         String json = mapper.writeValueAsString(agentPlan);
         AgentPlan restored = mapper.readValue(json, AgentPlan.class);
-        BaseTool calculator = (BaseTool) restored.getResource("calculate", ResourceType.TOOL);
+        Tool calculator = (Tool) restored.getResource("calculate", ResourceType.TOOL);
         ToolResponse r =
                 calculator.call(
                         new ToolParameters(

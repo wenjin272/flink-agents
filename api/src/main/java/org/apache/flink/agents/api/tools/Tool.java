@@ -25,11 +25,11 @@ import org.apache.flink.agents.api.resource.SerializableResource;
  * Simplified base class for all tools. Focus on essential tool functionality without
  * overcomplicated features.
  */
-public abstract class BaseTool extends SerializableResource {
+public abstract class Tool extends SerializableResource {
 
     protected final ToolMetadata metadata;
 
-    protected BaseTool(ToolMetadata metadata) {
+    protected Tool(ToolMetadata metadata) {
         this.metadata = java.util.Objects.requireNonNull(metadata, "metadata cannot be null");
     }
 

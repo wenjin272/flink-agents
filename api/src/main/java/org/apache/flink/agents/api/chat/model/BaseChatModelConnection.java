@@ -22,7 +22,7 @@ import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.tools.BaseTool;
+import org.apache.flink.agents.api.tools.Tool;
 
 import java.util.List;
 import java.util.Map;
@@ -55,5 +55,5 @@ public abstract class BaseChatModelConnection extends Resource {
      * @return the chat response containing model outputs
      */
     public abstract ChatMessage chat(
-            List<ChatMessage> messages, List<BaseTool> tools, Map<String, Object> arguments);
+            List<ChatMessage> messages, List<Tool> tools, Map<String, Object> arguments);
 }

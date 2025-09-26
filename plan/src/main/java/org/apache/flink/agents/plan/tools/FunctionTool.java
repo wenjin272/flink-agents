@@ -20,9 +20,8 @@
 
 package org.apache.flink.agents.plan.tools;
 
-import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
-import org.apache.flink.agents.api.tools.BaseTool;
+import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.agents.api.tools.ToolMetadata;
 import org.apache.flink.agents.api.tools.ToolParameters;
 import org.apache.flink.agents.api.tools.ToolResponse;
@@ -45,7 +44,7 @@ import java.lang.reflect.Parameter;
  */
 @JsonSerialize(using = FunctionToolJsonSerializer.class)
 @JsonDeserialize(using = FunctionToolJsonDeserializer.class)
-public class FunctionTool extends BaseTool {
+public class FunctionTool extends Tool {
 
     private final Function function;
 
@@ -62,7 +61,8 @@ public class FunctionTool extends BaseTool {
                     "FunctionTool only supports static methods. Method: " + method.getName());
         }
 
-        Tool toolAnnotation = method.getAnnotation(Tool.class);
+        org.apache.flink.agents.api.annotation.Tool toolAnnotation =
+                method.getAnnotation(org.apache.flink.agents.api.annotation.Tool.class);
         String name = method.getName();
         String description = toolAnnotation != null ? toolAnnotation.description() : "";
 

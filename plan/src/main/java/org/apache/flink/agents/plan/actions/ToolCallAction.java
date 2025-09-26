@@ -21,7 +21,7 @@ import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.event.ToolRequestEvent;
 import org.apache.flink.agents.api.event.ToolResponseEvent;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.tools.BaseTool;
+import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.agents.api.tools.ToolParameters;
 import org.apache.flink.agents.api.tools.ToolResponse;
 import org.apache.flink.agents.plan.JavaFunction;
@@ -58,9 +58,9 @@ public class ToolCallAction {
                 externalIds.put(id, (String) toolCall.get("original_id"));
             }
 
-            BaseTool tool = null;
+            Tool tool = null;
             try {
-                tool = (BaseTool) ctx.getResource(name, ResourceType.TOOL);
+                tool = (Tool) ctx.getResource(name, ResourceType.TOOL);
             } catch (Exception e) {
                 success.put(id, false);
                 responses.put(

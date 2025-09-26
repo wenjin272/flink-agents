@@ -24,11 +24,10 @@ import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.annotation.Action;
-import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.tools.BaseTool;
+import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.agents.api.tools.ToolMetadata;
 import org.apache.flink.agents.api.tools.ToolParameters;
 import org.apache.flink.agents.api.tools.ToolResponse;
@@ -79,16 +78,18 @@ class AgentPlanDeclareToolFieldTest {
     }
 
     static class TestAgent extends Agent {
-        @Tool private final BaseTool calculator = createCalculatorTool();
+        @org.apache.flink.agents.api.annotation.Tool
+        private final Tool calculator = createCalculatorTool();
 
-        @Tool private final BaseTool weather = createWeatherTool();
+        @org.apache.flink.agents.api.annotation.Tool
+        private final Tool weather = createWeatherTool();
 
         @Action(listenEvents = {InputEvent.class})
         public void onInput(Event e, RunnerContext ctx) {
             /* no-op */
         }
 
-        private static BaseTool createCalculatorTool() {
+        private static Tool createCalculatorTool() {
             try {
                 Method m =
                         AgentPlanDeclareToolFieldTest.class.getMethod(
@@ -99,7 +100,7 @@ class AgentPlanDeclareToolFieldTest {
             }
         }
 
-        private static BaseTool createWeatherTool() {
+        private static Tool createWeatherTool() {
             try {
                 Method m =
                         AgentPlanDeclareToolFieldTest.class.getMethod(
@@ -130,7 +131,7 @@ class AgentPlanDeclareToolFieldTest {
     @Test
     @DisplayName("Retrieve FunctionTool and call with parameters")
     void callCalculator() throws Exception {
-        BaseTool tool = (BaseTool) agentPlan.getResource("calculator", ResourceType.TOOL);
+        Tool tool = (Tool) agentPlan.getResource("calculator", ResourceType.TOOL);
         assertInstanceOf(FunctionTool.class, tool);
         ToolResponse r =
                 tool.call(
@@ -147,7 +148,7 @@ class AgentPlanDeclareToolFieldTest {
     @Test
     @DisplayName("Call weather FunctionTool")
     void callWeather() throws Exception {
-        BaseTool tool = (BaseTool) agentPlan.getResource("weather", ResourceType.TOOL);
+        Tool tool = (Tool) agentPlan.getResource("weather", ResourceType.TOOL);
         assertInstanceOf(FunctionTool.class, tool);
         ToolResponse r =
                 tool.call(
@@ -178,7 +179,7 @@ class AgentPlanDeclareToolFieldTest {
     @Test
     @DisplayName("FunctionTool error cases")
     void calculatorErrors() throws Exception {
-        BaseTool tool = (BaseTool) agentPlan.getResource("calculator", ResourceType.TOOL);
+        Tool tool = (Tool) agentPlan.getResource("calculator", ResourceType.TOOL);
         ToolResponse r =
                 tool.call(
                         new ToolParameters(
