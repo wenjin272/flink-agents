@@ -26,7 +26,7 @@ from pyflink.datastream import (
 from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
 
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
-from flink_agents.examples.my_agent import DataStreamAgent, ItemData
+from flink_agents.e2e_tests.my_agent import DataStreamAgent, ItemData
 
 
 class MyKeySelector(KeySelector):
