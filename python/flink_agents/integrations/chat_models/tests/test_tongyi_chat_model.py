@@ -36,8 +36,10 @@ api_key_available = "DASHSCOPE_API_KEY" in os.environ
 @pytest.mark.skipif(not api_key_available, reason="DashScope API key is not set")
 def test_tongyi_chat() -> None:
     """Test basic chat functionality of TongyiChatModelConnection."""
-    connection = TongyiChatModelConnection(name="tongyi", model=test_model)
-    response = connection.chat([ChatMessage(role=MessageRole.USER, content="Hello!")])
+    connection = TongyiChatModelConnection(name="tongyi")
+    response = connection.chat(
+        [ChatMessage(role=MessageRole.USER, content="Hello!")], model=test_model
+    )
     assert response is not None
     assert response.content is not None
     assert response.content.strip() != ""
@@ -70,7 +72,7 @@ def get_tool(name: str, type: ResourceType) -> FunctionTool:
 @pytest.mark.skipif(not api_key_available, reason="DashScope API key is not set")
 def test_tongyi_chat_with_tools() -> None:
     """Test chat functionality with tool calling."""
-    connection = TongyiChatModelConnection(name="tongyi", model=test_model)
+    connection = TongyiChatModelConnection(name="tongyi")
 
     def get_resource(name: str, type: ResourceType) -> Resource:
         if type == ResourceType.TOOL:
@@ -79,7 +81,11 @@ def test_tongyi_chat_with_tools() -> None:
             return connection
 
     llm = TongyiChatModelSetup(
-        name="tongyi", connection="tongyi", tools=["add"], get_resource=get_resource,
+        name="tongyi",
+        model=test_model,
+        connection="tongyi",
+        tools=["add"],
+        get_resource=get_resource,
     )
 
     response = llm.chat(
@@ -100,8 +106,10 @@ def test_tongyi_chat_with_tools() -> None:
 def test_tongyi_chat_with_extract_reasoning(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that extract_reasoning functionality works correctly (mock DashScope)."""
     content = "The meaning of life is often considered to be 42, according to the Hitchhiker's Guide to the Galaxy."
-    reasoning_content = ("To answer what the meaning of life is, I should consider philosophical perspectives. "
-                         "The question is often associated with the number 42 from Hitchhiker's Guide to the Galaxy.")
+    reasoning_content = (
+        "To answer what the meaning of life is, I should consider philosophical perspectives. "
+        "The question is often associated with the number 42 from Hitchhiker's Guide to the Galaxy."
+    )
 
     mocked_response = SimpleNamespace(
         status_code=200,
@@ -128,7 +136,6 @@ def test_tongyi_chat_with_extract_reasoning(monkeypatch: pytest.MonkeyPatch) -> 
 
     connection = TongyiChatModelConnection(
         name="tongyi",
-        model=test_model,
         api_key=os.environ.get("DASHSCOPE_API_KEY", "fake-key"),
     )
 
@@ -137,6 +144,7 @@ def test_tongyi_chat_with_extract_reasoning(monkeypatch: pytest.MonkeyPatch) -> 
 
     llm = TongyiChatModelSetup(
         name="tongyi",
+        model=test_model,
         connection="tongyi",
         extract_reasoning=True,
         get_resource=get_resource,

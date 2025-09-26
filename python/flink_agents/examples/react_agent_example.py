@@ -49,9 +49,7 @@ if __name__ == "__main__":
 
     # register resource to execution environment
     (
-        env.add_resource(
-            "ollama", ResourceDescriptor(clazz=OllamaChatModelConnection, model=model)
-        )
+        env.add_resource("ollama", ResourceDescriptor(clazz=OllamaChatModelConnection))
         .add_resource("add", Tool.from_callable(add))
         .add_resource("multiply", Tool.from_callable(multiply))
     )
@@ -70,7 +68,10 @@ if __name__ == "__main__":
     # create ReAct agent.
     agent = ReActAgent(
         chat_model=ResourceDescriptor(
-            clazz=OllamaChatModelSetup, connection="ollama", tools=["add", "multiply"]
+            clazz=OllamaChatModelSetup,
+            connection="ollama",
+            model=model,
+            tools=["add", "multiply"],
         ),
         prompt=prompt,
         output_schema=OutputData,

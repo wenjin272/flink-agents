@@ -57,10 +57,10 @@ def main() -> None:
     # by the Agent.
     agents_env.add_resource(
         "ollama_server",
-        ResourceDescriptor(
-            clazz=OllamaChatModelConnection, model="qwen3:8b", request_timeout=120
-        ),
-    ).add_resource("notify_shipping_manager", Tool.from_callable(notify_shipping_manager))
+        ResourceDescriptor(clazz=OllamaChatModelConnection, request_timeout=120),
+    ).add_resource(
+        "notify_shipping_manager", Tool.from_callable(notify_shipping_manager)
+    )
 
     # Read product reviews from a text file as a streaming source.
     # Each line in the file should be a JSON string representing a ProductReview.
@@ -84,6 +84,7 @@ def main() -> None:
         chat_model=ResourceDescriptor(
             clazz=OllamaChatModelSetup,
             connection="ollama_server",
+            model="qwen3:8b",
             tools=["notify_shipping_manager"],
         ),
         prompt=review_analysis_react_prompt,

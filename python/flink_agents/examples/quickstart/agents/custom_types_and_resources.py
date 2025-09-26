@@ -201,5 +201,5 @@ class ProductReviewAnalysisRes(BaseModel):
 
 # ollama chat model connection descriptor
 ollama_server_descriptor = ResourceDescriptor(
-    clazz=OllamaChatModelConnection, model="qwen3:8b", request_timeout=120
+    clazz=OllamaChatModelConnection, request_timeout=120
 )
