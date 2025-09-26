@@ -21,13 +21,13 @@ package org.apache.flink.agents.integration.test;
 import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.AgentsExecutionEnvironment;
 import org.apache.flink.agents.api.agents.ReActAgent;
-import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.prompt.Prompt;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelConnection;
 import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSetup;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -45,12 +45,14 @@ import org.apache.flink.types.Row;
 import java.util.List;
 
 public class ReActAgentExample {
-    @Tool(description = "Useful function to add two numbers.")
+    @org.apache.flink.agents.api.annotation.Tool(
+            description = "Useful function to add two numbers.")
     public static double add(@ToolParam(name = "a") Double a, @ToolParam(name = "b") Double b) {
         return a + b;
     }
 
-    @Tool(description = "Useful function to multiply two numbers.")
+    @org.apache.flink.agents.api.annotation.Tool(
+            description = "Useful function to multiply two numbers.")
     public static double multiply(
             @ToolParam(name = "a") Double a, @ToolParam(name = "b") Double b) {
         return a * b;
@@ -81,11 +83,15 @@ public class ReActAgentExample {
                 .addResource(
                         "add",
                         ResourceType.TOOL,
-                        ReActAgentExample.class.getMethod("add", Double.class, Double.class))
+                        Tool.fromMethod(
+                                ReActAgentExample.class.getMethod(
+                                        "add", Double.class, Double.class)))
                 .addResource(
                         "multiply",
                         ResourceType.TOOL,
-                        ReActAgentExample.class.getMethod("multiply", Double.class, Double.class));
+                        Tool.fromMethod(
+                                ReActAgentExample.class.getMethod(
+                                        "multiply", Double.class, Double.class)));
 
         // Declare the ReAct agent.
         Agent agent = getAgent();
