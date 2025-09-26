@@ -72,7 +72,7 @@ if __name__ == "__main__":
         ),
     )
 
-    env = AgentsExecutionEnvironment.get_execution_environment(env=stream_env)
+    env = AgentsExecutionEnvironment.get_execution_environment(env=stream_env, t_env=t_env)
 
     # register resource to execution environment
     (
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     schema = (Schema.new_builder().column("result", DataTypes.INT())).build()
 
     output_table = (
-        env.from_table(input=table, t_env=t_env, key_selector=MyKeySelector())
+        env.from_table(input=table, key_selector=MyKeySelector())
         .apply(agent)
         .to_table(schema=schema, output_type=output_type)
     )

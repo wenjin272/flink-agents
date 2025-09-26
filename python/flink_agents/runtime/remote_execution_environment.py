@@ -66,6 +66,15 @@ class RemoteAgentBuilder(AgentBuilder):
         self.__config = config
         self.__resources = resources
 
+    @property
+    def t_env(self) -> StreamTableEnvironment:
+        """Get or crate table environment."""
+        if self.__t_env is None:
+            self.__t_env = StreamTableEnvironment.create(
+                stream_execution_environment=self.__env
+            )
+        return self.__t_env
+
     def apply(self, agent: Agent) -> "AgentBuilder":
         """Set agent of execution environment.
 
@@ -134,7 +143,7 @@ class RemoteAgentBuilder(AgentBuilder):
         Table
             Output Table of agent execution.
         """
-        return self.__t_env.from_data_stream(self.to_datastream(output_type), schema)
+        return self.t_env.from_data_stream(self.to_datastream(output_type), schema)
 
     def to_list(self) -> List[Dict[str, Any]]:
         """Get output list of agent execution.
@@ -149,17 +158,32 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
     """Implementation of AgentsExecutionEnvironment for execution with DataStream."""
 
     __env: StreamExecutionEnvironment
+    __t_env: StreamTableEnvironment
     __config: AgentConfiguration
 
-    def __init__(self, env: StreamExecutionEnvironment) -> None:
+    def __init__(
+        self,
+        env: StreamExecutionEnvironment,
+        t_env: StreamTableEnvironment | None = None,
+    ) -> None:
         """Init method of RemoteExecutionEnvironment."""
         super().__init__()
         self.__env = env
+        self.__t_env = t_env
         self.__config = AgentConfiguration()
         flink_conf_dir = os.environ.get("FLINK_CONF_DIR")
         if flink_conf_dir is not None:
             config_dir = Path(flink_conf_dir) / "config.yaml"
             self.__config.load_from_file(str(config_dir))
+
+    @property
+    def t_env(self) -> StreamTableEnvironment:
+        """Get or crate table environment."""
+        if self.__t_env is None:
+            self.__t_env = StreamTableEnvironment.create(
+                stream_execution_environment=self.__env
+            )
+        return self.__t_env
 
     def get_config(self, path: str | None = None) -> AgentConfiguration:
         """Get the writable configuration for flink agents.
@@ -200,13 +224,15 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         input = self.__process_input_datastream(input, key_selector)
 
         return RemoteAgentBuilder(
-            input=input, config=self.__config, resources=self.resources
+            input=input,
+            config=self.__config,
+            t_env=self.__t_env,
+            resources=self.resources,
         )
 
     def from_table(
         self,
         input: Table,
-        t_env: StreamTableEnvironment,
         key_selector: KeySelector | Callable | None = None,
     ) -> AgentBuilder:
         """Set input Table of agent.
@@ -215,18 +241,19 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
         ----------
         input : Table
             Receive a Table as input.
-        t_env: StreamTableEnvironment
-            table environment supports convert table to/from datastream.
         key_selector : KeySelector
             Extract key from each input record.
         """
-        input = t_env.to_data_stream(table=input)
+        input = self.t_env.to_data_stream(table=input)
 
         input = input.map(lambda x: x, output_type=PickledBytesTypeInfo())
 
         input = self.__process_input_datastream(input, key_selector)
         return RemoteAgentBuilder(
-            input=input, config=self.__config, t_env=t_env, resources=self.resources
+            input=input,
+            config=self.__config,
+            t_env=self.t_env,
+            resources=self.resources,
         )
 
     def from_list(self, input: List[Dict[str, Any]]) -> "AgentsExecutionEnvironment":
@@ -243,7 +270,7 @@ class RemoteExecutionEnvironment(AgentsExecutionEnvironment):
 
 
 def create_instance(
-    env: StreamExecutionEnvironment, **kwargs: Dict[str, Any]
+    env: StreamExecutionEnvironment, t_env: StreamTableEnvironment, **kwargs: Any
 ) -> AgentsExecutionEnvironment:
     """Factory function to create a remote agents execution environment.
 
@@ -251,6 +278,8 @@ def create_instance(
     ----------
     env : StreamExecutionEnvironment
         Flink job execution environment.
+    t_env : StreamTableEnvironment
+        Flink job execution table environment.
     **kwargs : Dict[str, Any]
         The dict of parameters to configure the execution environment.
 
@@ -259,4 +288,4 @@ def create_instance(
     AgentsExecutionEnvironment
         A configured agents execution environment instance.
     """
-    return RemoteExecutionEnvironment(env=env)
+    return RemoteExecutionEnvironment(env=env, t_env=t_env)

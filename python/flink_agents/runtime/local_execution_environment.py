@@ -41,13 +41,17 @@ class LocalAgentBuilder(AgentBuilder):
     __config: AgentConfiguration
 
     def __init__(
-        self, env: "LocalExecutionEnvironment", input: List[Dict[str, Any]], config: AgentConfiguration
+        self,
+        env: "LocalExecutionEnvironment",
+        input: List[Dict[str, Any]],
+        config: AgentConfiguration,
     ) -> None:
         """Init empty output list."""
         self.__env = env
         self.__input = input
         self.__output = []
         self.__config = config
+
     def apply(self, agent: Agent) -> AgentBuilder:
         """Create local runner to execute given agent.
 
@@ -130,7 +134,7 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
             self.__output.append(output)
 
     def from_datastream(
-        self, input: DataStream, key_selector : KeySelector | Callable | None = None
+        self, input: DataStream, key_selector: KeySelector | Callable | None = None
     ) -> AgentBuilder:
         """Set input DataStream of agent execution.
 
@@ -142,7 +146,6 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
     def from_table(
         self,
         input: Table,
-        t_env: StreamTableEnvironment,
         key_selector: KeySelector | Callable | None = None,
     ) -> AgentBuilder:
         """Set input Table of agent execution.
@@ -154,7 +157,7 @@ class LocalExecutionEnvironment(AgentsExecutionEnvironment):
 
 
 def create_instance(
-    env: StreamExecutionEnvironment, **kwargs: Dict[str, Any]
+    env: StreamExecutionEnvironment, t_env: StreamTableEnvironment, **kwargs: Any
 ) -> AgentsExecutionEnvironment:
     """Factory function to create a remote agents execution environment.
 
@@ -162,6 +165,8 @@ def create_instance(
     ----------
     env : StreamExecutionEnvironment
         Flink job execution environment.
+    t_env: StreamTableEnvironment
+        Flink job execution table environment.
     **kwargs : Dict[str, Any]
         The dict of parameters to configure the execution environment.
 
