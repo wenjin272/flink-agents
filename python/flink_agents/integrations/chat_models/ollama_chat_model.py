@@ -46,8 +46,6 @@ class OllamaChatModelConnection(BaseChatModelConnection):
     ----------
     base_url : str
         Base url the model is hosted under.
-    model : str
-        Model name to use.
     request_timeout : float
         The timeout for making http request to Ollama API server.
     """
@@ -56,7 +54,6 @@ class OllamaChatModelConnection(BaseChatModelConnection):
         default="http://localhost:11434",
         description="Base url the model is hosted under.",
     )
-    model: str = Field(description="Model name to use.")
     request_timeout: float = Field(
         default=DEFAULT_REQUEST_TIMEOUT,
         description="The timeout for making http request to Ollama API server.",
@@ -66,14 +63,12 @@ class OllamaChatModelConnection(BaseChatModelConnection):
 
     def __init__(
         self,
-        model: str,
         base_url: str = "http://localhost:11434",
         request_timeout: float | None = DEFAULT_REQUEST_TIMEOUT,
         **kwargs: Any,
     ) -> None:
         """Init method."""
         super().__init__(
-            model=model,
             base_url=base_url,
             request_timeout=request_timeout,
             **kwargs,
@@ -101,7 +96,7 @@ class OllamaChatModelConnection(BaseChatModelConnection):
             ollama_tools = [to_openai_tool(metadata=tool.metadata) for tool in tools]
 
         response = self.client.chat(
-            model=self.model,
+            model=kwargs.pop("model"),
             messages=ollama_messages,
             stream=False,
             tools=ollama_tools,
@@ -173,6 +168,8 @@ class OllamaChatModelSetup(BaseChatModelSetup):
         Prompt template or string for the model. (Inherited from BaseChatModelSetup)
     tools : Optional[List[str]]
         List of available tools to use in the chat. (Inherited from BaseChatModelSetup)
+    model : str
+        Model name to use.
     temperature : float
         The temperature to use for sampling.
     num_ctx : int
@@ -186,6 +183,8 @@ class OllamaChatModelSetup(BaseChatModelSetup):
         If True, extracts content within <think></think> tags from the response and
         stores it in additional_kwargs.
     """
+
+    model: str = Field(description="Model name to use.")
 
     temperature: float = Field(
         default=0.75,
@@ -217,6 +216,7 @@ class OllamaChatModelSetup(BaseChatModelSetup):
     def __init__(
         self,
         connection: str,
+        model: str,
         temperature: float = 0.75,
         num_ctx: int = DEFAULT_CONTEXT_WINDOW,
         request_timeout: float | None = DEFAULT_REQUEST_TIMEOUT,
@@ -230,6 +230,7 @@ class OllamaChatModelSetup(BaseChatModelSetup):
             additional_kwargs = {}
         super().__init__(
             connection=connection,
+            model=model,
             temperature=temperature,
             num_ctx=num_ctx,
             request_timeout=request_timeout,
@@ -243,6 +244,7 @@ class OllamaChatModelSetup(BaseChatModelSetup):
     def model_kwargs(self) -> Dict[str, Any]:
         """Return ollama model configuration."""
         base_kwargs = {
+            "model": self.model,
             "temperature": self.temperature,
             "num_ctx": self.num_ctx,
             "keep_alive": self.keep_alive,

@@ -60,8 +60,10 @@ except Exception:
     client is None, reason="Ollama client is not available or test model is missing"
 )
 def test_ollama_chat() -> None:  # noqa :D103
-    server = OllamaChatModelConnection(name="ollama", model=test_model)
-    response = server.chat([ChatMessage(role=MessageRole.USER, content="Hello!")])
+    server = OllamaChatModelConnection(name="ollama")
+    response = server.chat(
+        [ChatMessage(role=MessageRole.USER, content="Hello!")], model=test_model
+    )
     assert response is not None
     assert str(response).strip() != ""
 
@@ -92,7 +94,7 @@ def get_tool(name: str, type: ResourceType) -> FunctionTool:  # noqa :D103
     client is None, reason="Ollama client is not available or test model is missing"
 )
 def test_ollama_chat_with_tools() -> None:  # noqa :D103
-    connection = OllamaChatModelConnection(name="ollama", model=test_model)
+    connection = OllamaChatModelConnection(name="ollama")
 
     def get_resource(name: str, type: ResourceType) -> Resource:
         if type == ResourceType.TOOL:
@@ -101,7 +103,11 @@ def test_ollama_chat_with_tools() -> None:  # noqa :D103
             return connection
 
     llm = OllamaChatModelSetup(
-        name="ollama", connection="ollama", tools=["add"], get_resource=get_resource
+        name="ollama",
+        connection="ollama",
+        model=test_model,
+        tools=["add"],
+        get_resource=get_resource,
     )
     response = llm.chat(
         [
@@ -122,9 +128,7 @@ def test_extract_think_tags() -> None:
     """Test the static method that extracts content from <think></think> tags."""
     # Test with a think tag at the beginning (most common case)
     content = "<think>First, I need to understand the question.\nThen I need to formulate an answer.</think>The answer is 42."
-    cleaned, reasoning = (
-        OllamaChatModelConnection._extract_reasoning(content)
-    )
+    cleaned, reasoning = OllamaChatModelConnection._extract_reasoning(content)
     assert cleaned == "The answer is 42."
     assert (
         reasoning
@@ -132,17 +136,13 @@ def test_extract_think_tags() -> None:
     )
     # Test with a think tag only
     content = "<think>This is just my thought process.</think>"
-    cleaned, reasoning = (
-        OllamaChatModelConnection._extract_reasoning(content)
-    )
+    cleaned, reasoning = OllamaChatModelConnection._extract_reasoning(content)
     assert cleaned == ""
     assert reasoning == "This is just my thought process."
 
     # Test with no think tags
     content = "This is a regular response without any thinking tags."
-    cleaned, reasoning = (
-        OllamaChatModelConnection._extract_reasoning(content)
-    )
+    cleaned, reasoning = OllamaChatModelConnection._extract_reasoning(content)
     assert cleaned == content
     assert reasoning is None
 
@@ -160,7 +160,7 @@ def test_ollama_chat_with_extract_reasoning() -> None:
     # Configure mock client to return our mock response
     mock_client.chat.return_value = mock_response
     # Create model with mocked client
-    connection = OllamaChatModelConnection(name="ollama", model=test_model)
+    connection = OllamaChatModelConnection(name="ollama")
 
     def get_resource(name: str, type: ResourceType) -> Resource:
         return connection
@@ -168,6 +168,7 @@ def test_ollama_chat_with_extract_reasoning() -> None:
     llm = OllamaChatModelSetup(
         name="ollama",
         connection="ollama",
+        model=test_model,
         extract_reasoning=True,
         get_resource=get_resource,
     )

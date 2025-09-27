@@ -67,8 +67,13 @@ class ProductSuggestionAgent(Agent):
     @staticmethod
     def generate_suggestion_model() -> ResourceDescriptor:
         """ChatModel which focus on generating product suggestions."""
-        return ResourceDescriptor(clazz=OllamaChatModelSetup, connection="ollama_server",
-                                  prompt="generate_suggestion_prompt", extract_reasoning=True)
+        return ResourceDescriptor(
+            clazz=OllamaChatModelSetup,
+            connection="ollama_server",
+            model="qwen3:8b",
+            prompt="generate_suggestion_prompt",
+            extract_reasoning=True,
+        )
 
     @action(InputEvent)
     @staticmethod

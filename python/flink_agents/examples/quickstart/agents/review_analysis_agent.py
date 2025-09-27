@@ -86,6 +86,7 @@ class ReviewAnalysisAgent(Agent):
         return ResourceDescriptor(
             clazz=OllamaChatModelSetup,
             connection="ollama_server",
+            model="qwen3:8b",
             prompt="review_analysis_prompt",
             tools=["notify_shipping_manager"],
             extract_reasoning=True,

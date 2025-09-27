@@ -35,7 +35,9 @@ DEFAULT_REQUEST_TIMEOUT = 60.0
 DEFAULT_MODEL = "qwen-plus"
 
 
-def to_dashscope_tool(metadata: ToolMetadata, skip_length_check: bool = False) -> Dict[str, Any]:  # noqa:FBT001
+def to_dashscope_tool(
+    metadata: ToolMetadata, skip_length_check: bool = False # noqa:FBT001
+) -> Dict[str, Any]:
     """To DashScope tool."""
     if not skip_length_check and len(metadata.description) > 1024:
         msg = (
@@ -60,8 +62,6 @@ class TongyiChatModelConnection(BaseChatModelConnection):
     ----------
     api_key : str
         Your DashScope API key.
-    model : str
-        Model name to use.
     request_timeout : float
         The timeout for making http request to Tongyi API server.
     """
@@ -70,7 +70,6 @@ class TongyiChatModelConnection(BaseChatModelConnection):
         default_factory=lambda: os.environ.get("DASHSCOPE_API_KEY"),
         description="Your DashScope API key.",
     )
-    model: str = Field(default=DEFAULT_MODEL, description="Model name to use.")
     request_timeout: float = Field(
         default=DEFAULT_REQUEST_TIMEOUT,
         description="The timeout for making http request to Tongyi API server.",
@@ -78,7 +77,6 @@ class TongyiChatModelConnection(BaseChatModelConnection):
 
     def __init__(
         self,
-        model: str = DEFAULT_MODEL,
         api_key: str | None = None,
         request_timeout: float | None = DEFAULT_REQUEST_TIMEOUT,
         **kwargs: Any,
@@ -92,9 +90,7 @@ class TongyiChatModelConnection(BaseChatModelConnection):
             )
             raise ValueError(msg)
 
-
         super().__init__(
-            model=model,
             api_key=resolved_api_key,
             request_timeout=request_timeout,
             **kwargs,
@@ -118,7 +114,7 @@ class TongyiChatModelConnection(BaseChatModelConnection):
         req_api_key = kwargs.pop("api_key", self.api_key)
 
         response = Generation.call(
-            model=self.model,
+            model=kwargs.pop("model", DEFAULT_MODEL),
             messages=tongyi_messages,
             tools=tongyi_tools,
             result_format="message",
@@ -129,9 +125,7 @@ class TongyiChatModelConnection(BaseChatModelConnection):
 
         if getattr(response, "status_code", 200) != 200:
             msg = f"DashScope call failed: {getattr(response, 'message', 'unknown error')}"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
 
         choice = response.output["choices"][0]
         response_message: Dict[str, Any] = choice["message"]
@@ -146,7 +140,10 @@ class TongyiChatModelConnection(BaseChatModelConnection):
             tool_call_dict = {
                 "id": uuid.uuid4(),
                 "type": "function",
-                "function": {"name": fn.get("name"),"arguments": args,},
+                "function": {
+                    "name": fn.get("name"),
+                    "arguments": args,
+                },
                 "additional_kwargs": {"original_tool_call_id": tc.get("id")},
             }
             tool_calls.append(tool_call_dict)
@@ -217,6 +214,8 @@ class TongyiChatModelSetup(BaseChatModelSetup):
         Prompt template or string for the model. (Inherited from BaseChatModelSetup)
     tools : Optional[List[str]]
         List of available tools to use in the chat. (Inherited from BaseChatModelSetup)
+    model : str
+        Model name to use.
     temperature : float
         The temperature to use for sampling.
     additional_kwargs : Dict[str, Any]
@@ -226,6 +225,7 @@ class TongyiChatModelSetup(BaseChatModelSetup):
         in additional_kwargs.
     """
 
+    model: str = Field(default=DEFAULT_MODEL, description="Model name to use.")
     temperature: float = Field(
         default=0.7,
         description="The temperature to use for sampling.",
@@ -244,6 +244,7 @@ class TongyiChatModelSetup(BaseChatModelSetup):
     def __init__(
         self,
         connection: str,
+        model: str = DEFAULT_MODEL,
         temperature: float = 0.7,
         additional_kwargs: Dict[str, Any] | None = None,
         extract_reasoning: bool | None = False,
@@ -254,6 +255,7 @@ class TongyiChatModelSetup(BaseChatModelSetup):
             additional_kwargs = {}
         super().__init__(
             connection=connection,
+            model=model,
             temperature=temperature,
             additional_kwargs=additional_kwargs,
             extract_reasoning=extract_reasoning,
@@ -264,6 +266,7 @@ class TongyiChatModelSetup(BaseChatModelSetup):
     def model_kwargs(self) -> Dict[str, Any]:
         """Return Tongyi model configuration."""
         base_kwargs = {
+            "model": self.model,
             "temperature": self.temperature,
             "extract_reasoning": self.extract_reasoning,
         }

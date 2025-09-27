@@ -58,13 +58,13 @@ class MyAgent(Agent):
         if not os.environ.get("DASHSCOPE_API_KEY"):
             msg = "Please set the 'DASHSCOPE_API_KEY' environment variable."
             raise ValueError(msg)
-        return ResourceDescriptor(clazz=TongyiChatModelConnection, model=TONGYI_MODEL)
+        return ResourceDescriptor(clazz=TongyiChatModelConnection)
 
     @chat_model_connection
     @staticmethod
     def ollama_connection() -> ResourceDescriptor:
         """ChatModelConnection responsible for ollama model service connection."""
-        return ResourceDescriptor(clazz=OllamaChatModelConnection, model=OLLAMA_MODEL)
+        return ResourceDescriptor(clazz=OllamaChatModelConnection)
 
     @chat_model_setup
     @staticmethod
@@ -74,12 +74,14 @@ class MyAgent(Agent):
             return ResourceDescriptor(
                 clazz=TongyiChatModelSetup,
                 connection="tongyi_connection",
+                model=TONGYI_MODEL,
                 tools=["add"],
             )
         else:
             return ResourceDescriptor(
                 clazz=OllamaChatModelSetup,
                 connection="ollama_connection",
+                model=OLLAMA_MODEL,
                 tools=["add"],
                 extract_reasoning=True,
             )
@@ -90,12 +92,15 @@ class MyAgent(Agent):
         """ChatModel which focus on text generate, and reuse ChatModelConnection."""
         if CURRENT_BACKEND == "Tongyi":
             return ResourceDescriptor(
-                clazz=TongyiChatModelSetup, connection="tongyi_connection"
+                clazz=TongyiChatModelSetup,
+                connection="tongyi_connection",
+                model=TONGYI_MODEL,
             )
         else:
             return ResourceDescriptor(
                 clazz=TongyiChatModelSetup,
                 connection="ollama_connection",
+                model=OLLAMA_MODEL,
                 extract_reasoning=True,
             )
 
