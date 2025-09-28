@@ -53,7 +53,7 @@ def main() -> None:
     env = StreamExecutionEnvironment.get_execution_environment()
     agents_env = AgentsExecutionEnvironment.get_execution_environment(env)
 
-    # Add Ollama chat model connection and record shipping question tool to be used
+    # Add Ollama chat model connection and notify shipping manager tool to be used
     # by the Agent.
     agents_env.add_resource(
         "ollama_server",
@@ -91,8 +91,8 @@ def main() -> None:
         output_schema=ProductReviewAnalysisRes,
     )
 
-    # Use the ReAct agent to analyze each product review and
-    # record shipping question.
+    # Use the ReAct agent to analyze each product review and notify the shipping manager
+    # when needed.
     review_analysis_res_stream = (
         agents_env.from_datastream(
             input=product_review_stream, key_selector=lambda x: x.id
