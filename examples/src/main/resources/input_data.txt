@@ -1,10 +1,10 @@
-{"id":1,"review":"Great product! Works perfectly and lasts a long time.","review_score":3.0}
-{"id":2,"review":"The item arrived damaged, and the packaging was poor.","review_score":5.0}
-{"id":3,"review":"Highly satisfied with the performance and value for money.","review_score":7.0}
-{"id":3,"review":"Not as good as expected. It stopped working after a week.","review_score":8.0}
-{"id":1,"review":"Fast shipping and excellent customer service. Would buy again!","review_score":8.0}
-{"id":2,"review":"Too complicated to set up. Instructions were unclear.","review_score":8.0}
-{"id":2,"review":"Good quality, but overview_scored for what it does.","review_score":8.0}
-{"id":1,"review":"Exactly what I needed. Easy to use and very reliable.","review_score":8.0}
-{"id":2,"review":"Worst purchase ever. Waste of money and time.","review_score":8.0}
-{"id":2,"review":"Looks nice and functions well, but could be more durable.","review_score":8.0}
+{"id": "B010RRWKT4", "review": "Love these! I have 3 pairs...they're so comfortable - I'm on my feet all day & my feet actually don't hurt at the end of the day when I wear these :)\nI've learned to get these 1/2 size smaller....I'm normally a size 7 and the 6 1/2 fit perfectly"}
+{"id": "B000YFSR4W", "review": "comfy fit"}
+{"id": "B000YFSR4W", "review": "The magazine was already damaged when I received it — the whole book was wet!"}
+{"id": "B010RRWKT4", "review": "I ordered a 1/2 size smaller than my usual size, and they are perfect. These shoes are hard to find. Great customer service as well."}
+{"id": "B001IKJOLW", "review": "I wear them for Zumba and my heel slips on turns. A little annoying because I have to pay attention but they are so cute and comfy, it balances out."}
+{"id": "B009MA34NY", "review": "I love these, I had the previous iteration (or maybe two earlier?) and finally wore them out after several years. They are definitely a light-weight training shoe so I wouldn't get them if you are going to be doing a lot of running. But this also makes them extremely comfortable, I hadn't realized how hot running shoes made my feet until I switched to these. Good support and my feet stay cool all day, also noticeably light but well-made and long lasting.\n\nI have worn them hiking in a pinch but don't really recommend it because the material is mesh-like and will let a lot of dirt in. But if you mainly take cardio classes and/or do weight training or just need something to wear around town look no further."}
+{"id": "B014IBJKNO", "review": "Great shoes. Lightweight and comfortable"}
+{"id": "B001IKJOLW", "review": "Perfect"}
+{"id": "B010RRWKT4", "review": "Love them"}
+{"id": "B009MA34NY", "review": "Fit true to size"}

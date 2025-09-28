@@ -57,7 +57,11 @@ public class WorkflowSingleAgentExample {
                 env.fromSource(
                         FileSource.forRecordStreamFormat(
                                         new TextLineFormat(),
-                                        new Path("src/main/resources/input_data.txt"))
+                                        new Path(
+                                                WorkflowSingleAgentExample.class
+                                                        .getClassLoader()
+                                                        .getResource("input_data.txt")
+                                                        .getPath()))
                                 .build(),
                         WatermarkStrategy.noWatermarks(),
                         "streaming-agent-example");

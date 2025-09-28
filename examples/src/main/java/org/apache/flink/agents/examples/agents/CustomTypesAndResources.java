@@ -117,7 +117,6 @@ public class CustomTypesAndResources {
     // Ollama chat model connection descriptor
     public static final ResourceDescriptor OLLAMA_SERVER_DESCRIPTOR =
             ResourceDescriptor.Builder.newBuilder(OllamaChatModelConnection.class.getName())
-                    .addInitialArgument("model", "qwen3:8b")
                     .addInitialArgument("request_timeout", "120")
                     .build();
 

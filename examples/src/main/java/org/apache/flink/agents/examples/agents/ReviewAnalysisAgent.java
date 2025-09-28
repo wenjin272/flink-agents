@@ -42,6 +42,7 @@ import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSet
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.apache.flink.agents.examples.agents.CustomTypesAndResources.REVIEW_ANALYSIS_PROMPT;
 
@@ -108,7 +109,7 @@ public class ReviewAnalysisAgent extends Agent {
                 String.format(
                         "{\n" + "\"id\": %s,\n" + "\"review\": \"%s\"\n" + "}",
                         inputObj.getId(), inputObj.getReview());
-        ChatMessage msg = new ChatMessage(MessageRole.USER, content);
+        ChatMessage msg = new ChatMessage(MessageRole.USER, "", Map.of("input", content));
 
         ctx.sendEvent(new ChatRequestEvent("reviewAnalysisModel", List.of(msg)));
     }

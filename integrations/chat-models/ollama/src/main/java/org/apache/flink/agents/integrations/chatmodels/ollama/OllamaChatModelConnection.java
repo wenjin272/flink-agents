@@ -86,6 +86,8 @@ public class OllamaChatModelConnection extends BaseChatModelConnection {
         Integer maxChatToolCallRetries = descriptor.getArgument("maxChatToolCallRetries");
         this.client.setMaxChatToolCallRetries(
                 maxChatToolCallRetries != null ? maxChatToolCallRetries : 10);
+        Long requestTimeout = descriptor.getArgument("requestTimeout");
+        this.client.setRequestTimeoutSeconds(requestTimeout != null ? requestTimeout : 120);
         this.pattern = Pattern.compile("<think>(.*?)</think>", Pattern.DOTALL);
     }
 
