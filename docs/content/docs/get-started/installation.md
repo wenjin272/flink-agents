@@ -53,11 +53,10 @@ To run on a Flink cluster, ensure the Flink Agents Java JARs are placed in the F
 
 <!-- TODO: fill in the command after Flink Agents is released -->
 ```shell
-# Download the Flink Agents released tar
+# Download the Flink Agents released flink-agents-dist jar.
 
-# After downloading and extracting the Flink Agents release bundle,
-# copy the Flink Agents JARs to Flink's lib directory
-
+# After downloading the bundle jar, copy it to Flink's lib directory.
+cp flink-agents-dist-$VERSION.jar $FLINK_HOME/lib/
 ```
 
 <!-- TODO: link to flink quickstart example docs -->
@@ -80,9 +79,18 @@ To clone from Git, run:
 git clone https://github.com/apache/flink-agents.git
 ```
 
+### Build
+To run on a Flink cluster, we need build the whole project.
+
+We provide a script to run:
+
+```shell
+bash tools/build.sh
+```
+
 ### Java Build
 
-The Python wheel depends on the Flink Agents Java modules, so we need to build Flink Agents Java modules first, run:
+To try Flink Agents in Java, user can build java independently.
 
 ```shell
 cd flink-agents
@@ -91,7 +99,8 @@ mvn clean install -DskipTests
 
 ### Python Build and Install
 
-Then we can build and install the Flink Agents wheel.
+To try Flink Agents in Python on a local executor,
+user can build Python independently.
 
 {{< tabs>}}
 {{< tab "uv (Recommended)" >}}
@@ -140,8 +149,8 @@ python -m pip install dist/*.whl
 
 To install the Java dependencies to Flink, run:
 
-<!-- TODO: fill in the command after Flink Agents produce uber jar -->
 ```shell
 
 # copy the Flink Agents JARs to Flink's lib directory
+cp flink-agents-dist-$VERSION.jar $FLINK_HOME/lib/
 ```
