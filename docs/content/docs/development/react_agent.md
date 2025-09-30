@@ -29,10 +29,10 @@ ReAct Agent is a general paradigm that combines reasoning and action capabilitie
 ## ReAct Agent Example
 
 ```python
-review_analysis_react_agent = ReActAgent(
+my_react_agent = ReActAgent(
     chat_model=chat_model_descriptor,
     prompt=my_prompt,
-    output_schema=MyBaseModelDataType,
+    output_schema=MyBaseModelDataType, # or output_schema=my_row_type_info
 )
 ```
 ## Initialize Arguments
@@ -41,7 +41,7 @@ User should specify the chat model used in the ReAct Agent.
 
 We use `ResourceDescriptor` to describe the chat model, includes chat model type and chat model arguments. See [Chat Model]({{< ref "docs/development/chat_with_llm#chatmodel" >}}) for more details.
 ```python
-chat_model = ResourceDescriptor(
+chat_model_descriptor = ResourceDescriptor(
     clazz=OllamaChatModelSetup,
     connection="my_ollama_connection",
     model="qwen3:8b",
