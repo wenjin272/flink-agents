@@ -77,9 +77,9 @@ review_analysis_react_prompt = Prompt.from_messages(
             role=MessageRole.SYSTEM,
             content=review_analysis_system_prompt_str,
         ),
-        # For react agent, framework will deserialize input element
-        # to dict and fill the prompt.
-        # Note, the input element should be BaseModel or Row.
+        # For react agent, if the input element is not primitive types,
+        # framework will deserialize input element to dict and fill the prompt.
+        # Note, the input element should be primitive types, BaseModel or Row.
         ChatMessage(
             role=MessageRole.USER,
             content="""
