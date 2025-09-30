@@ -25,8 +25,6 @@ under the License.
 ## Overview
 Flink Agents provides both Python and Java APIs to define a Flink Agents job.
 
-To try Flink-Agents in Python or Java, user can only install the correspond package.
-
 The sections below show how to install the required dependencies.
 
 {{< hint warning >}}
@@ -47,9 +45,6 @@ To install the latest Flink Agents release, run:
 ```shell
 python -m pip install flink-agents
 ```
-
-Now you can run a python Flink Agents job.
-See [quickstart example]({{< ref "docs/get-started/quickstart/workflow_agent" >}}) for end-to-end examples of running on Flink.
 
 #### Install Java Package
 To run java job on a Flink cluster, ensure the Flink Agents Java JARs are placed in the Flink lib directory:
@@ -95,7 +90,6 @@ cd flink-agents
 To install the Java dependencies to Flink, run:
 
 ```shell
-
 cd flink-agents
 # copy the Flink Agents JARs to Flink's lib directory
 cp dist/target/flink-agents-dist-0.1-SNAPSHOT.jar $FLINK_HOME/lib/
