@@ -94,3 +94,20 @@ cd flink-agents
 # copy the Flink Agents JARs to Flink's lib directory
 cp dist/target/flink-agents-dist-0.1-SNAPSHOT.jar $FLINK_HOME/lib/
 ```
+
+To install the Python package, just set the `PYTHONPATH` environment variable.
+
+User can set the system environment variable once.
+```shell
+vi ~/.bash_profile # or ~/.bashrc, ~/.zprofile, depends on your os
+# Append the below line to the file
+export PYTHONPATH=$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
+source ~/.bash_profile
+```
+Here, the command `python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])` is to get the python path in current environment. It should be the python path which installed flink-agents.
+
+Or, if the user have multiple `PYTHONPATH` and don't want to set a system environment variable, they can export the `PYTHONPATH` before start flink cluster and submit flink job. See [deployment]({{< ref "docs/operations/deployment" >}}) for more details.
+```shell
+export PYTHONPATH=$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
+# start cluster or submit job
+```
