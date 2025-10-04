@@ -98,21 +98,37 @@ review_analysis_react_agent = ReActAgent(
 
 Flink Agents supports integrating with a remote MCP server to use the resources provided by the MCP server, including tools and prompts.
 
-{{< hint warning >}}
-**TODO**: How to integrate with MCP Server.
-{{< /hint >}}
+To use MCP server in workflow agent, developer can use @mcp_server annotation to declare the server.
+```python
+@mcp_server
+@staticmethod
+def my_mcp_server() -> MCPServer:
+    """Define MCP server connection."""
+    return MCPServer(endpoint=MCP_SERVER_ENDPOINT)
+```
 
-### MCP Tools
+### How to use MCP Tool and MCP Prompt
 
-{{< hint warning >}}
-**TODO**: How to use the tools provided by MCP Server.
-{{< /hint >}}
+The MCP tool and prompt can be used the in same way with local function tool and local prompt.
 
-### MCP Prompt
+If developer define a MCP server providing tool `add` and prompt `ask_sum`, they can use them when talking  with chat model.
 
-{{< hint warning >}}
-**TODO**: How to use the prompts provided by MCP Server.
-{{< /hint >}}
+```python
+@chat_model_setup
+@staticmethod
+def math_chat_model() -> ResourceDescriptor:
+    """ChatModel using MCP prompt and tool."""
+    return ResourceDescriptor(
+        clazz=OllamaChatModelSetup,
+        connection="ollama_connection",
+        model=OLLAMA_MODEL,
+        prompt="ask_sum",  # MCP prompt registered from my_mcp_server
+        tools=["add"],  # MCP tool registered from my_mcp_server
+        extract_reasoning=True,
+        )
+```
+
+
 
 ## Built-in Events for Tool
 
