@@ -42,6 +42,9 @@ For resources like `ChatModel`, `EmbeddingModel`, and `VectorStore`, Flink Agent
 
 #### Example: Defining a Math-Focused Chat Model
 
+{{< tabs "Example: Defining a Math-Focused Chat Model" >}}
+
+{{< tab "Python" >}}
 ```python
 class MyAgent(Agent):
     """Example agent demonstrating the new ChatModel architecture."""
@@ -67,6 +70,33 @@ class MyAgent(Agent):
             extract_reasoning=True            # Enable reasoning extraction
         )
 ```
+{{< /tab >}}
+
+{{< tab "Java" >}}
+```java
+public class MyAgent extends Agent {
+    @ChatModelConnection
+    public static ResourceDescriptor ollamaConnection() {
+        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelConnection.class.getName())
+                .addInitialArgument("endpoint", "http://localhost:11434")
+                .addInitialArgument("requestTimeout", 120)
+                .build();
+    }
+
+    @ChatModelSetup
+    public static ResourceDescriptor mathChatModel() {
+        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
+                .addInitialArgument("connection", "ollamaConnection")
+                .addInitialArgument("model", OLLAMA_MODEL)
+                .addInitialArgument("tools", List.of("add"))
+                .addInitialArgument("extractReasoning", true)
+                .build();
+    }
+}
+```
+{{< /tab >}}
+
+{{< /tabs >}}
 
 ### Setting via the AgentsExecutionEnvironment
 

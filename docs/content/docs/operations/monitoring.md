@@ -45,6 +45,9 @@ In Flink Agents, users implement their logic by defining custom Actions that res
 
 Here is the user case example:
 
+{{< tabs "Custom Metrics" >}}
+
+{{< tab "Python" >}}
 ```python
 class MyAgent(Agent):
     @action(InputEvent)
@@ -67,6 +70,35 @@ class MyAgent(Agent):
         action_metrics.get_histogram("actionLatencyMs") \
             .update(int(time.time_ns() - start_time) // 1000000)
 ```
+{{< /tab >}}
+
+{{< tab "Java" >}}
+```java
+public class MyAgent extends Agent {
+
+    @Action(listenEvents = {InputEvent.class})
+    public static void firstAction(InputEvent event, RunnerContext ctx) throws Exception {
+        long startTime = System.currentTimeMillis();
+        
+        // the action logic
+        ...
+        
+        FlinkAgentsMetricGroup metrics = ctx.getAgentMetricGroup();
+
+        metrics.getCounter("numInputEvent").inc();
+        metrics.getMeter("numInputEventPerSec").markEvent();
+
+        FlinkAgentsMetricGroup actionMetrics = ctx.getActionMetricGroup();
+        actionMetrics
+                .getHistogram("actionLatencyMs")
+                .update(System.currentTimeMillis() - startTime);
+    }
+}
+```
+{{< /tab >}}
+
+{{< /tabs >}}
+
 
 ### How to check the metrics with Flink executor
 
@@ -82,7 +114,7 @@ The Flink Agents' log system uses Flink's logging framework. For more details, p
 
 ### How to add log in Flink Agents
 
-For adding logs in Java code, you can refer to [Best practices for developers](https://nightlies.apache.org/flink/flink-docs-master/docs/deployment/advanced/logging/#best-practices-for-developers). In Python, you can add logs using `logging`. Here is a specific example:
+For adding logs in Java code, you can refer to [Flink documentation](https://nightlies.apache.org/flink/flink-docs-master/docs/deployment/advanced/logging/#best-practices-for-developers). In Python, you can add logs using `logging`. Here is a specific example:
 
 ```python
 @action(InputEvent)
