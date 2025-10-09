@@ -123,6 +123,9 @@ Follow the [instructions]({{< ref "docs/get-started/installation" >}}) to instal
 
 ### Submit to Flink Cluster
 
+{{< tabs "Submit to Flink Cluster" >}}
+
+{{< tab "Python" >}}
 Submitting Flink Agent jobs to the Flink Cluster is the same as submitting PyFlink jobs. For more details on all available options, please refer to the [Flink CLI documentation](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/deployment/cli/#submitting-pyflink-jobs).
 
 ```bash
@@ -130,5 +133,23 @@ Submitting Flink Agent jobs to the Flink Cluster is the same as submitting PyFli
       --jobmanager <FLINK_CLUSTER_ADDR> \
       --python <PATH_TO_YOUR_FLINK_AGENTS_JOB>
 ```
+{{< /tab >}}
+
+{{< tab "Java" >}}
+Submitting Flink Agent jobs to the Flink Cluster is the same as submitting Flink jobs. For more details on all available options, please refer to the [Flink CLI documentation](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/deployment/cli/#submitting-a-job).
+
+```bash
+<FLINK_HOME>/bin/flink run \
+      -c <MAIN_CLASS> \
+      <PATH_TO_YOUR_FLINK_AGENTS_JOB_JAR>
+```
+{{< hint warning >}}
+Currently, to resolve the classloader issue, user should place the Flink Agents job jar to Flink lib directory before start the Flink cluster.
+{{< /hint >}}
+
+{{< /tab >}}
+
+{{< /tabs >}}
+
 
 Now you should see a Flink job submitted to the Flink Cluster in Flink web UI (typically accessible at http://&lt;jobmanagerHost&gt;:8081).
