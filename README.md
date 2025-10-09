@@ -2,6 +2,8 @@
 
 Apache Flink Agents is an Agentic AI framework based on Apache Flink.
 
+[User Documentation](https://nightlies.apache.org/flink/flink-agents-docs-main/)
+
 ## Building
 
 Prerequisites for building Flink Agents:
