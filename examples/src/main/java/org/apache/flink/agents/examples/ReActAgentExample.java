@@ -35,11 +35,11 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.types.Row;
 
+import java.io.File;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.Objects;
 
-import static org.apache.flink.agents.api.resource.ResourceType.TOOL;
+import static org.apache.flink.agents.examples.WorkflowSingleAgentExample.copyResource;
 
 /**
  * Java example demonstrating the ReActAgent for product review analysis and shipping notification.
@@ -92,24 +92,21 @@ public class ReActAgentExample {
                         CustomTypesAndResources.OLLAMA_SERVER_DESCRIPTOR)
                 .addResource(
                         "notifyShippingManager",
-                        TOOL,
+                        ResourceType.TOOL,
                         org.apache.flink.agents.api.tools.Tool.fromMethod(
                                 ReActAgentExample.class.getMethod(
                                         "notifyShippingManager", String.class, String.class)));
 
         // Read product reviews from input_data.txt file as a streaming source.
         // Each element represents a ProductReview.
+
+        File inputDataFile = copyResource("input_data.txt");
+
         DataStream<Row> productReviewStream =
                 env.fromSource(
                                 FileSource.forRecordStreamFormat(
                                                 new TextLineFormat(),
-                                                new Path(
-                                                        Objects.requireNonNull(
-                                                                        ReActAgentExample.class
-                                                                                .getClassLoader()
-                                                                                .getResource(
-                                                                                        "input_data.txt"))
-                                                                .getPath()))
+                                                new Path(inputDataFile.getAbsolutePath()))
                                         .monitorContinuously(Duration.ofMinutes(1))
                                         .build(),
                                 WatermarkStrategy.noWatermarks(),
