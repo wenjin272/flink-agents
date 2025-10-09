@@ -45,6 +45,9 @@ In Flink Agents, users implement their logic by defining custom Actions that res
 
 Here is the user case example:
 
+{{< tabs "Custom Metrics" >}}
+
+{{< tab "Python" >}}
 ```python
 class MyAgent(Agent):
     @action(InputEvent)
@@ -67,6 +70,35 @@ class MyAgent(Agent):
         action_metrics.get_histogram("actionLatencyMs") \
             .update(int(time.time_ns() - start_time) // 1000000)
 ```
+{{< /tab >}}
+
+{{< tab "Java" >}}
+```java
+public class MyAgent extends Agent {
+
+    @Action(listenEvents = {InputEvent.class})
+    public static void firstAction(InputEvent event, RunnerContext ctx) throws Exception {
+        long startTime = System.currentTimeMillis();
+        
+        // the action logic
+        ...
+        
+        FlinkAgentsMetricGroup metrics = ctx.getAgentMetricGroup();
+
+        metrics.getCounter("numInputEvent").inc();
+        metrics.getMeter("numInputEventPerSec").markEvent();
+
+        FlinkAgentsMetricGroup actionMetrics = ctx.getActionMetricGroup();
+        actionMetrics
+                .getHistogram("actionLatencyMs")
+                .update(System.currentTimeMillis() - startTime);
+    }
+}
+```
+{{< /tab >}}
+
+{{< /tabs >}}
+
 
 ### How to check the metrics with Flink executor
 
