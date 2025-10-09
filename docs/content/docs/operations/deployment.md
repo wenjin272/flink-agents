@@ -146,6 +146,9 @@ Submitting Flink Agent jobs to the Flink Cluster is the same as submitting Flink
 {{< hint warning >}}
 Currently, to resolve the classloader issue, user should place the Flink Agents job jar to Flink lib directory before start the Flink cluster.
 {{< /hint >}}
+
+{{< /tab >}}
+
 {{< /tabs >}}
 
 

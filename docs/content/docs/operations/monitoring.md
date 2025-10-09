@@ -114,7 +114,7 @@ The Flink Agents' log system uses Flink's logging framework. For more details, p
 
 ### How to add log in Flink Agents
 
-For adding logs in Java code, you can refer to [Best practices for developers](https://nightlies.apache.org/flink/flink-docs-master/docs/deployment/advanced/logging/#best-practices-for-developers). In Python, you can add logs using `logging`. Here is a specific example:
+For adding logs in Java code, you can refer to [Flink documentation](https://nightlies.apache.org/flink/flink-docs-master/docs/deployment/advanced/logging/#best-practices-for-developers). In Python, you can add logs using `logging`. Here is a specific example:
 
 ```python
 @action(InputEvent)
