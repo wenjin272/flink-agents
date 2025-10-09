@@ -32,9 +32,9 @@ Chat models enable agents to communicate with Large Language Models (LLMs) for n
 
 To use chat models in your agents, you need to define both a connection and setup using decorators/annotations, then interact with the model through events.
 
-### Resource Decorators/Annotations
+### Resource Declaration
 
-Flink Agents provides decorators to simplify chat model setup within agents:
+Flink Agents provides decorators in python and annotations in java to simplify chat model setup within agents:
 
 #### @chat_model_connection/@ChatModelConnection
 
@@ -147,7 +147,7 @@ public class MyAgent extends Agent {
 Anthropic provides cloud-based chat models featuring the Claude family, known for their strong reasoning, coding, and safety capabilities.
 
 {{< hint warning >}}
-Anthropic is only supported in python.
+Anthropic is only supported in python currently.
 {{< /hint >}}
 
 #### Prerequisites
@@ -362,7 +362,7 @@ Model availability and specifications may change. Always check the official Olla
 OpenAI provides cloud-based chat models with state-of-the-art performance for a wide range of natural language tasks.
 
 {{< hint warning >}}
-OpenAI is only supported in python.
+OpenAI is only supported in python currently.
 {{< /hint >}}
 
 #### Prerequisites
@@ -445,7 +445,7 @@ Model availability and specifications may change. Always check the official Open
 Tongyi provides cloud-based chat models from Alibaba Cloud, offering powerful Chinese and English language capabilities.
 
 {{< hint warning >}}
-Tongyi is only supported in python.
+Tongyi is only supported in python currently.
 {{< /hint >}}
 
 #### Prerequisites

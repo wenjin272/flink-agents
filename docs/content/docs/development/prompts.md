@@ -41,7 +41,7 @@ Local prompts are templates defined directly in your code. They support variable
 MCP (Model Context Protocol) prompts are managed by external MCP servers. They enable dynamic prompt retrieval, centralized prompt management, and integration with external prompt repositories.
 
 {{< hint warning >}}
-MCP Prompt is only supported in python.
+MCP Prompt is only supported in python currently.
 {{< /hint >}}
 ## Local Prompt
 
@@ -189,7 +189,7 @@ Prompt reviewAnalysisPrompt =
 
 ### Using Prompts in Agents
 
-Register a prompt as an agent resource using the `@prompt` decorator/annotation:
+Register a prompt as an agent resource using the `@prompt` decorator in python (or `@Prompt` annotation in java):
 
 {{< tabs "Using Prompts in Agents" >}}
 
@@ -336,7 +336,7 @@ MCP (Model Context Protocol) is a standardized protocol for integrating AI appli
 {{< /hint >}}
 
 {{< hint warning >}}
-MCP Prompt is only supported in python.
+MCP Prompt is only supported in python currently.
 {{< /hint >}}
 
 MCP prompts are managed by external MCP servers and automatically discovered when you define an MCP server connection in your agent.

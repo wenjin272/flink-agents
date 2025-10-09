@@ -28,15 +28,15 @@ Flink Agents provides a flexible and extensible tool use mechanism. Developers c
 
 ## Local Function as Tool
 
-Developer can define the tool as a local Python function, and there are two ways to define and register an local function as a tool:
+Developer can define the tool as a local Python/Java function, and there are two ways to define and register a local function as a tool:
 
 {{< hint info >}}
-Flink Agents uses the docstring of the tool function to generate the tool metadata. The docstring of the python function should accurately describe the tool's purpose, parameters, and return value, so that the LLM can understand the tool and use it effectively.
+Flink Agents uses the docstring of the python tool function to generate the tool metadata. The docstring of the python function should accurately describe the tool's purpose, parameters, and return value, so that the LLM can understand the tool and use it effectively.
 {{< /hint >}}
 
 ### Define Tool as Static Method in Agent Class
 
-Developer can define the tool as a static method in the agent class while defining the workflow agent, and use the `@tool` annotation to mark the method as a tool. The tool can be referenced by its name in the `tools` list of the `ResourceDescriptor` when creating the chat model in the agent.
+Developer can define the tool as a static method in the agent class while defining the workflow agent, and use the `@tool` decorator to mark the function as a tool in python (or `@Tool` annotation in java). The tool can be referenced by its name in the `tools` list of the `ResourceDescriptor` when creating the chat model in the agent.
 
 {{< tabs "Define Tool as Static Method in Agent Class" >}}
 
@@ -100,7 +100,7 @@ public class ReviewAnalysisAgent extends Agent {
 {{< /tabs >}}
 
 **Key points:**
-- Use `@tool` decorator/annotation to define the tool
+- Use `@tool` decorator to define the tool in python (or `@Tool` annotation in java)
 - Reference the tool by its name in the `tools` list of the `ResourceDescriptor`
 
 
@@ -186,7 +186,7 @@ MCP (Model Context Protocol) is a standardized protocol for integrating AI appli
 {{< /hint >}}
 
 {{< hint warning >}}
-MCP Tool is only supported in python.
+MCP Tool is only supported in python currently.
 {{< /hint >}}
 
 MCP tools are managed by external MCP servers and automatically discovered when you define an MCP server connection in your agent.
