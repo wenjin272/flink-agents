@@ -31,10 +31,7 @@ import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.tools.ToolResponse;
 import org.apache.flink.agents.plan.JavaFunction;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 /** Built-in action for processing chat request and tool call result. */
 public class ChatModelAction {
@@ -83,7 +80,8 @@ public class ChatModelAction {
                 toolCallContext.put(initialRequestId, messages);
             }
             List<ChatMessage> messageContext =
-                    (List<ChatMessage>) toolCallContext.get(initialRequestId);
+                    new ArrayList<>((List<ChatMessage>) toolCallContext.get(initialRequestId));
+
             messageContext.add(response);
             stm.set(TOOL_CALL_CONTEXT, toolCallContext);
 
@@ -159,7 +157,9 @@ public class ChatModelAction {
             Map<UUID, Object> toolCallContext =
                     (Map<UUID, Object>) stm.get(TOOL_CALL_CONTEXT).getValue();
             // update tool call context
-            List<ChatMessage> messages = (List<ChatMessage>) toolCallContext.get(initialRequestId);
+            List<ChatMessage> messages =
+                    new ArrayList<>((List<ChatMessage>) toolCallContext.get(initialRequestId));
+
             for (Map.Entry<String, ToolResponse> entry : responses.entrySet()) {
                 Map<String, Object> extraArgs = new HashMap<>();
                 String toolCallId = entry.getKey();
