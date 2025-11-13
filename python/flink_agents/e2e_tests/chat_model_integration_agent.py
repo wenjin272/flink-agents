@@ -16,7 +16,6 @@
 # limitations under the License.
 #################################################################################
 import os
-from typing import List
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -27,11 +26,7 @@ from flink_agents.api.decorators import (
     tool,
 )
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
-from flink_agents.api.events.event import (
-    InputEvent,
-    OutputEvent,
-)
-from flink_agents.api.execution_environment import AgentsExecutionEnvironment
+from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.resource import ResourceDescriptor
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.integrations.chat_models.ollama_chat_model import (
@@ -47,14 +42,17 @@ from flink_agents.integrations.chat_models.tongyi_chat_model import (
     TongyiChatModelSetup,
 )
 
-TONGYI_MODEL = os.environ.get("TONGYI_CHAT_MODEL", "qwen-plus")
-OLLAMA_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:0.6b")
-OPENAI_MODEL = os.environ.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo")
-BACKENDS_TO_RUN: List[str] = ["Tongyi", "OpenAI", "Ollama"]
 
-
-class MyAgent(Agent):
+class ChatModelTestAgent(Agent):
     """Example agent demonstrating the new ChatModel architecture."""
+
+    @chat_model_connection
+    @staticmethod
+    def openai_connection() -> ResourceDescriptor:
+        """ChatModelConnection responsible for openai model service connection."""
+        return ResourceDescriptor(
+            clazz=OpenAIChatModelConnection, api_key=os.environ.get("OPENAI_API_KEY")
+        )
 
     @chat_model_connection
     @staticmethod
@@ -66,68 +64,68 @@ class MyAgent(Agent):
     @staticmethod
     def ollama_connection() -> ResourceDescriptor:
         """ChatModelConnection responsible for ollama model service connection."""
-        return ResourceDescriptor(clazz=OllamaChatModelConnection)
-
-    @chat_model_connection
-    @staticmethod
-    def openai_connection() -> ResourceDescriptor:
-        """ChatModelConnection responsible for openai model service connection."""
         return ResourceDescriptor(
-            clazz=OpenAIChatModelConnection,
-            api_key=os.environ.get("OPENAI_API_KEY")
+            clazz=OllamaChatModelConnection, request_timeout=240.0
         )
 
     @chat_model_setup
     @staticmethod
     def math_chat_model() -> ResourceDescriptor:
         """ChatModel which focus on math, and reuse ChatModelConnection."""
-        if CURRENT_BACKEND == "Tongyi":
+        model_provider = os.environ.get("MODEL_PROVIDER")
+        if model_provider == "Tongyi":
             return ResourceDescriptor(
                 clazz=TongyiChatModelSetup,
                 connection="tongyi_connection",
-                model=TONGYI_MODEL,
+                model=os.environ.get("TONGYI_CHAT_MODEL", "qwen-plus"),
                 tools=["add"],
             )
-        elif CURRENT_BACKEND == "OpenAI":
-            return ResourceDescriptor(
-                clazz=OpenAIChatModelSetup,
-                connection="openai_connection",
-                model=OPENAI_MODEL,
-                tools=["add"]
-            )
-        else:
+        elif model_provider == "Ollama":
             return ResourceDescriptor(
                 clazz=OllamaChatModelSetup,
                 connection="ollama_connection",
-                model=OLLAMA_MODEL,
+                model=os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:1.7b"),
                 tools=["add"],
                 extract_reasoning=True,
             )
+        elif model_provider == "OpenAI":
+            return ResourceDescriptor(
+                clazz=OpenAIChatModelSetup,
+                connection="openai_connection",
+                model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo"),
+                tools=["add"],
+            )
+        else:
+            err_msg = f"Unknown model_provider {model_provider}"
+            raise RuntimeError(err_msg)
 
     @chat_model_setup
     @staticmethod
     def creative_chat_model() -> ResourceDescriptor:
         """ChatModel which focus on text generate, and reuse ChatModelConnection."""
-        if CURRENT_BACKEND == "Tongyi":
+        model_provider = os.environ.get("MODEL_PROVIDER")
+        if model_provider == "Tongyi":
             return ResourceDescriptor(
                 clazz=TongyiChatModelSetup,
                 connection="tongyi_connection",
-                model=TONGYI_MODEL,
+                model=os.environ.get("TONGYI_CHAT_MODEL", "qwen-plus"),
             )
-        elif CURRENT_BACKEND == "OpenAI":
-            return ResourceDescriptor(
-                clazz=OpenAIChatModelSetup,
-                connection="openai_connection",
-                model=OPENAI_MODEL,
-                tools=["add"]
-            )
-        else:
+        elif model_provider == "Ollama":
             return ResourceDescriptor(
                 clazz=TongyiChatModelSetup,
                 connection="ollama_connection",
-                model=OLLAMA_MODEL,
+                model=os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:1.7b"),
                 extract_reasoning=True,
             )
+        elif model_provider == "OpenAI":
+            return ResourceDescriptor(
+                clazz=OpenAIChatModelSetup,
+                connection="openai_connection",
+                model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo"),
+            )
+        else:
+            err_msg = f"Unknown model_provider {model_provider}"
+            raise RuntimeError(err_msg)
 
     @tool
     @staticmethod
@@ -175,41 +173,3 @@ class MyAgent(Agent):
         input = event.response
         if event.response and input.content:
             ctx.send_event(OutputEvent(output=input.content))
-
-
-if __name__ == "__main__":
-    for backend in BACKENDS_TO_RUN:
-        CURRENT_BACKEND = backend
-        if backend == "Tongyi":
-            CURRENT_MODEL = TONGYI_MODEL
-        elif backend == "OpenAI":
-            CURRENT_MODEL = OPENAI_MODEL
-        else:
-            CURRENT_MODEL = OLLAMA_MODEL
-
-        if backend == "Tongyi" and not os.environ.get("DASHSCOPE_API_KEY"):
-            print("[SKIP] TongyiChatModel because DASHSCOPE_API_KEY is not set.")
-            continue
-
-        if backend == "OpenAI" and not os.environ.get("OPENAI_API_KEY"):
-            print("[SKIP] OpenAIChatModel because OPENAI_API_KEY is not set.")
-            continue
-
-        print(
-            f"\nRunning {backend}ChatModel while the using model is {CURRENT_MODEL}..."
-        )
-
-        env = AgentsExecutionEnvironment.get_execution_environment()
-        input_list = []
-        agent = MyAgent()
-
-        output_list = env.from_list(input_list).apply(agent).to_list()
-
-        input_list.append({"key": "0001", "value": "calculate the sum of 1 and 2."})
-        input_list.append({"key": "0002", "value": "Tell me a joke about cats."})
-
-        env.execute()
-
-        for output in output_list:
-            for key, value in output.items():
-                print(f"{key}: {value}")

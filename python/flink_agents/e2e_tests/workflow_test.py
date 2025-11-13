@@ -15,6 +15,8 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -28,10 +30,13 @@ from flink_agents.api.runner_context import RunnerContext
 if TYPE_CHECKING:
     from flink_agents.api.memory_reference import MemoryRef
 
+current_dir = Path(__file__).parent
+
 
 class ProcessedData(BaseModel):  # noqa D101
     content: str
     visit_count: int
+
 
 class MyEvent(Event):  # noqa D101
     value: Any
@@ -57,15 +62,14 @@ class MyAgent(Agent):
         current_count = previous_data.visit_count if previous_data else 0
         new_count = current_count + 1
 
-        data_to_store = ProcessedData(content=input_message,visit_count=new_count)
+        data_to_store = ProcessedData(content=input_message, visit_count=new_count)
         data_ref = memory.set(data_path, data_to_store)
 
         ctx.send_event(MyEvent(value=data_ref))
 
         processed_content = f"{input_message} -> processed_by_first_action"
         key_with_count = f"(visit {new_count} times)"
-        ctx.send_event(OutputEvent(output={key_with_count:processed_content}))
-
+        ctx.send_event(OutputEvent(output={key_with_count: processed_content}))
 
     @action(MyEvent)
     @staticmethod
@@ -79,7 +83,9 @@ class MyAgent(Agent):
         current_count = processed_data.visit_count
         new_count = current_count + 1
 
-        updated_data_to_store = ProcessedData(content=base_message, visit_count=new_count)
+        updated_data_to_store = ProcessedData(
+            content=base_message, visit_count=new_count
+        )
         memory.set(content_ref.path, updated_data_to_store)
 
         final_content = f"{base_message} -> processed by second_action"
@@ -87,7 +93,7 @@ class MyAgent(Agent):
         ctx.send_event(OutputEvent(output={key_with_count: final_content}))
 
 
-if __name__ == "__main__":
+def test_workflow() -> None:  # noqa: D103
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
@@ -105,5 +111,19 @@ if __name__ == "__main__":
 
     env.execute()
 
-    for output in output_list:
-        print(output)
+    expected_output = []
+    with Path.open(
+        Path(f"{current_dir}/resources/ground_truth/test_workflow.txt")
+    ) as f:
+        for line in f:
+            expected_output.append(json.loads(line))  # noqa:PERF401
+
+    assert output_list[:8] == expected_output[:8]
+    assert (
+        output_list[8][next(iter(output_list[8].keys()))]
+        == expected_output[8][next(iter(expected_output[8].keys()))]
+    )
+    assert (
+        output_list[9][next(iter(output_list[9].keys()))]
+        == expected_output[9][next(iter(expected_output[9].keys()))]
+    )
