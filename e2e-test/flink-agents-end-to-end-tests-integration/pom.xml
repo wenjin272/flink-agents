@@ -25,7 +25,7 @@ under the License.
         <version>0.2-SNAPSHOT</version>
     </parent>
 
-    <artifactId>flink-agents-integration-tests</artifactId>
+    <artifactId>flink-agents-end-to-end-tests-integration</artifactId>
     <name>Flink Agents : E2E Tests: Integration</name>
 
     <dependencies>
