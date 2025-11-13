@@ -15,24 +15,53 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.flink.agents.integration.test;
 
 import org.apache.flink.agents.api.AgentsExecutionEnvironment;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.util.CloseableIterator;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class AgentWithAzureAIExample {
-    /** Runs the example pipeline. */
-    public static void main(String[] args) throws Exception {
-        if (!AgentWithAzureAI.callingRealMode()) {
-            // print warning information
-            System.err.println(
-                    "Please set the AZURE_ENDPOINT and AZURE_API_KEY in the AgentWithAzureAI class to run this example in real mode.");
-            System.err.println("Falling back to mock mode.");
-            AgentWithResourceExample.main(args);
-            return;
-        }
+import java.io.IOException;
+import java.util.List;
+
+import static org.apache.flink.agents.integration.test.ChatModelIntegrationAgent.OLLAMA_MODEL;
+
+/**
+ * Example application that applies {@link ChatModelIntegrationAgent} to a DataStream of user
+ * prompts.
+ */
+public class ChatModelIntegrationTest extends OllamaPreparationUtils {
+    private static final Logger LOG = LoggerFactory.getLogger(ChatModelIntegrationTest.class);
+
+    private static final String API_KEY = "_API_KEY";
+    private static final String OLLAMA = "OLLAMA";
+
+    private final boolean ollamaReady;
+
+    public ChatModelIntegrationTest() throws IOException {
+        ollamaReady = pullModel(OLLAMA_MODEL);
+    }
+
+    @ParameterizedTest()
+    @ValueSource(strings = {"OLLAMA", "AZURE"})
+    public void testChatModeIntegration(String provider) throws Exception {
+        Assumptions.assumeTrue(
+                (OLLAMA.equals(provider) && ollamaReady)
+                        || System.getenv().get(provider + API_KEY) != null,
+                String.format(
+                        "Server or authentication information is not provided for %s", provider));
+
+        System.setProperty("MODEL_PROVIDER", provider);
+
         // Create the execution environment
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
@@ -59,13 +88,33 @@ public class AgentWithAzureAIExample {
         DataStream<Object> outputStream =
                 agentsEnv
                         .fromDataStream(inputStream, (KeySelector<String, String>) value -> value)
-                        .apply(new AgentWithAzureAI())
+                        .apply(new ChatModelIntegrationAgent())
                         .toDataStream();
 
-        // Print the results
-        outputStream.print();
+        // Collect the results
+        CloseableIterator<Object> results = outputStream.collectAsync();
 
         // Execute the pipeline
         agentsEnv.execute();
+
+        checkResult(results);
+    }
+
+    public void checkResult(CloseableIterator<Object> results) {
+        List<String> expectedWords =
+                List.of(" 77", "37", "89", "23", "68", "22", "26", "22", "23", "");
+        for (String expected : expectedWords) {
+            Assertions.assertTrue(
+                    results.hasNext(), "Output messages count %s is less than expected.");
+            String res = (String) results.next();
+            if (res.contains("error") || res.contains("parameters")) {
+                LOG.warn(res);
+            } else {
+                Assertions.assertTrue(
+                        res.contains(expected),
+                        String.format(
+                                "Groud truth %s is not contained in answer {%s}", expected, res));
+            }
+        }
     }
 }
