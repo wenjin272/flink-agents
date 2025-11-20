@@ -19,6 +19,7 @@
 package org.apache.flink.agents.integrations.chatmodels.ollama;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.ollama4j.OllamaAPI;
 import io.github.ollama4j.exceptions.RoleNotFoundException;
@@ -26,6 +27,7 @@ import io.github.ollama4j.models.chat.OllamaChatMessage;
 import io.github.ollama4j.models.chat.OllamaChatMessageRole;
 import io.github.ollama4j.models.chat.OllamaChatResult;
 import io.github.ollama4j.tools.Tools;
+import io.github.ollama4j.utils.Utils;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.chat.model.BaseChatModelConnection;
@@ -79,6 +81,7 @@ public class OllamaChatModelConnection extends BaseChatModelConnection {
     public OllamaChatModelConnection(
             ResourceDescriptor descriptor, BiFunction<String, ResourceType, Resource> getResource) {
         super(descriptor, getResource);
+        Utils.getObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         String endpoint = descriptor.getArgument("endpoint");
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalArgumentException("endpoint should not be null or empty.");
