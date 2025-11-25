@@ -47,3 +47,22 @@ def pull_model(ollama_model: str) -> Client:
         client = None  # type: ignore
 
     return client
+
+
+def check_result(*, result_dir: Path, groud_truth_dir: Path) -> None:
+    """Util function for checking flink job execution result."""
+    actual_result = []
+    for file in result_dir.iterdir():
+        if file.is_dir():
+            for child in file.iterdir():
+                with child.open() as f:
+                    actual_result.extend(f.readlines())
+        if file.is_file():
+            with file.open() as f:
+                actual_result.extend(f.readlines())
+
+    with groud_truth_dir.open() as f:
+        expected = f.readlines().sort()
+
+    actual_result = actual_result.sort()
+    assert actual_result == expected

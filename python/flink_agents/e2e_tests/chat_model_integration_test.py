@@ -22,7 +22,7 @@ import pytest
 
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.e2e_tests.chat_model_integration_agent import ChatModelTestAgent
-from flink_agents.e2e_tests.ollama_prepare_utils import pull_model
+from flink_agents.e2e_tests.test_utils import pull_model
 
 current_dir = Path(__file__).parent
 
@@ -30,7 +30,11 @@ TONGYI_MODEL = os.environ.get("TONGYI_CHAT_MODEL", "qwen-plus")
 os.environ["TONGYI_CHAT_MODEL"] = TONGYI_MODEL
 OLLAMA_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:1.7b")
 os.environ["OLLAMA_CHAT_MODEL"] = OLLAMA_MODEL
+OPENAI_MODEL = os.environ.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo")
+os.environ["OPENAI_CHAT_MODEL"] = OPENAI_MODEL
+
 DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 client = pull_model(OLLAMA_MODEL)
 
@@ -51,6 +55,12 @@ client = pull_model(OLLAMA_MODEL)
                 DASHSCOPE_API_KEY is None, reason="Tongyi api key is not set."
             ),
         ),
+        pytest.param(
+            "OpenAI",
+            marks=pytest.mark.skipif(
+                OPENAI_API_KEY is None, reason="OpenAI api key is not set."
+            ),
+        ),
     ],
 )
 def test_chat_model_integration(model_provider: str) -> None:  # noqa: D103
@@ -69,3 +79,6 @@ def test_chat_model_integration(model_provider: str) -> None:  # noqa: D103
     for output in output_list:
         for key, value in output.items():
             print(f"{key}: {value}")
+
+    assert "3" in output_list[0]["0001"]
+    assert "cat" in output_list[1]["0002"]

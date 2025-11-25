@@ -15,6 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import json
 import os
 import sysconfig
 from pathlib import Path
@@ -36,8 +37,8 @@ from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import ResourceDescriptor
 from flink_agents.api.tools.tool import Tool
-from flink_agents.e2e_tests.ollama_prepare_utils import pull_model
 from flink_agents.e2e_tests.react_agent_tools import add, multiply
+from flink_agents.e2e_tests.test_utils import pull_model
 from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelConnection,
     OllamaChatModelSetup,
@@ -122,15 +123,16 @@ def test_react_agent_on_local_runner() -> None:  # noqa: D103
 
     env.execute()
 
-    for output in output_list:
-        for key, value in output.items():
-            print(f"{key}: {value}")
+    assert len(output_list) == 1, (
+        "This may be caused by the LLM response does not match the output schema, you can rerun this case."
+    )
+    assert output_list[0]["0001"].result == 1386528
 
 
 @pytest.mark.skipif(
     client is None, reason="Ollama client is not available or test model is missing"
 )
-def test_react_agent_on_remote_runner() -> None:  # noqa: D103
+def test_react_agent_on_remote_runner(tmp_path: Path) -> None:  # noqa: D103
     stream_env = StreamExecutionEnvironment.get_execution_environment()
 
     stream_env.set_parallelism(1)
@@ -204,9 +206,27 @@ def test_react_agent_on_remote_runner() -> None:  # noqa: D103
         .to_table(schema=schema, output_type=output_type)
     )
 
+    result_dir = tmp_path / "results"
+    result_dir.mkdir(parents=True, exist_ok=True)
+
     t_env.create_temporary_table(
         "sink",
-        TableDescriptor.for_connector("print").schema(schema).build(),
+        TableDescriptor.for_connector("filesystem")
+        .option("path", str(result_dir.absolute()))
+        .format("json")
+        .schema(schema)
+        .build(),
     )
 
     output_table.execute_insert("sink").wait()
+
+    actual_result = []
+    for file in result_dir.iterdir():
+        if file.is_file():
+            with file.open() as f:
+                actual_result.extend(f.readlines())
+
+    assert len(actual_result) == 1, (
+        "This may be caused by the LLM response does not match the output schema, you can rerun this case."
+    )
+    assert "result" in json.loads(actual_result[0].strip())

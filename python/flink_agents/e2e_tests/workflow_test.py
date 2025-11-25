@@ -15,6 +15,8 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -27,6 +29,8 @@ from flink_agents.api.runner_context import RunnerContext
 
 if TYPE_CHECKING:
     from flink_agents.api.memory_reference import MemoryRef
+
+current_dir = Path(__file__).parent
 
 
 class ProcessedData(BaseModel):  # noqa D101
@@ -107,5 +111,19 @@ def test_workflow() -> None:  # noqa: D103
 
     env.execute()
 
-    for output in output_list:
-        print(output)
+    expected_output = []
+    with Path.open(
+        Path(f"{current_dir}/resources/ground_truth/test_workflow.txt")
+    ) as f:
+        for line in f:
+            expected_output.append(json.loads(line))  # noqa:PERF401
+
+    assert output_list[:8] == expected_output[:8]
+    assert (
+        output_list[8][next(iter(output_list[8].keys()))]
+        == expected_output[8][next(iter(expected_output[8].keys()))]
+    )
+    assert (
+        output_list[9][next(iter(output_list[9].keys()))]
+        == expected_output[9][next(iter(expected_output[9].keys()))]
+    )

@@ -33,6 +33,10 @@ from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelConnection,
     OllamaChatModelSetup,
 )
+from flink_agents.integrations.chat_models.openai.openai_chat_model import (
+    OpenAIChatModelConnection,
+    OpenAIChatModelSetup,
+)
 from flink_agents.integrations.chat_models.tongyi_chat_model import (
     TongyiChatModelConnection,
     TongyiChatModelSetup,
@@ -41,6 +45,14 @@ from flink_agents.integrations.chat_models.tongyi_chat_model import (
 
 class ChatModelTestAgent(Agent):
     """Example agent demonstrating the new ChatModel architecture."""
+    @chat_model_connection
+    @staticmethod
+    def openai_connection() -> ResourceDescriptor:
+        """ChatModelConnection responsible for openai model service connection."""
+        return ResourceDescriptor(
+            clazz=OpenAIChatModelConnection,
+            api_key=os.environ.get("OPENAI_API_KEY")
+        )
 
     @chat_model_connection
     @staticmethod
@@ -76,6 +88,13 @@ class ChatModelTestAgent(Agent):
                 tools=["add"],
                 extract_reasoning=True,
             )
+        elif model_provider == "OpenAI":
+            return ResourceDescriptor(
+                clazz=OpenAIChatModelSetup,
+                connection="openai_connection",
+                model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo"),
+                tools=["add"]
+            )
         else:
             err_msg = f"Unknown model_provider {model_provider}"
             raise RuntimeError(err_msg)
@@ -97,6 +116,12 @@ class ChatModelTestAgent(Agent):
                 connection="ollama_connection",
                 model=os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:1.7b"),
                 extract_reasoning=True,
+            )
+        elif model_provider == "OpenAI":
+            return ResourceDescriptor(
+                clazz=OpenAIChatModelSetup,
+                connection="openai_connection",
+                model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo"),
             )
         else:
             err_msg = f"Unknown model_provider {model_provider}"

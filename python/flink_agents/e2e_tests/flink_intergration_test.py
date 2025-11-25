@@ -19,10 +19,17 @@ import os
 import sysconfig
 from pathlib import Path
 
-from pyflink.common import Configuration, WatermarkStrategy
-from pyflink.common.typeinfo import BasicTypeInfo, ExternalTypeInfo, RowTypeInfo
-from pyflink.datastream import RuntimeExecutionMode, StreamExecutionEnvironment
-from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
+from pyflink.common import Configuration, Encoder, WatermarkStrategy
+from pyflink.common.typeinfo import BasicTypeInfo, ExternalTypeInfo, RowTypeInfo, Types
+from pyflink.datastream import (
+    RuntimeExecutionMode,
+    StreamExecutionEnvironment,
+)
+from pyflink.datastream.connectors.file_system import (
+    FileSource,
+    StreamFormat,
+    StreamingFileSink,
+)
 from pyflink.table import DataTypes, Schema, StreamTableEnvironment, TableDescriptor
 
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
@@ -33,17 +40,18 @@ from flink_agents.e2e_tests.flink_integration_agent import (
     MyKeySelector,
     TableAgent,
 )
+from flink_agents.e2e_tests.test_utils import check_result
 
 current_dir = Path(__file__).parent
 
 os.environ["PYTHONPATH"] = sysconfig.get_paths()["purelib"]
 
 
-def test_from_datastream_to_datastream() -> None:  # noqa: D103
+def test_from_datastream_to_datastream(tmp_path: Path) -> None:  # noqa: D103
     config = Configuration()
-    config.set_string("state.backend.type", "rocksdb")
-    config.set_string("checkpointing.interval", "1s")
-    config.set_string("restart-strategy.type", "disable")
+    # config.set_string("state.backend.type", "rocksdb")
+    # config.set_string("checkpointing.interval", "1s")
+    # config.set_string("restart-strategy.type", "disable")
     env = StreamExecutionEnvironment.get_execution_environment(config)
     env.set_runtime_mode(RuntimeExecutionMode.STREAMING)
     env.set_parallelism(1)
@@ -52,7 +60,7 @@ def test_from_datastream_to_datastream() -> None:  # noqa: D103
     # we use continuous file source here.
     input_datastream = env.from_source(
         source=FileSource.for_record_stream_format(
-            StreamFormat.text_line_format(), f"file:///{current_dir}/resources"
+            StreamFormat.text_line_format(), f"file:///{current_dir}/resources/input"
         ).build(),
         watermark_strategy=WatermarkStrategy.no_watermarks(),
         source_name="streaming_agent_example",
@@ -71,12 +79,27 @@ def test_from_datastream_to_datastream() -> None:  # noqa: D103
         .to_datastream()
     )
 
-    output_datastream.print()
+    result_dir = tmp_path / "results"
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    output_datastream.map(lambda x: x.model_dump_json(), Types.STRING()).add_sink(
+        StreamingFileSink.for_row_format(
+            base_path=str(result_dir.absolute()),
+            encoder=Encoder.simple_string_encoder(),
+        ).build()
+    )
 
     agents_env.execute()
 
+    check_result(
+        result_dir=result_dir,
+        groud_truth_dir=Path(
+            f"{current_dir}/resources/ground_truth/test_from_datastream_to_datastream.txt"
+        ),
+    )
 
-def test_from_table_to_table() -> None:  # noqa: D103
+
+def test_from_table_to_table(tmp_path: Path) -> None:  # noqa: D103
     env = StreamExecutionEnvironment.get_execution_environment()
 
     env.set_runtime_mode(RuntimeExecutionMode.STREAMING)
@@ -95,7 +118,7 @@ def test_from_table_to_table() -> None:  # noqa: D103
             .build()
         )
         .option("format", "json")
-        .option("path", f"file:///{current_dir}/resources")
+        .option("path", f"file:///{current_dir}/resources/input")
         .build(),
     )
 
@@ -129,15 +152,29 @@ def test_from_table_to_table() -> None:  # noqa: D103
         .to_table(schema=schema, output_type=output_type)
     )
 
+    result_dir = tmp_path / "results"
+    result_dir.mkdir(parents=True, exist_ok=True)
+
     t_env.create_temporary_table(
         "sink",
-        TableDescriptor.for_connector("print").schema(schema).build(),
+        TableDescriptor.for_connector("filesystem")
+        .option("path", str(result_dir.absolute()))
+        .format("json")
+        .schema(schema)
+        .build(),
     )
 
     output_table.execute_insert("sink").wait()
 
+    check_result(
+        result_dir=result_dir,
+        groud_truth_dir=Path(
+            f"{current_dir}/resources/ground_truth/test_from_table_to_table.txt"
+        ),
+    )
 
-def test_from_datastream_to_table() -> None:  # noqa: D103
+
+def test_from_datastream_to_table(tmp_path: Path) -> None:  # noqa: D103
     env = StreamExecutionEnvironment.get_execution_environment()
 
     env.set_runtime_mode(RuntimeExecutionMode.STREAMING)
@@ -148,7 +185,7 @@ def test_from_datastream_to_table() -> None:  # noqa: D103
     # we use continuous file source here.
     input_datastream = env.from_source(
         source=FileSource.for_record_stream_format(
-            StreamFormat.text_line_format(), f"file:///{current_dir}/resources"
+            StreamFormat.text_line_format(), f"file:///{current_dir}/resources/input"
         ).build(),
         watermark_strategy=WatermarkStrategy.no_watermarks(),
         source_name="streaming_agent_example",
@@ -188,9 +225,23 @@ def test_from_datastream_to_table() -> None:  # noqa: D103
         .to_table(schema=schema, output_type=output_type)
     )
 
+    result_dir = tmp_path / "results"
+    result_dir.mkdir(parents=True, exist_ok=True)
+
     t_env.create_temporary_table(
         "sink",
-        TableDescriptor.for_connector("print").schema(schema).build(),
+        TableDescriptor.for_connector("filesystem")
+        .option("path", str(result_dir.absolute()))
+        .format("json")
+        .schema(schema)
+        .build(),
     )
 
     output_table.execute_insert("sink").wait()
+
+    check_result(
+        result_dir=result_dir,
+        groud_truth_dir=Path(
+            f"{current_dir}/resources/ground_truth/test_from_table_to_table.txt"
+        ),
+    )
