@@ -96,9 +96,9 @@ java_tests() {
     echo "Executing Java test suite..."
     pushd "${ROOT}"
     if $run_e2e; then
-        mvn -T16 --batch-mode --no-transfer-progress test -pl 'e2e-test/integration-test'
+        mvn -T16 --batch-mode --no-transfer-progress test -pl 'e2e-test/flink-agents-end-to-end-tests-integration'
     else
-        mvn -T16 --batch-mode --no-transfer-progress test -pl '!e2e-test/integration-test'
+        mvn -T16 --batch-mode --no-transfer-progress test -pl '!e2e-test/flink-agents-end-to-end-tests-integration'
     fi
     testcode=$?
     case $testcode in
