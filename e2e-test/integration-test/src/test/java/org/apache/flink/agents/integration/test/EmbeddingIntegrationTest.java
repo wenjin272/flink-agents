@@ -22,11 +22,14 @@ import org.apache.flink.agents.api.AgentsExecutionEnvironment;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.util.CloseableIterator;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.apache.flink.agents.integration.test.EmbeddingIntegrationAgent.OLLAMA_MODEL;
 import static org.apache.flink.agents.integration.test.OllamaPreparationUtils.pullModel;
@@ -84,10 +87,23 @@ public class EmbeddingIntegrationTest {
                         .apply(new EmbeddingIntegrationAgent())
                         .toDataStream();
 
-        // Print the results
-        outputStream.print();
+        // Collect the results
+        CloseableIterator<Object> results = outputStream.collectAsync();
 
         // Execute the pipeline
         agentsEnv.execute();
+
+        checkResult(results);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void checkResult(CloseableIterator<Object> results) {
+        for (int i = 1; i <= 10; i++) {
+            Assertions.assertTrue(
+                    results.hasNext(),
+                    String.format("Output messages count %s is less than expected 10.", i));
+            Map<String, Object> res = (Map<String, Object>) results.next();
+            Assertions.assertEquals("PASSED", res.get("test_status"));
+        }
     }
 }

@@ -42,8 +42,12 @@ import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,6 +55,7 @@ import java.util.List;
 import static org.apache.flink.agents.integration.test.OllamaPreparationUtils.pullModel;
 
 public class ReActAgentTest {
+    private static final Logger LOG = LoggerFactory.getLogger(ReActAgentTest.class);
     public static final String OLLAMA_MODEL = "qwen3:1.7b";
 
     @org.apache.flink.agents.api.annotation.Tool(
@@ -142,11 +147,15 @@ public class ReActAgentTest {
                         .apply(agent)
                         .toTable(outputSchema);
 
-        // Print the results to fully display the data
-        tableEnv.toDataStream(outputTable)
-                .map((MapFunction<Row, Row>) x -> (Row) x.getField("f0"))
-                .print();
+        // Collect the results to fully display the data
+        CloseableIterator<Row> results =
+                tableEnv.toDataStream(outputTable)
+                        .map((MapFunction<Row, Row>) x -> (Row) x.getField("f0"))
+                        .collectAsync();
+
         env.execute();
+
+        checkResult(results);
     }
 
     // create ReAct agent.
@@ -174,5 +183,13 @@ public class ReActAgentTest {
                         new TypeInformation[] {BasicTypeInfo.DOUBLE_TYPE_INFO},
                         new String[] {"result"});
         return new ReActAgent(chatModelDescriptor, prompt, outputTypeInfo);
+    }
+
+    private void checkResult(CloseableIterator<?> results) {
+        Assertions.assertTrue(
+                results.hasNext(),
+                "This may be caused by the LLM response does not match the output schema, you can rerun this case.");
+        Row res = (Row) results.next();
+        Assertions.assertEquals("+I[95934.0]", res.toString());
     }
 }

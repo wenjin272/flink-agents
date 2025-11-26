@@ -27,7 +27,17 @@ import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Example demonstrating how to integrate Flink Agents with Table API.
@@ -82,11 +92,13 @@ public class FlinkIntegrationTest {
                         .apply(new FlinkIntegrationAgent.DataStreamAgent())
                         .toDataStream();
 
-        // Print the results
-        outputStream.print();
+        // Collect the results
+        CloseableIterator<Object> results = outputStream.collectAsync();
 
         // Execute the pipeline
         agentsEnv.execute();
+
+        checkResult(results, "test_from_datastream_to_datastream.txt");
     }
 
     @Test
@@ -127,11 +139,10 @@ public class FlinkIntegrationTest {
                         .apply(new FlinkIntegrationAgent.TableAgent())
                         .toTable(outputSchema);
 
-        // Print the results to fully display the data
-        tableEnv.toDataStream(outputTable).print();
-        env.execute();
-        // Print the results in table format
-        outputTable.execute().print();
+        // Collect the results in table format
+        CloseableIterator<Row> results = outputTable.execute().collect();
+
+        checkResult(results, "test_from_table_to_table.txt");
     }
 
     @Test
@@ -164,6 +175,30 @@ public class FlinkIntegrationTest {
                         .apply(new FlinkIntegrationAgent.DataStreamAgent())
                         .toTable(outputSchema);
 
-        outputTable.execute().print();
+        // Collect the results in table format
+        CloseableIterator<Row> results = outputTable.execute().collect();
+
+        checkResult(results, "test_from_datastream_to_table.txt");
+    }
+
+    private void checkResult(CloseableIterator<?> results, String fileName) throws IOException {
+        String path =
+                Objects.requireNonNull(
+                                getClass().getClassLoader().getResource("ground-truth/" + fileName))
+                        .getPath();
+        List<String> expected = Files.readAllLines(Path.of(path));
+        expected.sort(Comparator.naturalOrder());
+
+        List<String> actual = new ArrayList<>();
+        while (results.hasNext()) {
+            actual.add(results.next().toString());
+        }
+        actual.sort(Comparator.naturalOrder());
+
+        Assertions.assertEquals(
+                expected.size(), actual.size(), "Output messages count is not same as expected");
+        for (int i = 0; i < expected.size(); i++) {
+            Assertions.assertEquals(expected.get(i), actual.get(i));
+        }
     }
 }

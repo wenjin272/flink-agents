@@ -21,6 +21,8 @@ import org.apache.flink.agents.api.AgentsExecutionEnvironment;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.util.CloseableIterator;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -49,10 +51,20 @@ public class MemoryObjectTest {
                         .apply(new MemoryObjectAgent())
                         .toDataStream();
 
-        // Print the results
-        outputStream.print();
+        // Collect the results
+        CloseableIterator<Object> results = outputStream.collectAsync();
 
         // Execute the pipeline
         agentsEnv.execute();
+    }
+
+    private void checkResult(CloseableIterator<Object> results) {
+        for (int i = 0; i < 4; i++) {
+            Assertions.assertTrue(
+                    results.hasNext(),
+                    String.format("Output messages count %s is less than expected 4.", i));
+            String res = (String) results.next();
+            Assertions.assertTrue(res.contains("All assertions passed"));
+        }
     }
 }

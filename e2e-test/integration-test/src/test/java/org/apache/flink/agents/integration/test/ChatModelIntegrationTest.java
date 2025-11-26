@@ -22,11 +22,14 @@ import org.apache.flink.agents.api.AgentsExecutionEnvironment;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.util.CloseableIterator;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.apache.flink.agents.integration.test.ChatModelIntegrationAgent.OLLAMA_MODEL;
 
@@ -84,10 +87,25 @@ public class ChatModelIntegrationTest extends OllamaPreparationUtils {
                         .apply(new ChatModelIntegrationAgent())
                         .toDataStream();
 
-        // Print the results
-        outputStream.print();
+        // Collect the results
+        CloseableIterator<Object> results = outputStream.collectAsync();
 
         // Execute the pipeline
         agentsEnv.execute();
+
+        checkResult(results);
+    }
+
+    public void checkResult(CloseableIterator<Object> results) {
+        List<String> expectedWords =
+                List.of(" 77", "37", "89", "23", "68", "22", "26", "22", "23", "");
+        for (String expected : expectedWords) {
+            Assertions.assertTrue(
+                    results.hasNext(), "Output messages count %s is less than expected.");
+            String res = (String) results.next();
+            Assertions.assertTrue(
+                    res.contains(expected),
+                    String.format("Groud truth %s is not contained in answer %s", expected, res));
+        }
     }
 }
