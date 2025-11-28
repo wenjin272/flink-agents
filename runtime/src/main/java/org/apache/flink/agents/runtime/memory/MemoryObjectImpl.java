@@ -40,27 +40,22 @@ public class MemoryObjectImpl implements MemoryObject {
     public static final String ROOT_KEY = "";
     private static final String SEPARATOR = ".";
 
-    private final MemoryType type;
-
     private final MemoryStore store;
     private final List<MemoryUpdate> memoryUpdates;
     private final String prefix;
     private final Runnable mailboxThreadChecker;
 
-    public MemoryObjectImpl(
-            MemoryType type, MemoryStore store, String prefix, List<MemoryUpdate> memoryUpdates)
+    public MemoryObjectImpl(MemoryStore store, String prefix, List<MemoryUpdate> memoryUpdates)
             throws Exception {
-        this(type, store, prefix, () -> {}, memoryUpdates);
+        this(store, prefix, () -> {}, memoryUpdates);
     }
 
     public MemoryObjectImpl(
-            MemoryType type,
             MemoryStore store,
             String prefix,
             Runnable mailboxThreadChecker,
             List<MemoryUpdate> memoryUpdates)
             throws Exception {
-        this.type = type;
         this.store = store;
         this.prefix = prefix;
         this.mailboxThreadChecker = mailboxThreadChecker;
@@ -75,7 +70,7 @@ public class MemoryObjectImpl implements MemoryObject {
         mailboxThreadChecker.run();
         String absPath = fullPath(path);
         if (store.contains(absPath)) {
-            return new MemoryObjectImpl(type, store, absPath, memoryUpdates);
+            return new MemoryObjectImpl(store, absPath, memoryUpdates);
         }
         return null;
     }
@@ -109,7 +104,7 @@ public class MemoryObjectImpl implements MemoryObject {
         store.put(absPath, val);
         memoryUpdates.add(new MemoryUpdate(absPath, value));
 
-        return MemoryRef.create(type, absPath);
+        return MemoryRef.create(absPath);
     }
 
     @Override
@@ -142,7 +137,7 @@ public class MemoryObjectImpl implements MemoryObject {
         parentItem.getSubKeys().add(parts[parts.length - 1]);
         store.put(parent, parentItem);
 
-        return new MemoryObjectImpl(type, store, absPath, memoryUpdates);
+        return new MemoryObjectImpl(store, absPath, memoryUpdates);
     }
 
     @Override

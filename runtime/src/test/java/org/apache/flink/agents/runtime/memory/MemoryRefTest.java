@@ -69,11 +69,6 @@ public class MemoryRefTest {
         }
 
         @Override
-        public MemoryObject getSensoryMemory() throws Exception {
-            return memoryObject;
-        }
-
-        @Override
         public MemoryObject getShortTermMemory() {
             return memoryObject;
         }
@@ -117,7 +112,6 @@ public class MemoryRefTest {
         ForTestMemoryMapState<MemoryObjectImpl.MemoryItem> mapState = new ForTestMemoryMapState<>();
         memory =
                 new MemoryObjectImpl(
-                        MemoryObject.MemoryType.SHORT_TERM,
                         new CachedMemoryStore(mapState),
                         MemoryObjectImpl.ROOT_KEY,
                         new LinkedList<>());

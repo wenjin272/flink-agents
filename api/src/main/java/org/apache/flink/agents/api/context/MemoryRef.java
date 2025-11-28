@@ -17,8 +17,6 @@
  */
 package org.apache.flink.agents.api.context;
 
-import org.apache.flink.annotation.VisibleForTesting;
-
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -30,15 +28,9 @@ import java.util.Objects;
 public final class MemoryRef implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final MemoryObject.MemoryType type;
     private final String path;
 
     private MemoryRef(String path) {
-        this(MemoryObject.MemoryType.SHORT_TERM, path);
-    }
-
-    private MemoryRef(MemoryObject.MemoryType type, String path) {
-        this.type = type;
         this.path = path;
     }
 
@@ -48,11 +40,6 @@ public final class MemoryRef implements Serializable {
      * @param path The absolute path of the data in Short-Term Memory.
      * @return A new MemoryRef instance.
      */
-    public static MemoryRef create(MemoryObject.MemoryType type, String path) {
-        return new MemoryRef(type, path);
-    }
-
-    @VisibleForTesting
     public static MemoryRef create(String path) {
         return new MemoryRef(path);
     }
@@ -65,13 +52,7 @@ public final class MemoryRef implements Serializable {
      * @throws Exception if the memory cannot be accessed or the data cannot be resolved.
      */
     public MemoryObject resolve(RunnerContext ctx) throws Exception {
-        if (type.equals(MemoryObject.MemoryType.SENSORY)) {
-            return ctx.getSensoryMemory().get(this);
-        } else if (type.equals(MemoryObject.MemoryType.SHORT_TERM)) {
-            return ctx.getShortTermMemory().get(this);
-        } else {
-            throw new RuntimeException(String.format("Unknown memory type %s", type));
-        }
+        return ctx.getShortTermMemory().get(this);
     }
 
     public String getPath() {

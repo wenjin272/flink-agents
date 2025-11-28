@@ -26,36 +26,27 @@ import java.util.List;
 /** Class representing the state of an action after processing an event. */
 public class ActionState {
     private final Event taskEvent;
-    private final List<MemoryUpdate> sensoryMemoryUpdates;
-    private final List<MemoryUpdate> shortTermMemoryUpdates;
+    private final List<MemoryUpdate> memoryUpdates;
     private final List<Event> outputEvents;
 
     /** Constructs a new TaskActionState instance. */
     public ActionState(final Event taskEvent) {
         this.taskEvent = taskEvent;
-        this.sensoryMemoryUpdates = new ArrayList<>();
-        this.shortTermMemoryUpdates = new ArrayList<>();
+        this.memoryUpdates = new ArrayList<>();
         this.outputEvents = new ArrayList<>();
     }
 
     public ActionState() {
         this.taskEvent = null;
-        this.sensoryMemoryUpdates = new ArrayList<>();
-        this.shortTermMemoryUpdates = new ArrayList<>();
+        this.memoryUpdates = new ArrayList<>();
         this.outputEvents = new ArrayList<>();
     }
 
     /** Constructor for deserialization purposes. */
     public ActionState(
-            Event taskEvent,
-            List<MemoryUpdate> sensoryMemoryUpdates,
-            List<MemoryUpdate> shortTermMemoryUpdates,
-            List<Event> outputEvents) {
+            Event taskEvent, List<MemoryUpdate> memoryUpdates, List<Event> outputEvents) {
         this.taskEvent = taskEvent;
-        this.sensoryMemoryUpdates =
-                sensoryMemoryUpdates != null ? sensoryMemoryUpdates : new ArrayList<>();
-        this.shortTermMemoryUpdates =
-                shortTermMemoryUpdates != null ? shortTermMemoryUpdates : new ArrayList<>();
+        this.memoryUpdates = memoryUpdates != null ? memoryUpdates : new ArrayList<>();
         this.outputEvents = outputEvents != null ? outputEvents : new ArrayList<>();
     }
 
@@ -64,12 +55,8 @@ public class ActionState {
         return taskEvent;
     }
 
-    public List<MemoryUpdate> getSensoryMemoryUpdates() {
-        return sensoryMemoryUpdates;
-    }
-
-    public List<MemoryUpdate> getShortTermMemoryUpdates() {
-        return shortTermMemoryUpdates;
+    public List<MemoryUpdate> getMemoryUpdates() {
+        return memoryUpdates;
     }
 
     public List<Event> getOutputEvents() {
@@ -77,13 +64,8 @@ public class ActionState {
     }
 
     /** Setters for the fields */
-    public void addSensoryMemoryUpdate(MemoryUpdate memoryUpdate) {
-        sensoryMemoryUpdates.add(memoryUpdate);
-    }
-
-    /** Setters for the fields */
-    public void addShortTermMemoryUpdate(MemoryUpdate memoryUpdate) {
-        shortTermMemoryUpdates.add(memoryUpdate);
+    public void addMemoryUpdate(MemoryUpdate memoryUpdate) {
+        memoryUpdates.add(memoryUpdate);
     }
 
     public void addEvent(Event event) {
@@ -93,15 +75,8 @@ public class ActionState {
     @Override
     public int hashCode() {
         int result = taskEvent != null ? taskEvent.hashCode() : 0;
-        result =
-                31 * result
-                        + (sensoryMemoryUpdates.isEmpty() ? 0 : sensoryMemoryUpdates.hashCode());
-        result =
-                31 * result
-                        + (shortTermMemoryUpdates.isEmpty()
-                                ? 0
-                                : shortTermMemoryUpdates.hashCode());
-        result = 31 * result + (outputEvents.isEmpty() ? 0 : outputEvents.hashCode());
+        result = 31 * result + (memoryUpdates != null ? memoryUpdates.hashCode() : 0);
+        result = 31 * result + (outputEvents != null ? outputEvents.hashCode() : 0);
         return result;
     }
 
@@ -110,10 +85,8 @@ public class ActionState {
         return "TaskActionState{"
                 + "taskEvent="
                 + taskEvent
-                + ", sensoryMemoryUpdates="
-                + sensoryMemoryUpdates
-                + ", shortTermMemoryUpdates="
-                + shortTermMemoryUpdates
+                + ", memoryUpdates="
+                + memoryUpdates
                 + ", outputEvents="
                 + outputEvents
                 + '}';

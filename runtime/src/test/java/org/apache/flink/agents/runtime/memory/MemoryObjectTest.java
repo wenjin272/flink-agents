@@ -63,10 +63,7 @@ public class MemoryObjectTest {
         memoryUpdates = new LinkedList<>();
         memory =
                 new MemoryObjectImpl(
-                        MemoryObject.MemoryType.SHORT_TERM,
-                        new CachedMemoryStore(mapState),
-                        MemoryObjectImpl.ROOT_KEY,
-                        memoryUpdates);
+                        new CachedMemoryStore(mapState), MemoryObjectImpl.ROOT_KEY, memoryUpdates);
     }
 
     @Test

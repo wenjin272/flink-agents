@@ -267,11 +267,10 @@ public class ActionExecutionOperatorTest {
                     assertThat(taskEvent).isNotNull();
 
                     // Verify memory updates contain expected data
-                    if (!state.getShortTermMemoryUpdates().isEmpty()) {
+                    if (!state.getMemoryUpdates().isEmpty()) {
                         // For action1, memory should contain input + 1
-                        assertThat(state.getShortTermMemoryUpdates().get(0).getPath())
-                                .isEqualTo("tmp");
-                        assertThat(state.getShortTermMemoryUpdates().get(0).getValue())
+                        assertThat(state.getMemoryUpdates().get(0).getPath()).isEqualTo("tmp");
+                        assertThat(state.getMemoryUpdates().get(0).getValue())
                                 .isEqualTo(inputValue + 1);
                     }
 
