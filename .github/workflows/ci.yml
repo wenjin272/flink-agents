@@ -67,7 +67,7 @@ jobs:
         run: tools/ut.sh -j
 
   python_tests:
-    name: ut-python [${{ matrix.os }}] [${{ matrix.python-version}}]
+    name: ut-python [${{ matrix.os }}] [python-${{ matrix.python-version}}]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -93,7 +93,7 @@ jobs:
         run: tools/ut.sh -p
 
   python_it_tests:
-    name: it-python [${{ matrix.os }}] [${{ matrix.python-version}}]
+    name: it-python [${{ matrix.os }}] [python-${{ matrix.python-version}}]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -145,13 +145,14 @@ jobs:
         run: tools/ut.sh -j -e
 
   cross_language_tests:
-    name: cross-language [${{ matrix.os }}] [${{ matrix.python-version}}]
+    name: cross-language [${{ matrix.os }}] [python-${{ matrix.python-version}}] [java-${{ matrix.java-version}}]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ 'macos-latest', 'ubuntu-latest' ]
-        python-version: [ '3.10', '3.11' ]
+        python-version: [ '3.11' ]
+        java-version: [ '11' ]
     steps:
       - uses: actions/checkout@v4
       - name: Install java
