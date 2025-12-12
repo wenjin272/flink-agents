@@ -38,7 +38,7 @@ from flink_agents.api.vector_stores.vector_store import (
     CollectionManageableVectorStore,
     Document,
     VectorStoreQuery,
-    maybe_cast_to_list,
+    _maybe_cast_to_list,
 )
 from flink_agents.runtime.memory.compaction_functions import summarize
 
@@ -109,11 +109,10 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
             compaction_strategy=compaction_strategy,
             ltm=self,
         )
-        collection = self.store.get_or_create_collection(
+        self.store.get_or_create_collection(
             name=self._name_mangling(name),
             metadata={"memory_set": memory_set.model_dump_json()},
         )
-        memory_set.size = collection.size
         return memory_set
 
     @override
@@ -121,16 +120,15 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
         collection = self.store.get_collection(name=self._name_mangling(name))
         memory_set = MemorySet.model_validate_json(collection.metadata["memory_set"])
         memory_set.ltm = self
-        memory_set.size = collection.size
         return memory_set
 
     @override
-    def delete_memory_set(self, name: str) -> MemorySet:
-        collection = self.store.delete_collection(name=self._name_mangling(name))
-        memory_set = MemorySet.model_validate_json(collection.metadata["memory_set"])
-        memory_set.ltm = self
-        memory_set.size = collection.size
-        return memory_set
+    def delete_memory_set(self, name: str) -> bool:
+        return self.store.delete_collection(name=self._name_mangling(name)) is not None
+
+    @override
+    def size(self, memory_set: MemorySet) -> int:
+        return self.store.size(collection_name=self._name_mangling(memory_set.name))
 
     @override
     def add(
@@ -140,9 +138,9 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
         ids: str | List[str] | None = None,
         metadatas: Dict[str, Any] | List[Dict[str, Any]] | None = None,
     ) -> None:
-        memory_items = maybe_cast_to_list(memory_items)
-        ids = maybe_cast_to_list(ids)
-        metadatas = maybe_cast_to_list(metadatas)
+        memory_items = _maybe_cast_to_list(memory_items)
+        ids = _maybe_cast_to_list(ids)
+        metadatas = _maybe_cast_to_list(metadatas)
 
         if ids is None:
             ids = [str(uuid.uuid4()) for _ in memory_items]
@@ -176,7 +174,6 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
         self.store.add(
             documents=documents, collection_name=self._name_mangling(memory_set.name)
         )
-        memory_set.size = memory_set.size + len(documents)
 
         if memory_set.size >= memory_set.capacity:
             # trigger compaction
@@ -194,14 +191,17 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
     @override
     def delete(self, memory_set: MemorySet, ids: str | List[str] | None = None) -> None:
         self.store.delete(ids=ids, collection_name=self._name_mangling(memory_set.name))
-        memory_set.size = memory_set.size - len(ids)
 
     @override
     def search(
         self, memory_set: MemorySet, query: str, limit: int, **kwargs: Any
     ) -> List[MemorySetItem]:
-        kwargs["collection"] = self._name_mangling(memory_set.name)
-        query = VectorStoreQuery(query_text=query, limit=limit, extra_args=kwargs)
+        query = VectorStoreQuery(
+            query_text=query,
+            limit=limit,
+            collection_name=self._name_mangling(memory_set.name),
+            extra_args=kwargs,
+        )
         result = self.store.query(query=query)
 
         return self._convert_to_items(memory_set=memory_set, documents=result.documents)

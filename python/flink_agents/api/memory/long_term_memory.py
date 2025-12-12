@@ -51,10 +51,18 @@ class CompactionStrategy(BaseModel, ABC):
 
 
 class SummarizationStrategy(CompactionStrategy):
-    """Summarization strategy."""
+    """Summarization strategy.
+
+    Attributes:
+        model: The name of the llm used for generating the summarization.
+        prompt: The prompt instance or  name of the prompt used for generating
+            the summarization. Optional.
+        limit: How many summarization should generate for the context. Defaults to 1.
+    """
 
     model: str
     prompt: str | Prompt | None = None
+    limit: int = 1
 
     @property
     @override
@@ -65,7 +73,7 @@ class SummarizationStrategy(CompactionStrategy):
 class LongTermMemoryBackend(Enum):
     """Backend for Long-Term Memory."""
 
-    VectorStore = "vectorstore"
+    EXTERNAL_VECTOR_STORE = "external_vector_store"
 
 
 class DatetimeRange(BaseModel):
@@ -106,14 +114,12 @@ class MemorySet(BaseModel):
         capacity: The capacity of this memory set.
         compaction_strategy: Compaction strategy and additional arguments used
         to compact memory set.
-        size: The size of this memory set.
     """
 
     name: str
     item_type: Type[str] | Type[ChatMessage]
     capacity: int
     compaction_strategy: CompactionStrategy
-    size: int = Field(default=0, exclude=True)
     ltm: "BaseLongTermMemory" = Field(default=None, exclude=True)
 
     @field_serializer("item_type")
@@ -145,6 +151,11 @@ class MemorySet(BaseModel):
                 self["compaction_strategy"]
             )
         return self
+
+    @property
+    def size(self) -> int:
+        """The count of items of this memory set."""
+        return self.ltm.size(memory_set=self)
 
     def add(
         self, items: ItemType | List[ItemType], ids: str | List[str] | None = None
@@ -221,14 +232,22 @@ class BaseLongTermMemory(ABC, BaseModel):
         """
 
     @abstractmethod
-    def delete_memory_set(self, name: str) -> MemorySet:
+    def delete_memory_set(self, name: str) -> bool:
         """Delete the memory set.
 
         Args:
             name: The name of the memory set.
 
         Returns:
-            The deleted memory set.
+            Whether the memory set was deleted.
+        """
+
+    @abstractmethod
+    def size(self, memory_set: MemorySet) -> int:
+        """Get the size of the memory set.
+
+        Args:
+            memory_set: The memory set to count.
         """
 
     @abstractmethod
