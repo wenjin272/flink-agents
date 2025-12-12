@@ -137,7 +137,7 @@ def test_collection_management() -> None:
 
     assert collection is not None
     assert collection.name == "collection_management"
-    assert collection.size == 0
+    assert vector_store.size(collection_name="collection_management") == 0
     assert collection.metadata == {"key1": "value1", "key2": "value2"}
 
     vector_store.delete_collection(name="collection_management")
@@ -170,6 +170,8 @@ def test_document_management() -> None:
     )
 
     expected_documents = _populate_test_data(vector_store, "document_management")
+    expected_documents[0].embedding = None
+    expected_documents[1].embedding = None
 
     # test get all documents
     documents = vector_store.get(collection_name="document_management")

@@ -16,7 +16,7 @@
 # limitations under the License.
 ################################################################################
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, Generator, List
 
 import chromadb
 from chromadb import ClientAPI as ChromaClient
@@ -32,6 +32,27 @@ from flink_agents.api.vector_stores.vector_store import (
 )
 
 DEFAULT_COLLECTION = "flink_agents_chroma_collection"
+
+MAX_CHUNK_SIZE = 41665
+
+
+def chunk_list(
+    lst: List[Document], max_chunk_size: int
+) -> Generator[List[Document], None, None]:
+    """Yield successive max_chunk_size-sized chunks from list.
+
+    This method is inspired by `chunk_list` in llama_index
+
+    Args:
+        lst : list of documents with embeddings
+        max_chunk_size : max chunk size
+
+    Yields:
+        Generator[List[Document], None, None]: list of documents with embeddings
+
+    """
+    for i in range(0, len(lst), max_chunk_size):
+        yield lst[i : i + max_chunk_size]
 
 
 class ChromaVectorStore(CollectionManageableVectorStore):
@@ -202,22 +223,24 @@ class ChromaVectorStore(CollectionManageableVectorStore):
         self, name: str, metadata: Dict[str, Any] | None = None
     ) -> Collection:
         collection = self.client.get_or_create_collection(name=name, metadata=metadata)
-        return Collection(
-            name=collection.name, size=collection.count(), metadata=collection.metadata
-        )
+        return Collection(name=collection.name, metadata=collection.metadata)
 
     @override
     def get_collection(self, name: str) -> Collection:
         collection = self.client.get_collection(name=name)
-        return Collection(
-            name=collection.name, size=collection.count(), metadata=collection.metadata
-        )
+        return Collection(name=collection.name, metadata=collection.metadata)
 
     @override
     def delete_collection(self, name: str) -> Collection:
         collection = self.get_collection(name=name)
         self.client.delete_collection(name=collection.name)
         return collection
+
+    @override
+    def size(self, collection_name: str | None = None) -> int:
+        return self.client.get_collection(
+            name=collection_name or self.collection
+        ).count()
 
     @override
     def get(
@@ -272,37 +295,48 @@ class ChromaVectorStore(CollectionManageableVectorStore):
         )
 
     @override
-    def add_embedding(
+    def _add_embedding(
         self,
         *,
         documents: List[Document],
-        embeddings: List[List[float]],
         collection_name: str | None = None,
         **kwargs: Any,
     ) -> List[str]:
-        ids = [doc.id or str(uuid.uuid4()) for doc in documents]
-        docs = [doc.content for doc in documents]
-        metadatas = [doc.metadata for doc in documents]
-        self.client.get_collection(name=collection_name or self.collection).add(
-            ids=ids, documents=docs, embeddings=embeddings, metadatas=metadatas
-        )
-        return ids
+        documents_chunks = chunk_list(documents, MAX_CHUNK_SIZE)
 
-    def query_embedding(
-        self, embedding: List[float], limit: int = 10, **kwargs: Any
+        all_ids = []
+        for chunk in documents_chunks:
+            ids = [doc.id or str(uuid.uuid4()) for doc in chunk]
+            docs = [doc.content for doc in chunk]
+            embeddings = [doc.embedding for doc in chunk]
+            metadatas = [doc.metadata for doc in chunk]
+
+            self.client.get_collection(name=collection_name or self.collection).add(
+                ids=ids, documents=docs, embeddings=embeddings, metadatas=metadatas
+            )
+            all_ids.extend(ids)
+        return all_ids
+
+    def _query_embedding(
+        self,
+        embedding: List[float],
+        limit: int = 10,
+        collection_name: str | None = None,
+        **kwargs: Any,
     ) -> List[Document]:
         """Perform vector search using pre-computed embedding.
 
         Args:
             embedding: Pre-computed embedding vector for semantic search
             limit: Maximum number of results to return (default: 10)
-            **kwargs: ChromaDB-specific parameters (collection, where, etc.)
+            collection_name: The collection to apply the query. Optional.
+            **kwargs: ChromaDB-specific parameters (where, etc.)
 
         Returns:
             List of documents matching the search criteria
         """
         # Extract ChromaDB-specific parameters
-        collection_name = kwargs.get("collection", self.collection)
+        collection_name = collection_name or self.collection
         collection_metadata = kwargs.get(
             "collection_metadata", self.collection_metadata
         )
