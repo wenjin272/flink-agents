@@ -54,6 +54,8 @@ class VectorStoreQuery(BaseModel):
         Text query to be converted to embedding for semantic search.
     limit : int
         Maximum number of results to return (default: 10).
+    collection_name : str
+        The collection to apply the query. Optional.
     extra_args : Dict[str, Any]
         Vector store-specific parameters such as filters, distance metrics,
         namespaces, or other search configurations.
@@ -67,6 +69,9 @@ class VectorStoreQuery(BaseModel):
         description="Text query to be converted to embedding for semantic search."
     )
     limit: int = Field(default=10, description="Maximum number of results to return.")
+    collection_name: str = Field(
+        default=None, description="The collection to apply the query."
+    )
     extra_args: Dict[str, Any] = Field(
         default_factory=dict, description="Vector store-specific parameters."
     )
@@ -97,6 +102,9 @@ class Document(BaseModel):
     )
     id: str | None = Field(
         default=None, description="Unique identifier of the document."
+    )
+    embedding: List[float] | None = Field(
+        default=None, description="Embedding vector for content."
     )
 
     def __str__(self) -> str:
@@ -153,7 +161,10 @@ class BaseVectorStore(Resource, ABC):
         """
 
     def add(
-        self, documents: Document | List[Document], collection_name: str | None = None, **kwargs: Any
+        self,
+        documents: Document | List[Document],
+        collection_name: str | None = None,
+        **kwargs: Any,
     ) -> List[str]:
         """Add documents to the vector store.
 
@@ -169,7 +180,7 @@ class BaseVectorStore(Resource, ABC):
             List of document IDs that were added to the vector store
         """
         # Normalize to list
-        documents = maybe_cast_to_list(documents)
+        documents = _maybe_cast_to_list(documents)
 
         # Generate embeddings for all documents
         embedding_model = self.get_resource(
@@ -177,14 +188,18 @@ class BaseVectorStore(Resource, ABC):
         )
 
         # Generate embeddings for each document
-        embeddings = [embedding_model.embed(doc.content) for doc in documents]
+        for doc in documents:
+            if doc.embedding is None:
+                doc.embedding = embedding_model.embed(doc.content)
 
         # Merge setup kwargs with add-specific args
         merged_kwargs = self.store_kwargs.copy()
         merged_kwargs.update(kwargs)
 
         # Perform add operation using the abstract method
-        return self.add_embedding(documents=documents, embeddings=embeddings, collection_name=collection_name, **merged_kwargs)
+        return self._add_embedding(
+            documents=documents, collection_name=collection_name, **merged_kwargs
+        )
 
     def query(self, query: VectorStoreQuery) -> VectorStoreQueryResult:
         """Perform vector search using structured query object.
@@ -208,13 +223,28 @@ class BaseVectorStore(Resource, ABC):
         merged_kwargs.update(query.extra_args)
 
         # Perform vector search using the abstract method
-        documents = self.query_embedding(query_embedding, query.limit, **merged_kwargs)
+        documents = self._query_embedding(
+            query_embedding, query.limit, query.collection_name, **merged_kwargs
+        )
 
         # Return structured result
         return VectorStoreQueryResult(documents=documents)
 
     @abstractmethod
-    def get(self, ids: str | List[str] | None = None, collection_name: str | None = None, **kwargs: Any) -> List[Document]:
+    def size(self, collection_name: str | None = None) -> int:
+        """Get the size of the collection in vector store.
+
+        Args:
+            collection_name: The target collection. Optional.
+        """
+
+    @abstractmethod
+    def get(
+        self,
+        ids: str | List[str] | None = None,
+        collection_name: str | None = None,
+        **kwargs: Any,
+    ) -> List[Document]:
         """Retrieve a document from the vector store by its ID.
 
         Args:
@@ -227,7 +257,12 @@ class BaseVectorStore(Resource, ABC):
         """
 
     @abstractmethod
-    def delete(self, ids: str | List[str] | None = None, collection_name: str | None = None, **kwargs: Any) -> None:
+    def delete(
+        self,
+        ids: str | List[str] | None = None,
+        collection_name: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Delete documents in the vector store by its IDs.
 
         Args:
@@ -237,14 +272,19 @@ class BaseVectorStore(Resource, ABC):
         """
 
     @abstractmethod
-    def query_embedding(
-        self, embedding: List[float], limit: int = 10, **kwargs: Any
+    def _query_embedding(
+        self,
+        embedding: List[float],
+        limit: int = 10,
+        collection_name: str | None = None,
+        **kwargs: Any,
     ) -> List[Document]:
         """Perform vector search using pre-computed embedding.
 
         Args:
             embedding: Pre-computed embedding vector for semantic search
             limit: Maximum number of results to return (default: 10)
+            collection_name: The collection to apply the query. Optional.
             **kwargs: Vector store-specific parameters (filters, distance metrics, etc.)
 
         Returns:
@@ -252,19 +292,17 @@ class BaseVectorStore(Resource, ABC):
         """
 
     @abstractmethod
-    def add_embedding(
+    def _add_embedding(
         self,
         *,
         documents: List[Document],
-        embeddings: List[List[float]],
         collection_name: str | None = None,
         **kwargs: Any,
     ) -> List[str]:
         """Add documents with pre-computed embeddings to the vector store.
 
         Args:
-            documents: Documents to add to the vector store
-            embeddings: Pre-computed embedding vector for each document
+            documents: Documents with embeddings to add to the vector store
             collection_name: The collection name of the documents to add. Optional.
             **kwargs: Vector store-specific parameters (collection, namespace, etc.)
 
@@ -275,8 +313,8 @@ class BaseVectorStore(Resource, ABC):
 
 class Collection(BaseModel):
     """Represents a collection of documents."""
+
     name: str
-    size: int
     metadata: Dict[str, Any] | None = None
 
 
@@ -316,7 +354,8 @@ class CollectionManageableVectorStore(BaseVectorStore, ABC):
             The deleted collection
         """
 
-def maybe_cast_to_list(value: Any | List[Any]) -> List[Any] | None:
+
+def _maybe_cast_to_list(value: Any | List[Any]) -> List[Any] | None:
     """Cast T to List[T] if T is not None."""
     if value is None:
         return None
