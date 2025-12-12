@@ -15,6 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import json
 from typing import TYPE_CHECKING, List, Type, cast
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -24,12 +25,35 @@ from flink_agents.api.memory.long_term_memory import (
     MemorySetItem,
     SummarizationStrategy,
 )
+from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import ResourceType
 from flink_agents.api.runner_context import RunnerContext
 
 if TYPE_CHECKING:
     from flink_agents.api.chat_models.chat_model import BaseChatModelSetup
-    from flink_agents.api.prompts.prompt import Prompt
+
+
+DEFAULT_ANALYSIS_PROMPT = Prompt.from_text("""<role>
+Context Summarize Assistant
+</role>
+
+<primary_objective>
+Your sole objective in this task is to summarize the context above.
+</primary_objective>
+
+<objective_information>
+You're nearing the total number of input tokens you can accept, so you need compact the context. To achieve this objective, you must extract important topics first. The extracted topics
+must no more than {limit}. Afterwards, you should generate summarization for each topic, and and record which messages the summary was derived from.
+</objective_information>
+
+<output_example>
+You must always respond with valid json format in this format:
+{"topic1": {"summarization": "User ask what is 1 * 2, and the result is 3.", "messages": [0,1,2]},
+ ...
+ "topic4": {"summarization": "User ask what's the weather tomorrow, llm use the search_weather, and the answer is snow.", "messages": [9,10,11,12]}
+}
+</output_example>
+""")
 
 
 def summarize(
@@ -61,40 +85,45 @@ def summarize(
         items, memory_set.item_type, strategy, ctx
     )
 
-    if memory_set.item_type == ChatMessage:
-        item = ChatMessage(role=MessageRole.USER, content=response.content)
-    else:
-        item = response.content
+    for topic in cast("dict", json.loads(response.content)).values():
+        summarization = topic["summarization"]
+        indices = topic["messages"]
 
-    start = min(
-        [
-            item.created_time.start if item.compacted else item.created_time
-            for item in items
+        if strategy.limit == 1:
+            indices = list(range(len(items)))
+
+        if memory_set.item_type == ChatMessage:
+            item = ChatMessage(role=MessageRole.USER, content=summarization)
+        else:
+            item = summarization
+
+        create_time_list = [
+            items[index].created_time.start
+            if items[index].compacted
+            else items[index].created_time
+            for index in indices
         ]
-    ).isoformat()
-    end = max(
-        [
-            item.created_time.end if item.compacted else item.created_time
-            for item in items
-        ]
-    ).isoformat()
-    last_accessed_time = max([item.last_accessed_time for item in items]).isoformat()
+        start = min(create_time_list).isoformat()
+        end = max(create_time_list).isoformat()
+        last_accessed_time = max(
+            [items[index].last_accessed_time for index in indices]
+        ).isoformat()
 
-    # delete involved items
-    ids = [item.id for item in items]
-    ltm.delete(memory_set=memory_set, ids=ids)
+        # delete involved items
+        ids = [items[index].id for index in indices]
+        ltm.delete(memory_set=memory_set, ids=ids)
 
-    # add summarization to memory set
-    ltm.add(
-        memory_set=memory_set,
-        memory_items=item,
-        metadatas={
-            "compacted": True,
-            "created_time_start": start,
-            "created_time_end": end,
-            "last_accessed_time": last_accessed_time,
-        },
-    )
+        # add summarization to memory set
+        ltm.add(
+            memory_set=memory_set,
+            memory_items=item,
+            metadatas={
+                "compacted": True,
+                "created_time_start": start,
+                "created_time_end": end,
+                "last_accessed_time": last_accessed_time,
+            },
+        )
 
 
 def _generate_summarization(
@@ -137,12 +166,7 @@ def _generate_summarization(
         )
         msgs.extend(prompt_messages)
     else:
-        msgs.append(
-            ChatMessage(
-                role=MessageRole.USER,
-                content="Create a summary of the conversation above",
-            )
-        )
+        msgs.extend(DEFAULT_ANALYSIS_PROMPT.format_messages(limit=str(strategy.limit)))
 
     response: ChatMessage = model.chat(messages=msgs)
 

@@ -16,12 +16,9 @@
 # limitations under the License.
 #################################################################################
 import os
-import signal
-import subprocess
 import tempfile
-import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Generator, List
+from typing import TYPE_CHECKING, Any, Dict, List
 from unittest.mock import create_autospec
 
 import pytest
@@ -61,20 +58,6 @@ if TYPE_CHECKING:
 current_dir = Path(__file__).parent
 
 
-@pytest.fixture(scope="module")
-def start_chroma() -> Generator:  # noqa: D103
-    chromadb_path = tempfile.mkdtemp()
-    print(f"Starting ChromaDB in {chromadb_path}...")
-    process = subprocess.Popen(
-        ["bash", f"{current_dir}/start_chroma_server.sh", chromadb_path],
-        preexec_fn=os.setsid,
-    )
-    time.sleep(10)
-    yield
-    # clean up running chroma process
-    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-
-
 class MockEmbeddingModel(Resource):  # noqa: D101
     model_config = ConfigDict(arbitrary_types_allowed=True)
     ef: EmbeddingFunction = embedding_functions.DefaultEmbeddingFunction()
@@ -95,7 +78,7 @@ class MockEmbeddingModel(Resource):  # noqa: D101
 def long_term_memory() -> VectorStoreLongTermMemory:  # noqa: D103
     embedding_model_connection = OllamaEmbeddingModelConnection()
 
-    chat_model_connection = OllamaChatModelConnection()
+    chat_model_connection = OllamaChatModelConnection(request_timeout=240)
 
     use_ollama = os.environ.get("USE_OLLAMA")
 
@@ -115,9 +98,7 @@ def long_term_memory() -> VectorStoreLongTermMemory:  # noqa: D103
             return vector_store
 
     chat_model = OllamaChatModelSetup(
-        get_resource=get_resource,
-        connection="chat_model_connection",
-        model="qwen3:8b",
+        get_resource=get_resource, connection="chat_model_connection", model="qwen3:8b"
     )
 
     embedding_model = OllamaEmbeddingModelSetup(
@@ -126,9 +107,11 @@ def long_term_memory() -> VectorStoreLongTermMemory:  # noqa: D103
         model="nomic-embed-text",
     )
 
+    chromadb_path = tempfile.mkdtemp()
+    print(f"Starting ChromaDB in {chromadb_path}...")
+
     vector_store = ChromaVectorStore(
-        host="localhost",
-        port=8000,
+        persist_directory=chromadb_path,
         embedding_model="embedding_model",
         get_resource=get_resource,
     )
@@ -165,7 +148,7 @@ def prepare_memory_set(  # noqa: D103
 
 
 def test_get_memory_set(  # noqa:D103
-    start_chroma: Generator, long_term_memory: VectorStoreLongTermMemory
+    long_term_memory: VectorStoreLongTermMemory,
 ) -> None:
     memory_set, _ = prepare_memory_set(long_term_memory)
     retrieved = long_term_memory.get_memory_set(memory_set.name)
@@ -175,7 +158,7 @@ def test_get_memory_set(  # noqa:D103
 
 
 def test_add_and_get(  # noqa:D103
-    start_chroma: Generator, long_term_memory: VectorStoreLongTermMemory
+    long_term_memory: VectorStoreLongTermMemory,
 ) -> None:
     memory_set, msgs = prepare_memory_set(long_term_memory)
 
@@ -188,7 +171,7 @@ def test_add_and_get(  # noqa:D103
 
 
 def test_search(  # noqa:D103
-    start_chroma: Generator, long_term_memory: VectorStoreLongTermMemory
+    long_term_memory: VectorStoreLongTermMemory,
 ) -> None:
     memory_set, msgs = prepare_memory_set(long_term_memory)
 
@@ -204,28 +187,70 @@ def test_search(  # noqa:D103
 
 @pytest.mark.skip("Depend on ollama server")
 def test_compact(  # noqa:D103
-    start_chroma: Generator, long_term_memory: VectorStoreLongTermMemory
+    long_term_memory: VectorStoreLongTermMemory,
 ) -> None:
-    memory_set, _ = prepare_memory_set(
-        long_term_memory,
-        compaction_strategy=SummarizationStrategy(model="llm"),
+    memory_set: MemorySet = long_term_memory.get_or_create_memory_set(
+        name="chat_history",
+        item_type=ChatMessage,
+        capacity=8,
+        compaction_strategy=SummarizationStrategy(model="llm", limit=2),
     )
 
-    msgs: List[ChatMessage] = []
-
-    for i in range(100):
-        msg = ChatMessage(
-            role=MessageRole.USER, content=f"This is the no.{i + 20} message."
-        )
-        msgs.append(msg)
+    msgs: List[ChatMessage] = [
+        ChatMessage(role=MessageRole.USER, content="What is flink?"),
+        ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="Apache Flink is a framework and distributed processing engine for stateful computations over unbounded and bounded data streams. Flink has been designed to run in all common cluster environments, perform computations at in-memory speed and at any scale.?",
+        ),
+        ChatMessage(role=MessageRole.USER, content="What is flink agnets?"),
+        ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="Apache Flink Agents is a brand-new sub-project from the Apache Flink community, providing an open-source framework for building event-driven streaming agents.",
+        ),
+        ChatMessage(
+            role=MessageRole.USER, content="What's the whether tomorrow in london?"
+        ),
+        ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=[
+                {
+                    "id": "186780f8-c79d-4159-83e3-f65859835b14",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": {"position": "london", "time": "tomorrow"},
+                    },
+                }
+            ],
+        ),
+        ChatMessage(role=MessageRole.TOOL, content="snow"),
+        ChatMessage(
+            role=MessageRole.ASSISTANT, content="Tomorrow weather for london is snow."
+        ),
+    ]
     memory_set.add(items=msgs)
 
     retrieved: List[MemorySetItem] = memory_set.get()
     retrieved_msgs = [item.value for item in retrieved]
 
+    """
+    The retrieved messages likes:
+        [ChatMessage(role= < MessageRole.USER: 'user' >, content = 'User inquire about
+            Apache Flink and Flink Agents, and the assistant explains Flink as a stream
+            processing framework and Flink Agents as its sub-project.',
+            tool_calls = [], extra_args = {}),
+        ChatMessage(role= < MessageRole.USER: 'user' >, content = "User ask for London's
+            weather tomorrow, llm invoke get_weather function, and the answer is snow.",
+            tool_calls = [], extra_args = {})]
+    The summarization quality is not stable on qwen3:8b.
+    """
+
+    assert len(retrieved_msgs) == 2
     assert retrieved[0].compacted
+    assert retrieved[1].compacted
     assert isinstance(retrieved[0].created_time, DatetimeRange)
-    assert memory_set.size == 1
-    assert len(retrieved_msgs) == 1
+    assert isinstance(retrieved[1].created_time, DatetimeRange)
+    assert memory_set.size == 2
 
     long_term_memory.delete_memory_set(name="chat_history")
