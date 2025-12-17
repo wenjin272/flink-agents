@@ -20,34 +20,67 @@ package org.apache.flink.agents.api.resource;
 
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonCreator;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /** Helper class to describe a {@link Resource} */
 public class ResourceDescriptor {
-    private static final String FIELD_CLAZZ = "clazz";
-    private static final String FIELD_INITIAL_ARGUMENTS = "initialArguments";
+    private static final String FIELD_CLAZZ = "target_clazz";
+    private static final String FIELD_MODULE = "target_module";
+    private static final String FIELD_INITIAL_ARGUMENTS = "arguments";
 
     @JsonProperty(FIELD_CLAZZ)
     private final String clazz;
 
-    // TODO: support nested map/list with non primitive value.
+    @JsonProperty(FIELD_MODULE)
+    private final String module;
+
     @JsonProperty(FIELD_INITIAL_ARGUMENTS)
-    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
     private final Map<String, Object> initialArguments;
 
+    /**
+     * Initialize ResourceDescriptor.
+     *
+     * <p>Creates a new ResourceDescriptor with the specified class information and initial
+     * arguments. This constructor supports cross-platform compatibility between Java and Python
+     * resources.
+     *
+     * @param clazz The class identifier for the resource. Its meaning depends on the resource type:
+     *     <ul>
+     *       <li><b>For Java resources:</b> The fully qualified Java class name (e.g.,
+     *           "com.example.YourJavaClass"). The {@code module} parameter should be empty or null.
+     *       <li><b>For Python resources (when declaring from Java):</b> The Python class name
+     *           (simple name, not module path, e.g., "YourPythonClass"). The Python module path
+     *           must be specified in the {@code module} parameter (e.g., "your_module.submodule").
+     *     </ul>
+     *
+     * @param module The Python module path for cross-platform compatibility. Defaults to empty
+     *     string for Java resources. Example: "your_module.submodule"
+     * @param initialArguments Additional arguments for resource initialization. Can be null or
+     *     empty map if no initial arguments are needed.
+     */
     @JsonCreator
     public ResourceDescriptor(
+            @JsonProperty(FIELD_MODULE) String module,
             @JsonProperty(FIELD_CLAZZ) String clazz,
             @JsonProperty(FIELD_INITIAL_ARGUMENTS) Map<String, Object> initialArguments) {
         this.clazz = clazz;
+        this.module = module;
         this.initialArguments = initialArguments;
+    }
+
+    public ResourceDescriptor(String clazz, Map<String, Object> initialArguments) {
+        this("", clazz, initialArguments);
     }
 
     public String getClazz() {
         return clazz;
+    }
+
+    public String getModule() {
+        return module;
     }
 
     public Map<String, Object> getInitialArguments() {
@@ -62,6 +95,27 @@ public class ResourceDescriptor {
     public <T> T getArgument(String argName, T defaultValue) {
         T value = getArgument(argName);
         return value != null ? value : defaultValue;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        ResourceDescriptor that = (ResourceDescriptor) o;
+        return Objects.equals(this.clazz, that.clazz)
+                && Objects.equals(this.module, that.module)
+                && Objects.equals(this.initialArguments, that.initialArguments);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clazz, module, initialArguments);
     }
 
     public static class Builder {

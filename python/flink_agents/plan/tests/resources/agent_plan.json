@@ -89,12 +89,14 @@
             "mock": {
                 "name": "mock",
                 "type": "chat_model",
-                "module": "flink_agents.plan.tests.test_agent_plan",
-                "clazz": "MockChatModelImpl",
-                "kwargs": {
-                    "host": "8.8.8.8",
-                    "desc": "mock resource just for testing.",
-                    "connection": "mock"
+                "descriptor": {
+                    "target_module": "flink_agents.plan.tests.test_agent_plan",
+                    "target_clazz": "MockChatModelImpl",
+                    "arguments": {
+                        "host": "8.8.8.8",
+                        "desc": "mock resource just for testing.",
+                        "connection": "mock"
+                    }
                 },
                 "__resource_provider_type__": "PythonResourceProvider"
             }
@@ -103,11 +105,13 @@
             "mock_embedding": {
                 "name": "mock_embedding",
                 "type": "embedding_model",
-                "module": "flink_agents.plan.tests.test_agent_plan",
-                "clazz": "MockEmbeddingModelSetup",
-                "kwargs": {
-                    "model": "test-model",
-                    "connection": "mock_embedding_conn"
+                "descriptor": {
+                    "target_module": "flink_agents.plan.tests.test_agent_plan",
+                    "target_clazz": "MockEmbeddingModelSetup",
+                    "arguments": {
+                        "model": "test-model",
+                        "connection": "mock_embedding_conn"
+                    }
                 },
                 "__resource_provider_type__": "PythonResourceProvider"
             }
@@ -116,10 +120,12 @@
             "mock_embedding_conn": {
                 "name": "mock_embedding_conn",
                 "type": "embedding_model_connection",
-                "module": "flink_agents.plan.tests.test_agent_plan",
-                "clazz": "MockEmbeddingModelConnection",
-                "kwargs": {
-                    "api_key": "mock-api-key"
+                "descriptor": {
+                    "target_module": "flink_agents.plan.tests.test_agent_plan",
+                    "target_clazz": "MockEmbeddingModelConnection",
+                    "arguments": {
+                        "api_key": "mock-api-key"
+                    }
                 },
                 "__resource_provider_type__": "PythonResourceProvider"
             }
@@ -128,13 +134,15 @@
             "mock_vector_store": {
                 "name": "mock_vector_store",
                 "type": "vector_store",
-                "module": "flink_agents.plan.tests.test_agent_plan",
-                "clazz": "MockVectorStore",
-                "kwargs": {
-                    "embedding_model": "mock_embedding",
-                    "host": "localhost",
-                    "port": 8000,
-                    "collection_name": "test_collection"
+                "descriptor": {
+                    "target_module": "flink_agents.plan.tests.test_agent_plan",
+                    "target_clazz": "MockVectorStore",
+                    "arguments": {
+                        "embedding_model": "mock_embedding",
+                        "host": "localhost",
+                        "port": 8000,
+                        "collection_name": "test_collection"
+                    }
                 },
                 "__resource_provider_type__": "PythonResourceProvider"
             }

@@ -75,10 +75,10 @@ public class ChatModelCrossLanguageAgent extends Agent {
     @ChatModelSetup
     public static ResourceDescriptor chatModel() {
         return ResourceDescriptor.Builder.newBuilder(PythonChatModelSetup.class.getName())
-                .addInitialArgument("connection", "chatModelConnection")
                 .addInitialArgument(
                         "module", "flink_agents.integrations.chat_models.ollama_chat_model")
                 .addInitialArgument("clazz", "OllamaChatModelSetup")
+                .addInitialArgument("connection", "chatModelConnection")
                 .addInitialArgument("model", OLLAMA_MODEL)
                 .addInitialArgument(
                         "tools",
