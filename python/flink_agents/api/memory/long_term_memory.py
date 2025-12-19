@@ -30,6 +30,7 @@ from pydantic import (
 from typing_extensions import override
 
 from flink_agents.api.chat_message import ChatMessage
+from flink_agents.api.configuration import ConfigOption
 from flink_agents.api.prompts.prompt import Prompt
 
 ItemType = str | ChatMessage
@@ -74,6 +75,28 @@ class LongTermMemoryBackend(Enum):
     """Backend for Long-Term Memory."""
 
     EXTERNAL_VECTOR_STORE = "external_vector_store"
+
+
+class LongTermMemoryOptions:
+    """Config options for ReActAgent."""
+
+    BACKEND = ConfigOption(
+        key="long-term-memory.",
+        config_type=LongTermMemoryBackend,
+        default=None,
+    )
+
+    EXTERNAL_VECTOR_STORE_NAME = ConfigOption(
+        key="long-term-memory.external-vector-store-name",
+        config_type=str,
+        default=None,
+    )
+
+    ASYNC_COMPACTION = ConfigOption(
+        key="long-term-memory.async-compaction",
+        config_type=bool,
+        default=False,
+    )
 
 
 class DatetimeRange(BaseModel):
@@ -159,7 +182,7 @@ class MemorySet(BaseModel):
 
     def add(
         self, items: ItemType | List[ItemType], ids: str | List[str] | None = None
-    ) -> None:
+    ) -> List[str]:
         """Add a memory item to the set, currently only support item with
         type str or ChatMessage.
 
@@ -169,8 +192,11 @@ class MemorySet(BaseModel):
         Args:
             items: The items to be inserted to this set.
             ids: The ids of the items to be inserted. Optional.
+
+        Returns:
+            The IDs of the items added.
         """
-        self.ltm.add(memory_set=self, memory_items=items, ids=ids)
+        return self.ltm.add(memory_set=self, memory_items=items, ids=ids)
 
     def get(
         self, ids: str | List[str] | None = None
@@ -203,7 +229,7 @@ class BaseLongTermMemory(ABC, BaseModel):
     def get_or_create_memory_set(
         self,
         name: str,
-        item_type: str | Type[ChatMessage],
+        item_type: type[str] | Type[ChatMessage],
         capacity: int,
         compaction_strategy: CompactionStrategy,
     ) -> MemorySet:
@@ -257,7 +283,7 @@ class BaseLongTermMemory(ABC, BaseModel):
         memory_items: ItemType | List[ItemType],
         ids: str | List[str] | None = None,
         metadatas: Dict[str, Any] | List[Dict[str, Any]] | None = None,
-    ) -> None:
+    ) -> List[str]:
         """Add items to the memory set, currently only support items with
         type str or ChatMessage.
 
@@ -269,6 +295,9 @@ class BaseLongTermMemory(ABC, BaseModel):
             ids: The IDs of items. Will be automatically generated if not provided.
             Optional.
             metadatas: The metadata for items. Optional.
+
+        Returns:
+            The IDs of added items.
         """
 
     @abstractmethod

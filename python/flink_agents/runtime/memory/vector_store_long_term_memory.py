@@ -29,6 +29,7 @@ from flink_agents.api.memory.long_term_memory import (
     CompactionStrategyType,
     DatetimeRange,
     ItemType,
+    LongTermMemoryOptions,
     MemorySet,
     MemorySetItem,
 )
@@ -61,6 +62,10 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
 
     key: str = Field(description="Unique identifier for the keyed partition.")
 
+    async_compaction: bool = Field(
+        default=False, description="Whether to execute compact asynchronously."
+    )
+
     def __init__(
         self,
         *,
@@ -76,6 +81,7 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
             vector_store=vector_store,
             job_id=job_id,
             key=key,
+            async_compaction=ctx.config.get(LongTermMemoryOptions.ASYNC_COMPACTION),
             **kwargs,
         )
 
@@ -137,7 +143,7 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
         memory_items: ItemType | List[ItemType],
         ids: str | List[str] | None = None,
         metadatas: Dict[str, Any] | List[Dict[str, Any]] | None = None,
-    ) -> None:
+    ) -> List[str]:
         memory_items = _maybe_cast_to_list(memory_items)
         ids = _maybe_cast_to_list(ids)
         metadatas = _maybe_cast_to_list(metadatas)
@@ -171,13 +177,18 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
                 )
             )
 
-        self.store.add(
+        ids = self.store.add(
             documents=documents, collection_name=self._name_mangling(memory_set.name)
         )
 
         if memory_set.size >= memory_set.capacity:
             # trigger compaction
-            self._compact(memory_set)
+            if self.async_compaction:
+                self.ctx.executor.submit(self._compact, memory_set=memory_set)
+            else:
+                self._compact(memory_set=memory_set)
+
+        return ids
 
     @override
     def get(
