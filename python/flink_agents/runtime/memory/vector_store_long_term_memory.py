@@ -15,7 +15,9 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import functools
 import uuid
+from concurrent.futures import Future
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Type, cast
 
@@ -184,7 +186,12 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
         if memory_set.size >= memory_set.capacity:
             # trigger compaction
             if self.async_compaction:
-                self.ctx.executor.submit(self._compact, memory_set=memory_set)
+                future = self.ctx.executor.submit(self._compact, memory_set=memory_set)
+                future.add_done_callback(
+                    functools.partial(
+                        self._handle_exception, self.job_id, self.key, memory_set
+                    )
+                )
             else:
                 self._compact(memory_set=memory_set)
 
@@ -230,6 +237,17 @@ class VectorStoreLongTermMemory(BaseLongTermMemory):
         else:
             msg = f"Unknown compaction strategy: {compaction_strategy.type}"
             raise RuntimeError(msg)
+
+    @staticmethod
+    def _handle_exception(
+        job_id: str, key: str, memory_set: MemorySet, future: Future
+    ) -> None:
+        exception = future.exception()
+        if exception is not None:
+            err_msg = f"Compaction for {job_id}-{key}-{memory_set.name} failed."
+            # TODO: Currently, this exception will appear in the log of TaskManager,
+            # but will not cause the Flink job to fail.
+            raise RuntimeError(err_msg) from exception
 
     @staticmethod
     def _convert_to_items(

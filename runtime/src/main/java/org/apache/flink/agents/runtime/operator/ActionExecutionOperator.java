@@ -90,6 +90,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.apache.flink.agents.api.configuration.AgentConfigOptions.ACTION_STATE_STORE_BACKEND;
+import static org.apache.flink.agents.api.configuration.AgentConfigOptions.JOB_IDENTIFIER;
 import static org.apache.flink.agents.runtime.actionstate.ActionStateStore.BackendType.KAFKA;
 import static org.apache.flink.agents.runtime.utils.StateUtil.*;
 import static org.apache.flink.util.Preconditions.checkState;
@@ -174,6 +175,13 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     // This in memory map keep track of the runner context for the async action task that having
     // been finished
     private final transient Map<ActionTask, RunnerContextImpl> actionTaskRunnerContexts;
+
+    // Each job can only have one identifier and this identifier must be consistent across restarts.
+    // We cannot use job id as the identifier here because user may change job id by
+    // creating a savepoint, stop the job and then resume from savepoint.
+    // We use this identifier to control the visibility for long-term memory.
+    // Inspired by Apache Paimon.
+    private transient String jobIdentifier;
 
     public ActionExecutionOperator(
             AgentPlan agentPlan,
@@ -559,7 +567,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 new PythonActionExecutor(
                         pythonInterpreter,
                         new ObjectMapper().writeValueAsString(agentPlan),
-                        javaResourceAdapter);
+                        javaResourceAdapter,
+                        jobIdentifier);
         pythonActionExecutor.open();
     }
 
@@ -634,6 +643,16 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 recoveryMarkers.forEach(markers::add);
             }
             actionStateStore.rebuildState(markers);
+        }
+
+        // Get job identifier from user configuration.
+        // If not configured, get from state.
+        jobIdentifier = agentPlan.getConfig().get(JOB_IDENTIFIER);
+        if (jobIdentifier == null) {
+            String initialJobIdentifier = getRuntimeContext().getJobInfo().getJobId().toString();
+            jobIdentifier =
+                    StateUtils.getSingleValueFromState(
+                            context, "identifier_state", String.class, initialJobIdentifier);
         }
     }
 

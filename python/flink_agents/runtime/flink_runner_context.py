@@ -17,19 +17,27 @@
 #################################################################################
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict
 
 import cloudpickle
 from typing_extensions import override
 
 from flink_agents.api.configuration import ReadableConfiguration
 from flink_agents.api.events.event import Event
+from flink_agents.api.memory.long_term_memory import (
+    BaseLongTermMemory,
+    LongTermMemoryBackend,
+    LongTermMemoryOptions,
+)
 from flink_agents.api.memory_object import MemoryType
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.plan.agent_plan import AgentPlan
 from flink_agents.runtime.flink_memory_object import FlinkMemoryObject
 from flink_agents.runtime.flink_metric_group import FlinkMetricGroup
+from flink_agents.runtime.memory.vector_store_long_term_memory import (
+    VectorStoreLongTermMemory,
+)
 
 
 class FlinkRunnerContext(RunnerContext):
@@ -39,9 +47,14 @@ class FlinkRunnerContext(RunnerContext):
     """
 
     __agent_plan: AgentPlan
+    __ltm: BaseLongTermMemory = None
 
     def __init__(
-        self, j_runner_context: Any, agent_plan_json: str, executor: ThreadPoolExecutor, j_resource_adapter: Any
+        self,
+        j_runner_context: Any,
+        agent_plan_json: str,
+        executor: ThreadPoolExecutor,
+        j_resource_adapter: Any,
     ) -> None:
         """Initialize a flink runner context with the given java runner context.
 
@@ -54,6 +67,16 @@ class FlinkRunnerContext(RunnerContext):
         self.__agent_plan = AgentPlan.model_validate_json(agent_plan_json)
         self.__agent_plan.set_java_resource_adapter(j_resource_adapter)
         self.executor = executor
+
+    def set_long_term_memory(self, ltm: BaseLongTermMemory) -> None:
+        """Set long term memory instance to this context.
+
+        Parameters
+        ----------
+        ltm : BaseLongTermMemory
+            The long term memory to keep.
+        """
+        self.__ltm = ltm
 
     @override
     def send_event(self, event: Event) -> None:
@@ -104,7 +127,9 @@ class FlinkRunnerContext(RunnerContext):
             temporary state data.
         """
         try:
-            return FlinkMemoryObject(MemoryType.SENSORY, self._j_runner_context.getSensoryMemory())
+            return FlinkMemoryObject(
+                MemoryType.SENSORY, self._j_runner_context.getSensoryMemory()
+            )
         except Exception as e:
             err_msg = "Failed to get sensory memory of runner context"
             raise RuntimeError(err_msg) from e
@@ -121,10 +146,17 @@ class FlinkRunnerContext(RunnerContext):
             temporary state data.
         """
         try:
-            return FlinkMemoryObject(MemoryType.SHORT_TERM, self._j_runner_context.getShortTermMemory())
+            return FlinkMemoryObject(
+                MemoryType.SHORT_TERM, self._j_runner_context.getShortTermMemory()
+            )
         except Exception as e:
             err_msg = "Failed to get short-term memory of runner context"
             raise RuntimeError(err_msg) from e
+
+    @property
+    @override
+    def long_term_memory(self) -> BaseLongTermMemory:
+        return self.__ltm
 
     @property
     @override
@@ -154,8 +186,8 @@ class FlinkRunnerContext(RunnerContext):
     def execute_async(
         self,
         func: Callable[[Any], Any],
-        *args: Tuple[Any, ...],
-        **kwargs: Dict[str, Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> Any:
         """Asynchronously execute the provided function. Access to memory
         is prohibited within the function.
@@ -183,10 +215,44 @@ class FlinkRunnerContext(RunnerContext):
 
 
 def create_flink_runner_context(
-    j_runner_context: Any, agent_plan_json: str, executor: ThreadPoolExecutor, j_resource_adapter: Any
+    j_runner_context: Any,
+    agent_plan_json: str,
+    executor: ThreadPoolExecutor,
+    j_resource_adapter: Any,
+    job_identifier: str,
+    key: int,
 ) -> FlinkRunnerContext:
     """Used to create a FlinkRunnerContext Python object in Pemja environment."""
-    return FlinkRunnerContext(j_runner_context, agent_plan_json, executor, j_resource_adapter)
+    ctx = FlinkRunnerContext(
+        j_runner_context, agent_plan_json, executor, j_resource_adapter
+    )
+    backend = ctx.config.get(LongTermMemoryOptions.BACKEND)
+    # use external vector store based long term memory
+    if backend == LongTermMemoryBackend.EXTERNAL_VECTOR_STORE:
+        vector_store_name = ctx.config.get(
+            LongTermMemoryOptions.EXTERNAL_VECTOR_STORE_NAME
+        )
+        ctx.set_long_term_memory(
+            VectorStoreLongTermMemory(
+                ctx=ctx,
+                vector_store=vector_store_name,
+                job_id=job_identifier,
+                key=str(key),
+            )
+        )
+    return ctx
+
+
+def create_long_term_memory(
+    j_runner_context: Any,
+    agent_plan_json: str,
+    executor: ThreadPoolExecutor,
+    j_resource_adapter: Any,
+) -> FlinkRunnerContext:
+    """Used to create a FlinkRunnerContext Python object in Pemja environment."""
+    return FlinkRunnerContext(
+        j_runner_context, agent_plan_json, executor, j_resource_adapter
+    )
 
 
 def create_async_thread_pool() -> ThreadPoolExecutor:
