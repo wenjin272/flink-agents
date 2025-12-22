@@ -16,6 +16,7 @@
 # limitations under the License.
 #################################################################################
 import json
+import logging
 from typing import TYPE_CHECKING, List, Type, cast
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -42,8 +43,9 @@ Your sole objective in this task is to summarize the context above.
 </primary_objective>
 
 <objective_information>
-You're nearing the total number of input tokens you can accept, so you need compact the context. To achieve this objective, you must extract important topics first. The extracted topics
-must no more than {limit}. Afterwards, you should generate summarization for each topic, and and record which messages the summary was derived from.
+You're nearing the total number of input tokens you can accept, so you need compact the context. To achieve this objective, you should extract important topics. Notice,
+**The topics must no more than {limit}**. Afterwards, you should generate summarization for each topic, and and record which messages the summary was derived from.
+The message index start from 0.
 </objective_information>
 
 <output_example>
@@ -84,6 +86,8 @@ def summarize(
     response: ChatMessage = _generate_summarization(
         items, memory_set.item_type, strategy, ctx
     )
+
+    logging.debug(f"Items to be summarized: {items}\nSummarization: {response.content}")
 
     for topic in cast("dict", json.loads(response.content)).values():
         summarization = topic["summarization"]
@@ -126,7 +130,7 @@ def summarize(
         )
 
 
-#TODO: Currently, we feed all items to the LLM at once, which may exceed the LLM's
+# TODO: Currently, we feed all items to the LLM at once, which may exceed the LLM's
 # context window. We need to support batched summary generation.
 def _generate_summarization(
     memory_set_items: List[MemorySetItem],

@@ -49,7 +49,10 @@ def covert_j_option_to_python_option(j_option: Any) -> ConfigOption:
 
 class AgentConfigOptionsMeta(type):
     """Metaclass for FlinkAgentsCoreOptions."""
-    def __init__(cls, name: str, bases: tuple[type, ...], attrs: dict[str, Any]) -> None:
+
+    def __init__(
+        cls, name: str, bases: tuple[type, ...], attrs: dict[str, Any]
+    ) -> None:
         """Initialize the metaclass for FlinkAgentsCoreOptions."""
         super().__init__(name, bases, attrs)
 
@@ -68,3 +71,9 @@ class AgentConfigOptionsMeta(type):
 
 class AgentConfigOptions(metaclass=AgentConfigOptionsMeta):
     """CoreOptions to manage core configuration parameters for Flink Agents."""
+
+    JOB_IDENTIFIER = ConfigOption(
+        key="job-identifier",
+        config_type=str,
+        default=None,
+    )

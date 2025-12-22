@@ -18,12 +18,13 @@
 import logging
 import uuid
 from collections import deque
-from typing import Any, Callable, Dict, Generator, List, Tuple
+from typing import Any, Callable, Dict, Generator, List
 
 from typing_extensions import override
 
 from flink_agents.api.agent import Agent
 from flink_agents.api.events.event import Event, InputEvent, OutputEvent
+from flink_agents.api.memory.long_term_memory import BaseLongTermMemory
 from flink_agents.api.memory_object import MemoryObject, MemoryType
 from flink_agents.api.metric_group import MetricGroup
 from flink_agents.api.resource import Resource, ResourceType
@@ -64,7 +65,9 @@ class LocalRunnerContext(RunnerContext):
     _short_term_memory: MemoryObject
     _config: AgentConfiguration
 
-    def __init__(self, agent_plan: AgentPlan, key: Any, config: AgentConfiguration) -> None:
+    def __init__(
+        self, agent_plan: AgentPlan, key: Any, config: AgentConfiguration
+    ) -> None:
         """Initialize a new context with the given agent and key.
 
         Parameters
@@ -84,7 +87,9 @@ class LocalRunnerContext(RunnerContext):
             MemoryType.SENSORY, self._sensory_mem_store, LocalMemoryObject.ROOT_KEY
         )
         self._short_term_memory = LocalMemoryObject(
-            MemoryType.SHORT_TERM, self._short_term_mem_store, LocalMemoryObject.ROOT_KEY
+            MemoryType.SHORT_TERM,
+            self._short_term_mem_store,
+            LocalMemoryObject.ROOT_KEY,
         )
         self._config = config
 
@@ -154,6 +159,12 @@ class LocalRunnerContext(RunnerContext):
 
     @property
     @override
+    def long_term_memory(self) -> BaseLongTermMemory:
+        err_msg = "Long-Term Memory is not supported for local agent execution yet."
+        raise NotImplementedError(err_msg)
+
+    @property
+    @override
     def agent_metric_group(self) -> MetricGroup:
         # TODO: Support metric mechanism for local agent execution.
         err_msg = "Metric mechanism is not supported for local agent execution yet."
@@ -169,8 +180,8 @@ class LocalRunnerContext(RunnerContext):
     def execute_async(
         self,
         func: Callable[[Any], Any],
-        *args: Tuple[Any, ...],
-        **kwargs: Dict[str, Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> Any:
         """Asynchronously execute the provided function. Access to memory
         is prohibited within the function.
@@ -248,7 +259,9 @@ class LocalRunner(AgentRunner):
             key = uuid.uuid4()
 
         if key not in self.__keyed_contexts:
-            self.__keyed_contexts[key] = LocalRunnerContext(self.__agent_plan, key, self.__config)
+            self.__keyed_contexts[key] = LocalRunnerContext(
+                self.__agent_plan, key, self.__config
+            )
         context = self.__keyed_contexts[key]
         context.clear_sensory_memory()
 

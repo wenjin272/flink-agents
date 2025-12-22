@@ -54,7 +54,10 @@ public class PythonActionTask extends ActionTask {
         PythonActionExecutor pythonActionExecutor = getPythonActionExecutor();
         String pythonGeneratorRef =
                 pythonActionExecutor.executePythonFunction(
-                        (PythonFunction) action.getExec(), (PythonEvent) event, runnerContext);
+                        (PythonFunction) action.getExec(),
+                        (PythonEvent) event,
+                        runnerContext,
+                        key.hashCode());
         // If a user-defined action uses an interface to submit asynchronous tasks, it will return a
         // Python generator object instance upon its first execution. Otherwise, it means that no
         // asynchronous tasks were submitted and the action has already completed.

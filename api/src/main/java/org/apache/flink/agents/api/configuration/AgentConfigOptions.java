@@ -43,4 +43,8 @@ public class AgentConfigOptions {
     /** The config parameter specifies the replication factor for the Kafka action state topic. */
     public static final ConfigOption<Integer> KAFKA_ACTION_STATE_TOPIC_REPLICATION_FACTOR =
             new ConfigOption<>("kafkaActionStateTopicReplicationFactor", Integer.class, 1);
+
+    /** The config parameter specifies the unique identifier of job. */
+    public static final ConfigOption<String> JOB_IDENTIFIER =
+            new ConfigOption<>("job-identifier", String.class, null);
 }

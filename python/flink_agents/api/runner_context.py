@@ -16,10 +16,11 @@
 # limitations under the License.
 #################################################################################
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Callable, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict
 
 from flink_agents.api.configuration import ReadableConfiguration
 from flink_agents.api.events.event import Event
+from flink_agents.api.memory.long_term_memory import BaseLongTermMemory
 from flink_agents.api.metric_group import MetricGroup
 from flink_agents.api.resource import Resource, ResourceType
 
@@ -109,6 +110,17 @@ class RunnerContext(ABC):
 
     @property
     @abstractmethod
+    def long_term_memory(self) -> BaseLongTermMemory:
+        """Get the long-term memory.
+
+        Returns:
+        -------
+        BaseLongTermMemory
+          The long-term memory instance.
+        """
+
+    @property
+    @abstractmethod
     def agent_metric_group(self) -> MetricGroup:
         """Get the metric group for flink agents.
 
@@ -133,8 +145,8 @@ class RunnerContext(ABC):
     def execute_async(
         self,
         func: Callable[[Any], Any],
-        *args: Tuple[Any, ...],
-        **kwargs: Dict[str, Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> Any:
         """Asynchronously execute the provided function. Access to memory
          is prohibited within the function.
@@ -143,9 +155,9 @@ class RunnerContext(ABC):
         ----------
         func : Callable
             The function need to be asynchronously processing.
-        *args : tuple
+        *args : Any
             Positional arguments to pass to the function.
-        **kwargs : dict
+        **kwargs : Any
             Keyword arguments to pass to the function.
 
         Returns:

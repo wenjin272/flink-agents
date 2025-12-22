@@ -60,15 +60,18 @@ public class PythonActionExecutor {
     private final PythonInterpreter interpreter;
     private final String agentPlanJson;
     private final JavaResourceAdapter javaResourceAdapter;
+    private final String jobIdentifier;
     private Object pythonAsyncThreadPool;
 
     public PythonActionExecutor(
             PythonInterpreter interpreter,
             String agentPlanJson,
-            JavaResourceAdapter javaResourceAdapter) {
+            JavaResourceAdapter javaResourceAdapter,
+            String jobIdentifier) {
         this.interpreter = interpreter;
         this.agentPlanJson = agentPlanJson;
         this.javaResourceAdapter = javaResourceAdapter;
+        this.jobIdentifier = jobIdentifier;
     }
 
     public void open() throws Exception {
@@ -88,7 +91,10 @@ public class PythonActionExecutor {
      *     not return a generator.
      */
     public String executePythonFunction(
-            PythonFunction function, PythonEvent event, RunnerContextImpl runnerContext)
+            PythonFunction function,
+            PythonEvent event,
+            RunnerContextImpl runnerContext,
+            int hashOfKey)
             throws Exception {
         runnerContext.checkNoPendingEvents();
         function.setInterpreter(interpreter);
@@ -99,7 +105,9 @@ public class PythonActionExecutor {
                         runnerContext,
                         agentPlanJson,
                         pythonAsyncThreadPool,
-                        javaResourceAdapter);
+                        javaResourceAdapter,
+                        jobIdentifier,
+                        hashOfKey);
 
         Object pythonEventObject = interpreter.invoke(CONVERT_TO_PYTHON_OBJECT, event.getEvent());
 
