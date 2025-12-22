@@ -21,10 +21,8 @@ import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
-import org.apache.flink.agents.runtime.memory.CachedMemoryStore;
 import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
 import org.apache.flink.agents.runtime.python.event.PythonEvent;
-import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
 import org.apache.flink.util.Preconditions;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -32,23 +30,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 /** A specialized {@link RunnerContext} that is specifically used when executing Python actions. */
 @NotThreadSafe
 public class PythonRunnerContextImpl extends RunnerContextImpl {
-
-    private final PythonActionExecutor pythonActionExecutor;
-
     public PythonRunnerContextImpl(
-            CachedMemoryStore sensoryMemStore,
-            CachedMemoryStore shortTermMemStore,
             FlinkAgentsMetricGroupImpl agentMetricGroup,
             Runnable mailboxThreadChecker,
-            AgentPlan agentPlan,
-            PythonActionExecutor pythonActionExecutor) {
-        super(
-                sensoryMemStore,
-                shortTermMemStore,
-                agentMetricGroup,
-                mailboxThreadChecker,
-                agentPlan);
-        this.pythonActionExecutor = pythonActionExecutor;
+            AgentPlan agentPlan) {
+        super(agentMetricGroup, mailboxThreadChecker, agentPlan);
     }
 
     @Override
@@ -61,9 +47,5 @@ public class PythonRunnerContextImpl extends RunnerContextImpl {
     public void sendEvent(String type, byte[] event, String eventString) {
         // this method will be invoked by PythonActionExecutor's python interpreter.
         sendEvent(new PythonEvent(event, type, eventString));
-    }
-
-    public PythonActionExecutor getPythonActionExecutor() {
-        return pythonActionExecutor;
     }
 }

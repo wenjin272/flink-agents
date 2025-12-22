@@ -18,10 +18,11 @@
 package org.apache.flink.agents.runtime.python.utils;
 
 import org.apache.flink.agents.plan.PythonFunction;
-import org.apache.flink.agents.runtime.context.RunnerContextImpl;
+import org.apache.flink.agents.runtime.python.context.PythonRunnerContextImpl;
 import org.apache.flink.agents.runtime.python.event.PythonEvent;
 import org.apache.flink.agents.runtime.utils.EventUtil;
 import pemja.core.PythonInterpreter;
+import pemja.core.object.PyObject;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -38,6 +39,9 @@ public class PythonActionExecutor {
     // =========== RUNNER CONTEXT ===========
     private static final String CREATE_FLINK_RUNNER_CONTEXT =
             "flink_runner_context.create_flink_runner_context";
+
+    private static final String FLINK_RUNNER_CONTEXT_SWITCH_ACTION_CONTEXT =
+            "flink_runner_context.flink_runner_context_switch_action_context";
 
     // ========== ASYNC THREAD POOL ===========
     private static final String CREATE_ASYNC_THREAD_POOL =
@@ -59,17 +63,21 @@ public class PythonActionExecutor {
 
     private final PythonInterpreter interpreter;
     private final String agentPlanJson;
+    private final PythonRunnerContextImpl runnerContext;
     private final JavaResourceAdapter javaResourceAdapter;
     private final String jobIdentifier;
-    private Object pythonAsyncThreadPool;
+    private PyObject pythonAsyncThreadPool;
+    private PyObject pythonRunnerContext;
 
     public PythonActionExecutor(
             PythonInterpreter interpreter,
             String agentPlanJson,
             JavaResourceAdapter javaResourceAdapter,
+            PythonRunnerContextImpl runnerContext,
             String jobIdentifier) {
         this.interpreter = interpreter;
         this.agentPlanJson = agentPlanJson;
+        this.runnerContext = runnerContext;
         this.javaResourceAdapter = javaResourceAdapter;
         this.jobIdentifier = jobIdentifier;
     }
@@ -77,7 +85,16 @@ public class PythonActionExecutor {
     public void open() throws Exception {
         interpreter.exec(PYTHON_IMPORTS);
 
-        pythonAsyncThreadPool = interpreter.invoke(CREATE_ASYNC_THREAD_POOL);
+        pythonAsyncThreadPool = (PyObject) interpreter.invoke(CREATE_ASYNC_THREAD_POOL);
+
+        pythonRunnerContext =
+                (PyObject)
+                        interpreter.invoke(
+                                CREATE_FLINK_RUNNER_CONTEXT,
+                                runnerContext,
+                                agentPlanJson,
+                                pythonAsyncThreadPool,
+                                javaResourceAdapter);
     }
 
     /**
@@ -90,29 +107,21 @@ public class PythonActionExecutor {
      * @return The name of the Python generator variable. It may be null if the Python function does
      *     not return a generator.
      */
-    public String executePythonFunction(
-            PythonFunction function,
-            PythonEvent event,
-            RunnerContextImpl runnerContext,
-            int hashOfKey)
+    public String executePythonFunction(PythonFunction function, PythonEvent event, int hashOfKey)
             throws Exception {
         runnerContext.checkNoPendingEvents();
         function.setInterpreter(interpreter);
 
-        Object pythonRunnerContextObject =
-                interpreter.invoke(
-                        CREATE_FLINK_RUNNER_CONTEXT,
-                        runnerContext,
-                        agentPlanJson,
-                        pythonAsyncThreadPool,
-                        javaResourceAdapter,
-                        jobIdentifier,
-                        hashOfKey);
+        interpreter.invoke(
+                FLINK_RUNNER_CONTEXT_SWITCH_ACTION_CONTEXT,
+                pythonRunnerContext,
+                jobIdentifier,
+                hashOfKey);
 
         Object pythonEventObject = interpreter.invoke(CONVERT_TO_PYTHON_OBJECT, event.getEvent());
 
         try {
-            Object calledResult = function.call(pythonEventObject, pythonRunnerContextObject);
+            Object calledResult = function.call(pythonEventObject, pythonRunnerContext);
             if (calledResult == null) {
                 return null;
             } else {

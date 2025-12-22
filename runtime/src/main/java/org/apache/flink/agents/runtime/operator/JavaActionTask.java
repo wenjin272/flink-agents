@@ -20,6 +20,7 @@ package org.apache.flink.agents.runtime.operator;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.agents.plan.actions.Action;
+import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -36,7 +37,8 @@ public class JavaActionTask extends ActionTask {
     }
 
     @Override
-    public ActionTaskResult invoke(ClassLoader userCodeClassLoader) throws Exception {
+    public ActionTaskResult invoke(ClassLoader userCodeClassLoader, PythonActionExecutor executor)
+            throws Exception {
         LOG.debug(
                 "Try execute java action {} for event {} with key {}.",
                 action.getName(),

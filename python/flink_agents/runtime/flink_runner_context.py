@@ -219,13 +219,23 @@ def create_flink_runner_context(
     agent_plan_json: str,
     executor: ThreadPoolExecutor,
     j_resource_adapter: Any,
-    job_identifier: str,
-    key: int,
 ) -> FlinkRunnerContext:
     """Used to create a FlinkRunnerContext Python object in Pemja environment."""
-    ctx = FlinkRunnerContext(
+    return FlinkRunnerContext(
         j_runner_context, agent_plan_json, executor, j_resource_adapter
     )
+
+
+def flink_runner_context_switch_action_context(
+    ctx: FlinkRunnerContext,
+    job_identifier: str,
+    key: int,
+) -> None:
+    """Switch the context of the flink runner context.
+
+    The ctx is reused across keyed partitions, the context related to
+    specific key should be switched when process new action.
+    """
     backend = ctx.config.get(LongTermMemoryOptions.BACKEND)
     # use external vector store based long term memory
     if backend == LongTermMemoryBackend.EXTERNAL_VECTOR_STORE:
@@ -240,19 +250,6 @@ def create_flink_runner_context(
                 key=str(key),
             )
         )
-    return ctx
-
-
-def create_long_term_memory(
-    j_runner_context: Any,
-    agent_plan_json: str,
-    executor: ThreadPoolExecutor,
-    j_resource_adapter: Any,
-) -> FlinkRunnerContext:
-    """Used to create a FlinkRunnerContext Python object in Pemja environment."""
-    return FlinkRunnerContext(
-        j_runner_context, agent_plan_json, executor, j_resource_adapter
-    )
 
 
 def create_async_thread_pool() -> ThreadPoolExecutor:

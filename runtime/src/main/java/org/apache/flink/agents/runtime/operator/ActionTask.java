@@ -20,6 +20,7 @@ package org.apache.flink.agents.runtime.operator;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
+import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,7 +88,8 @@ public abstract class ActionTask {
     }
 
     /** Invokes the action task. */
-    public abstract ActionTaskResult invoke(ClassLoader userCodeClassLoader) throws Exception;
+    public abstract ActionTaskResult invoke(
+            ClassLoader userCodeClassLoader, PythonActionExecutor executor) throws Exception;
 
     public class ActionTaskResult {
         private final boolean finished;
