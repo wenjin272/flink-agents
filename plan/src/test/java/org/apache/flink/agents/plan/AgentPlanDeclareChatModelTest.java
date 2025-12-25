@@ -21,9 +21,9 @@
 package org.apache.flink.agents.plan;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.flink.agents.api.Agent;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
+import org.apache.flink.agents.api.agents.Agent;
 import org.apache.flink.agents.api.annotation.Action;
 import org.apache.flink.agents.api.annotation.ChatModelSetup;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
