@@ -42,34 +42,61 @@ import java.util.Map;
  * actions.
  */
 public class RunnerContextImpl implements RunnerContext {
+    public static class MemoryContext {
+        private final CachedMemoryStore sensoryMemStore;
+        private final CachedMemoryStore shortTermMemStore;
+        private final List<MemoryUpdate> sensoryMemoryUpdates;
+        private final List<MemoryUpdate> shortTermMemoryUpdates;
+
+        public MemoryContext(
+                CachedMemoryStore sensoryMemStore, CachedMemoryStore shortTermMemStore) {
+            this.sensoryMemStore = sensoryMemStore;
+            this.shortTermMemStore = shortTermMemStore;
+            this.sensoryMemoryUpdates = new LinkedList<>();
+            this.shortTermMemoryUpdates = new LinkedList<>();
+        }
+
+        public List<MemoryUpdate> getShortTermMemoryUpdates() {
+            return shortTermMemoryUpdates;
+        }
+
+        public List<MemoryUpdate> getSensoryMemoryUpdates() {
+            return sensoryMemoryUpdates;
+        }
+
+        public CachedMemoryStore getShortTermMemStore() {
+            return shortTermMemStore;
+        }
+
+        public CachedMemoryStore getSensoryMemStore() {
+            return sensoryMemStore;
+        }
+    }
 
     protected final List<Event> pendingEvents = new ArrayList<>();
-    protected final CachedMemoryStore sensoryMemStore;
-    protected final CachedMemoryStore shortTermMemStore;
     protected final FlinkAgentsMetricGroupImpl agentMetricGroup;
     protected final Runnable mailboxThreadChecker;
     protected final AgentPlan agentPlan;
-    protected final List<MemoryUpdate> sensoryMemoryUpdates;
-    protected final List<MemoryUpdate> shortTermMemoryUpdates;
+
+    protected MemoryContext memoryContext;
     protected String actionName;
 
     public RunnerContextImpl(
-            CachedMemoryStore sensoryMemStore,
-            CachedMemoryStore shortTermMemStore,
             FlinkAgentsMetricGroupImpl agentMetricGroup,
             Runnable mailboxThreadChecker,
             AgentPlan agentPlan) {
-        this.sensoryMemStore = sensoryMemStore;
-        this.shortTermMemStore = shortTermMemStore;
         this.agentMetricGroup = agentMetricGroup;
         this.mailboxThreadChecker = mailboxThreadChecker;
         this.agentPlan = agentPlan;
-        this.sensoryMemoryUpdates = new LinkedList<>();
-        this.shortTermMemoryUpdates = new LinkedList<>();
     }
 
-    public void setActionName(String actionName) {
+    public void switchActionContext(String actionName, MemoryContext memoryContext) {
         this.actionName = actionName;
+        this.memoryContext = memoryContext;
+    }
+
+    public MemoryContext getMemoryContext() {
+        return memoryContext;
     }
 
     @Override
@@ -112,7 +139,7 @@ public class RunnerContextImpl implements RunnerContext {
 
     public List<MemoryUpdate> getSensoryMemoryUpdates() {
         mailboxThreadChecker.run();
-        return List.copyOf(sensoryMemoryUpdates);
+        return List.copyOf(memoryContext.getSensoryMemoryUpdates());
     }
 
     /**
@@ -124,7 +151,7 @@ public class RunnerContextImpl implements RunnerContext {
      */
     public List<MemoryUpdate> getShortTermMemoryUpdates() {
         mailboxThreadChecker.run();
-        return List.copyOf(shortTermMemoryUpdates);
+        return List.copyOf(memoryContext.getShortTermMemoryUpdates());
     }
 
     @Override
@@ -132,10 +159,10 @@ public class RunnerContextImpl implements RunnerContext {
         mailboxThreadChecker.run();
         return new MemoryObjectImpl(
                 MemoryObject.MemoryType.SENSORY,
-                sensoryMemStore,
+                memoryContext.getSensoryMemStore(),
                 MemoryObjectImpl.ROOT_KEY,
                 mailboxThreadChecker,
-                sensoryMemoryUpdates);
+                memoryContext.getSensoryMemoryUpdates());
     }
 
     @Override
@@ -143,10 +170,10 @@ public class RunnerContextImpl implements RunnerContext {
         mailboxThreadChecker.run();
         return new MemoryObjectImpl(
                 MemoryObject.MemoryType.SHORT_TERM,
-                shortTermMemStore,
+                memoryContext.getShortTermMemStore(),
                 MemoryObjectImpl.ROOT_KEY,
                 mailboxThreadChecker,
-                shortTermMemoryUpdates);
+                memoryContext.getShortTermMemoryUpdates());
     }
 
     @Override
@@ -177,11 +204,11 @@ public class RunnerContextImpl implements RunnerContext {
     }
 
     public void persistMemory() throws Exception {
-        sensoryMemStore.persistCache();
-        shortTermMemStore.persistCache();
+        memoryContext.getSensoryMemStore().persistCache();
+        memoryContext.getShortTermMemStore().persistCache();
     }
 
     public void clearSensoryMemory() throws Exception {
-        sensoryMemStore.clear();
+        memoryContext.getSensoryMemStore().clear();
     }
 }

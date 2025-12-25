@@ -20,6 +20,7 @@ package org.apache.flink.agents.runtime.python.operator;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.runtime.operator.ActionTask;
+import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
 
 /** An {@link ActionTask} wrapper a Python Generator to represent a code block in Python action. */
 public class PythonGeneratorActionTask extends PythonActionTask {
@@ -32,13 +33,13 @@ public class PythonGeneratorActionTask extends PythonActionTask {
     }
 
     @Override
-    public ActionTaskResult invoke(ClassLoader userCodeClassLoader) {
+    public ActionTaskResult invoke(ClassLoader userCodeClassLoader, PythonActionExecutor executor) {
         LOG.debug(
                 "Try execute python generator action {} for event {} with key {}.",
                 action.getName(),
                 event,
                 key);
-        boolean finished = getPythonActionExecutor().callPythonGenerator(pythonGeneratorRef);
+        boolean finished = executor.callPythonGenerator(pythonGeneratorRef);
         ActionTask generatedActionTask = finished ? null : this;
         return new ActionTaskResult(
                 finished,
