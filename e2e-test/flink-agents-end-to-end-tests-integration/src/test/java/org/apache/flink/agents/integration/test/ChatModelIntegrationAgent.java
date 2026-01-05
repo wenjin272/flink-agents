@@ -161,9 +161,9 @@ public class ChatModelIntegrationAgent extends Agent {
             return value;
         }
 
-        if (fromUnit.equals("C") && toUnit.equals("F")) {
+        if (fromUnit.contains("C") && toUnit.contains("F")) {
             return (value * 9 / 5) + 32;
-        } else if (fromUnit.equals("F") && toUnit.equals("C")) {
+        } else if (fromUnit.contains("F") && toUnit.contains("C")) {
             return (value - 32) * 5 / 9;
         } else {
             throw new IllegalArgumentException("Invalid temperature units. Use 'C' or 'F'");

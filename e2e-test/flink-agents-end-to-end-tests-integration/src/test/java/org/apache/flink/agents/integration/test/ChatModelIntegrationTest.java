@@ -70,7 +70,7 @@ public class ChatModelIntegrationTest extends OllamaPreparationUtils {
         DataStream<String> inputStream =
                 env.fromData(
                         "Convert 25 degrees Celsius to Fahrenheit",
-                        "What is 98.6 Fahrenheit in Celsius?",
+                        "Convert 98.6 degrees Fahrenheit to Celsius",
                         "Change 32 degrees Celsius to Fahrenheit",
                         "If it's 75 degrees Fahrenheit, what would that be in Celsius?",
                         "Convert room temperature of 20C to F",
