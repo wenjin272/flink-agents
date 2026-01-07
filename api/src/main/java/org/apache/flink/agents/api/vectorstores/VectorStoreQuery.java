@@ -18,6 +18,8 @@
 
 package org.apache.flink.agents.api.vectorstores;
 
+import javax.annotation.Nullable;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,8 +38,14 @@ public class VectorStoreQuery {
     private final String queryText;
     /** Maximum number of documents to return. */
     private final Integer limit;
+    /** The name of the collection to query to. */
+    private final @Nullable String collection;
     /** Additional store-specific parameters. */
     private final Map<String, Object> extraArgs;
+
+    public VectorStoreQuery(String queryText, Integer limit) {
+        this(VectorStoreQueryMode.SEMANTIC, queryText, limit, null, new HashMap<>());
+    }
 
     /**
      * Creates a semantic-search query with default mode {@link VectorStoreQueryMode#SEMANTIC}.
@@ -45,11 +53,8 @@ public class VectorStoreQuery {
      * @param queryText the text to embed and search for
      * @param limit maximum number of results to return
      */
-    public VectorStoreQuery(String queryText, Integer limit) {
-        this.mode = VectorStoreQueryMode.SEMANTIC;
-        this.queryText = queryText;
-        this.limit = limit;
-        this.extraArgs = new HashMap<>();
+    public VectorStoreQuery(String queryText, String collection, Integer limit) {
+        this(VectorStoreQueryMode.SEMANTIC, queryText, limit, collection, new HashMap<>());
     }
 
     /**
@@ -58,16 +63,19 @@ public class VectorStoreQuery {
      * @param mode the query mode
      * @param queryText the text to search for
      * @param limit maximum number of results to return
+     * @param collection the collection to query to
      * @param extraArgs store-specific additional parameters
      */
     public VectorStoreQuery(
             VectorStoreQueryMode mode,
             String queryText,
             Integer limit,
+            @Nullable String collection,
             Map<String, Object> extraArgs) {
         this.mode = mode;
         this.queryText = queryText;
         this.limit = limit;
+        this.collection = collection;
         this.extraArgs = extraArgs;
     }
 
@@ -89,5 +97,10 @@ public class VectorStoreQuery {
     /** Returns extra store-specific arguments. */
     public Map<String, Object> getExtraArgs() {
         return extraArgs;
+    }
+
+    @Nullable
+    public String getCollection() {
+        return collection;
     }
 }

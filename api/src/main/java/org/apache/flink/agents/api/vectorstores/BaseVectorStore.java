@@ -23,6 +23,9 @@ import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 
+import javax.annotation.Nullable;
+
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -57,6 +60,34 @@ public abstract class BaseVectorStore extends Resource {
     public abstract Map<String, Object> getStoreKwargs();
 
     /**
+     * Add documents to vector store.
+     *
+     * @param documents The documents to be added.
+     * @param collection The name of the collection to add to. If is null, will add documents to the
+     *     default collection.
+     * @param extraArgs The vector store specific arguments.
+     * @return The IDs of the documents added.
+     */
+    public List<String> add(
+            List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
+            throws IOException {
+        final BaseEmbeddingModelSetup embeddingModel =
+                (BaseEmbeddingModelSetup)
+                        this.getResource.apply(this.embeddingModel, ResourceType.EMBEDDING_MODEL);
+
+        for (Document doc : documents) {
+            if (doc.getEmbedding() == null) {
+                doc.setEmbedding(embeddingModel.embed(doc.getContent()));
+            }
+        }
+
+        final Map<String, Object> storeKwargs = this.getStoreKwargs();
+        storeKwargs.putAll(extraArgs);
+
+        return this.addEmbedding(documents, collection, extraArgs);
+    }
+
+    /**
      * Performs vector search using structured query object. Converts text query to embeddings and
      * returns structured query result.
      *
@@ -74,19 +105,69 @@ public abstract class BaseVectorStore extends Resource {
         storeKwargs.putAll(query.getExtraArgs());
 
         final List<Document> documents =
-                this.queryEmbedding(queryEmbedding, query.getLimit(), storeKwargs);
+                this.queryEmbedding(
+                        queryEmbedding, query.getLimit(), query.getCollection(), storeKwargs);
 
         return new VectorStoreQueryResult(documents);
     }
+
+    /**
+     * Get the size of the collection in vector store.
+     *
+     * @param collection The name of the collection to count. If is null, count the default
+     *     collection.
+     * @return The documents count in the collection.
+     */
+    public abstract long size(@Nullable String collection) throws Exception;
+
+    /**
+     * Retrieve documents from the vector store.
+     *
+     * @param ids The ids of the documents. If is null, get all the documents or first n documents
+     *     according to implementation specific limit.
+     * @param collection The name of the collection to be retrieved. If is null, retrieve the
+     *     default collection.
+     * @param extraArgs Additional arguments.
+     * @return List of documents retrieved.
+     */
+    public abstract List<Document> get(
+            @Nullable List<String> ids, @Nullable String collection, Map<String, Object> extraArgs)
+            throws IOException;
+
+    /**
+     * Delete documents in the vector store.
+     *
+     * @param ids The ids of the documents. If is null, delete all the documents.
+     * @param collection The name of the collection the documents belong to. If is null, use the
+     *     default collection.
+     * @param extraArgs Additional arguments.
+     */
+    public abstract void delete(
+            @Nullable List<String> ids, @Nullable String collection, Map<String, Object> extraArgs)
+            throws IOException;
 
     /**
      * Performs vector search using a pre-computed embedding.
      *
      * @param embedding The embedding vector to search with
      * @param limit Maximum number of results to return
+     * @param collection The collection to query to. If is null, query the default collection.
      * @param args Additional arguments for the vector search
      * @return List of documents matching the query embedding
      */
-    public abstract List<Document> queryEmbedding(
-            float[] embedding, int limit, Map<String, Object> args);
+    protected abstract List<Document> queryEmbedding(
+            float[] embedding, int limit, @Nullable String collection, Map<String, Object> args);
+
+    /**
+     * Add documents with pre-computed embedding to vector store.
+     *
+     * @param documents The documents to be added.
+     * @param collection The name of the collection to add to. If is null, add to the default
+     *     collection.
+     * @param extraArgs Additional arguments.
+     * @return IDs of the added documents.
+     */
+    protected abstract List<String> addEmbedding(
+            List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
+            throws IOException;
 }

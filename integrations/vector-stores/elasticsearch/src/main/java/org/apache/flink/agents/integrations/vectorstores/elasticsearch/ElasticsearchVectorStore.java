@@ -19,9 +19,29 @@
 package org.apache.flink.agents.integrations.vectorstores.elasticsearch;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.mapping.DynamicMapping;
+import co.elastic.clients.elasticsearch._types.mapping.Property;
+import co.elastic.clients.elasticsearch.core.BulkRequest;
+import co.elastic.clients.elasticsearch.core.BulkResponse;
+import co.elastic.clients.elasticsearch.core.CountRequest;
+import co.elastic.clients.elasticsearch.core.CountResponse;
+import co.elastic.clients.elasticsearch.core.DeleteByQueryRequest;
+import co.elastic.clients.elasticsearch.core.DeleteByQueryResponse;
+import co.elastic.clients.elasticsearch.core.DeleteRequest;
+import co.elastic.clients.elasticsearch.core.GetRequest;
+import co.elastic.clients.elasticsearch.core.GetResponse;
+import co.elastic.clients.elasticsearch.core.IndexRequest;
+import co.elastic.clients.elasticsearch.core.MgetRequest;
+import co.elastic.clients.elasticsearch.core.MgetResponse;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
+import co.elastic.clients.elasticsearch.core.get.GetResult;
+import co.elastic.clients.elasticsearch.core.mget.MultiGetResponseItem;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
+import co.elastic.clients.elasticsearch.indices.DeleteIndexRequest;
+import co.elastic.clients.elasticsearch.indices.ExistsRequest;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
@@ -31,6 +51,7 @@ import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.vectorstores.BaseVectorStore;
+import org.apache.flink.agents.api.vectorstores.CollectionManageableVectorStore;
 import org.apache.flink.agents.api.vectorstores.Document;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
@@ -40,6 +61,8 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+
+import javax.annotation.Nullable;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -91,16 +114,29 @@ import java.util.function.BiFunction;
  *     .build();
  * }</pre>
  */
-public class ElasticsearchVectorStore extends BaseVectorStore {
+public class ElasticsearchVectorStore extends CollectionManageableVectorStore {
 
     /** Default vector dimensionality used when {@code dims} is not provided. */
     public static final int DEFAULT_DIMENSION = 768;
+    /** The maximum number of documents that can be retrieved in get. */
+    public static final int MAX_RESULT_WINDOW = 10000;
+
+    public static final String DEFAULT_METADATA_FIELD = "_metadata";
+    public static final String DEFAULT_CONTENT_FIELD = "_content";
+    public static final String DEFAULT_VECTOR_FIELD = "_vector";
+    public static final String COLLECTION_METADATA_INDEX = "collection_metadata";
+    public static final String COLLECTION_METADATA_FIELD = "metadata";
+    public static final String COLLECTION_INDEX_NAME_FIELD = "index_name";
 
     /** Low-level Elasticsearch client used to execute search requests. */
     private final ElasticsearchClient client;
 
-    /** Target index name. */
+    /** Default index name. */
     private final String index;
+    /** Name of the content field to store the document content. */
+    private final String contentField;
+    /** Name of the metadata field to store additional metadatas. */
+    private final String metadataField;
     /** Name of the dense vector field on which KNN queries are executed. */
     private final String vectorField;
     /** Vector dimensionality of the {@link #vectorField}. */
@@ -113,6 +149,9 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
     private final String filterQuery;
 
     private final ObjectMapper mapper = new ObjectMapper();
+
+    /** Whether the content of document is stored in content field. */
+    private final boolean storeInContentField;
 
     /**
      * Creates a new {@code ElasticsearchVectorStore} from the provided descriptor and resource
@@ -129,9 +168,20 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
             ResourceDescriptor descriptor, BiFunction<String, ResourceType, Resource> getResource) {
         super(descriptor, getResource);
 
+        this.storeInContentField =
+                Objects.requireNonNullElse(descriptor.getArgument("store_in_content_field"), true);
+
         // Required query-related arguments
         this.index = descriptor.getArgument("index");
-        this.vectorField = descriptor.getArgument("vector_field");
+        this.vectorField =
+                Objects.requireNonNullElse(
+                        descriptor.getArgument("vector_field"), DEFAULT_VECTOR_FIELD);
+        this.contentField =
+                Objects.requireNonNullElse(
+                        descriptor.getArgument("content_field"), DEFAULT_CONTENT_FIELD);
+        this.metadataField =
+                Objects.requireNonNullElse(
+                        descriptor.getArgument("metadata_field"), DEFAULT_METADATA_FIELD);
         final Integer dimsArg = descriptor.getArgument("dims");
         this.dims = (dimsArg != null) ? dimsArg : DEFAULT_DIMENSION;
         this.filterQuery = descriptor.getArgument("filter_query");
@@ -144,14 +194,6 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
                 throw new IllegalArgumentException(
                         "'k' should be greater or equals than 'num_candidates'");
             }
-        }
-
-        if (this.vectorField == null || this.vectorField.isEmpty()) {
-            throw new IllegalArgumentException("'vector_field' should not be null or empty");
-        }
-
-        if (this.index == null || this.index.isEmpty()) {
-            throw new IllegalArgumentException("'index' should not be null or empty");
         }
 
         // Resolve Elasticsearch HTTP hosts. Precedence: host -> hosts -> default localhost
@@ -205,6 +247,199 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
         this.client = new ElasticsearchClient(transport);
     }
 
+    @Override
+    public Collection getOrCreateCollection(String name, Map<String, Object> metadata)
+            throws Exception {
+        // Check if index exists
+        ExistsRequest existsRequest = ExistsRequest.of(e -> e.index(name));
+        boolean exists = this.client.indices().exists(existsRequest).value();
+
+        if (!exists) {
+            // Store collection metadata
+            if (metadata != null && !metadata.isEmpty()) {
+                storeCollectionMetadata(name, metadata);
+            }
+
+            // Create index correspond to the collection.
+            createIndex(name, metadata);
+        }
+
+        return new Collection(name, metadata != null ? metadata : Collections.emptyMap());
+    }
+
+    /**
+     * Creates an Elasticsearch index with vector field mapping.
+     *
+     * @param indexName The name of the index to create
+     * @param metadata Optional metadata for the index
+     * @throws IOException if the index creation fails
+     */
+    private void createIndex(String indexName, Map<String, Object> metadata) throws IOException {
+
+        // Build mappings with vector field
+        Map<String, Property> properties = new HashMap<>();
+
+        // Add vector field mapping
+        Property vectorProperty =
+                Property.of(p -> p.denseVector(dv -> dv.dims(this.dims).index(true)));
+        properties.put(this.vectorField, vectorProperty);
+
+        // Add text field for content
+        Property textProperty = Property.of(p -> p.text(t -> t));
+        properties.put(this.contentField, textProperty);
+
+        // Add metadata field mapping
+        Property metadataProperty = Property.of(p -> p.object(o -> o));
+        properties.put(this.metadataField, metadataProperty);
+
+        CreateIndexRequest createRequest =
+                CreateIndexRequest.of(
+                        c ->
+                                c.index(indexName)
+                                        .mappings(
+                                                m ->
+                                                        m.properties(properties)
+                                                                .dynamic(DynamicMapping.True)));
+
+        this.client.indices().create(createRequest);
+    }
+
+    /**
+     * Stores collection metadata in the COLLECTION_METADATA_INDEX.
+     *
+     * <p>This method creates the metadata index if it doesn't exist, and stores the metadata
+     * associated with the given index name. The index name is used as the document ID.
+     *
+     * @param indexName The name of the collection/index
+     * @param metadata The metadata to store
+     * @throws IOException if the operation fails
+     */
+    private void storeCollectionMetadata(String indexName, Map<String, Object> metadata)
+            throws IOException {
+        // Check if metadata index exists
+        ExistsRequest existsRequest = ExistsRequest.of(e -> e.index(COLLECTION_METADATA_INDEX));
+        boolean exists = this.client.indices().exists(existsRequest).value();
+
+        if (!exists) {
+            // Build mappings for metadata index
+            Map<String, Property> properties = new HashMap<>();
+
+            // Add object field for metadata (to store structured metadata)
+            Property metadataProperty = Property.of(p -> p.object(o -> o));
+            properties.put(COLLECTION_METADATA_FIELD, metadataProperty);
+
+            // Add text field for index name
+            Property indexNameProperty = Property.of(p -> p.keyword(k -> k));
+            properties.put(COLLECTION_INDEX_NAME_FIELD, indexNameProperty);
+
+            // Create metadata index
+            CreateIndexRequest createRequest =
+                    CreateIndexRequest.of(
+                            c ->
+                                    c.index(COLLECTION_METADATA_INDEX)
+                                            .mappings(
+                                                    m ->
+                                                            m.properties(properties)
+                                                                    .dynamic(DynamicMapping.True)));
+
+            this.client.indices().create(createRequest);
+        }
+
+        // Store metadata document (use indexName as document ID)
+        Map<String, Object> source = new HashMap<>();
+        source.put(COLLECTION_INDEX_NAME_FIELD, indexName);
+        source.put(COLLECTION_METADATA_FIELD, metadata);
+
+        IndexRequest<Map<String, Object>> indexRequest =
+                IndexRequest.of(
+                        i -> i.index(COLLECTION_METADATA_INDEX).id(indexName).document(source));
+
+        this.client.index(indexRequest);
+    }
+
+    /**
+     * Gets a collection by name.
+     *
+     * <p>This method retrieves the collection metadata from COLLECTION_METADATA_INDEX using the
+     * collection name as the document ID.
+     *
+     * @param name The name of the collection to retrieve
+     * @return The retrieved collection with its metadata
+     * @throws Exception if the collection doesn't exist or the operation fails
+     */
+    @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public Collection getCollection(String name) throws Exception {
+        // Check if index exists
+        ExistsRequest existsRequest = ExistsRequest.of(e -> e.index(name));
+        boolean exists = this.client.indices().exists(existsRequest).value();
+
+        if (!exists) {
+            throw new RuntimeException(String.format("Collection %s not found", name));
+        }
+
+        // Get collection metadata from COLLECTION_METADATA_INDEX
+        GetRequest getRequest = GetRequest.of(g -> g.index(COLLECTION_METADATA_INDEX).id(name));
+
+        GetResponse<Map<String, Object>> getResponse =
+                (GetResponse) this.client.get(getRequest, Map.class);
+
+        // Check if document exists
+        if (!getResponse.found()) {
+            throw new RuntimeException(String.format("Metadata for Collection %s not found", name));
+        }
+
+        // Extract metadata from the document
+        Map<String, Object> source = getResponse.source();
+        if (source == null) {
+            throw new RuntimeException(String.format("Metadata for Collection %s is null", name));
+        }
+
+        // Get metadata field
+        Map<String, Object> metadata =
+                (Map<String, Object>)
+                        source.getOrDefault(COLLECTION_METADATA_FIELD, Collections.emptyMap());
+
+        // Return collection object
+        return new Collection(name, metadata);
+    }
+
+    /**
+     * Deletes a collection by name.
+     *
+     * <p>This method deletes both the collection index and its metadata from
+     * COLLECTION_METADATA_INDEX. It first retrieves the collection metadata, then deletes the index
+     * and the metadata document.
+     *
+     * @param name The name of the collection to delete
+     * @return The deleted collection with its metadata
+     * @throws RuntimeException if the collection doesn't exist or the operation fails
+     */
+    @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public Collection deleteCollection(String name) throws Exception {
+        // First, get the collection metadata before deletion
+        // This ensures the collection exists and retrieves its metadata for return
+        Collection collection;
+        try {
+            collection = getCollection(name);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    String.format("Collection %s not found or failed to retrieve", name), e);
+        }
+
+        DeleteIndexRequest deleteIndexRequest = DeleteIndexRequest.of(d -> d.index(name));
+        this.client.indices().delete(deleteIndexRequest);
+
+        // Delete the metadata document from COLLECTION_METADATA_INDEX
+        DeleteRequest deleteRequest =
+                DeleteRequest.of(d -> d.index(COLLECTION_METADATA_INDEX).id(name));
+        this.client.delete(deleteRequest);
+
+        // Return the deleted collection
+        return collection;
+    }
+
     /**
      * Returns default store-level arguments collected from the descriptor.
      *
@@ -236,6 +471,211 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
         return m;
     }
 
+    @Override
+    public long size(@Nullable String collection) throws Exception {
+        String index = collection == null ? this.index : collection;
+        CountRequest countRequest = CountRequest.of(c -> c.index(index));
+        CountResponse countResponse = this.client.count(countRequest);
+        return countResponse.count();
+    }
+
+    /**
+     * Retrieve documents from the vector store.
+     *
+     * <p>If ids is not provided, this method will retrieve documents according to limit, offset and
+     * filter_query in additional arguments. If limit is also not provided, this method will
+     * retrieve no more than {@link ElasticsearchVectorStore#MAX_RESULT_WINDOW} documents because of
+     * the ElasticSearch limitation.
+     *
+     * @param ids The ids of the documents.
+     * @param collection The name of the collection to be retrieved. If is null, retrieve the
+     *     default collection.
+     * @param extraArgs Additional arguments. (limit, offset, filter_query, etc.)
+     * @return List of documents retrieved.
+     */
+    @Override
+    public List<Document> get(
+            @Nullable List<String> ids, @Nullable String collection, Map<String, Object> extraArgs)
+            throws IOException {
+        String index = collection == null ? this.index : collection;
+
+        if (ids != null && !ids.isEmpty()) {
+            // Get specific documents by IDs
+            return getDocumentsByIds(index, ids);
+        } else {
+            // Get all documents with optional filters, limit or offset.
+            return getDocuments(index, extraArgs);
+        }
+    }
+
+    /**
+     * Delete documents in the vector store.
+     *
+     * <p>If ids is not provided, this method will delete documents matched the filter_query in
+     * additional arguments. If filter_query is not provided, this method will delete all the
+     * documents.
+     *
+     * @param ids The ids of the documents.
+     * @param collection The name of the collection the documents belong to. If is null, use the
+     *     default collection.
+     * @param extraArgs Additional arguments, (filter_query, etc.)
+     */
+    @Override
+    public void delete(
+            @Nullable List<String> ids, @Nullable String collection, Map<String, Object> extraArgs)
+            throws IOException {
+        String index = collection == null ? this.index : collection;
+
+        if (ids != null && !ids.isEmpty()) {
+            // Delete specific documents by IDs
+            deleteDocumentsByIds(index, ids);
+        } else {
+            // Delete all documents with optional filters
+            deleteDocuments(index, extraArgs);
+        }
+    }
+
+    /**
+     * Retrieves documents by their IDs using Elasticsearch multi-get API.
+     *
+     * @param index The index to query
+     * @param ids List of document IDs to retrieve
+     * @return List of Documents
+     * @throws IOException if the request fails
+     * @throws JsonProcessingException if JSON processing fails
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private List<Document> getDocumentsByIds(String index, List<String> ids)
+            throws IOException, JsonProcessingException {
+        MgetRequest mgetRequest = MgetRequest.of(m -> m.index(index).ids(ids));
+
+        MgetResponse<Map<String, Object>> mgetResponse =
+                (MgetResponse) this.client.mget(mgetRequest, Map.class);
+
+        List<Document> documents = new ArrayList<>();
+        for (MultiGetResponseItem<Map<String, Object>> item : mgetResponse.docs()) {
+            if (item.isResult()) {
+                GetResult<Map<String, Object>> getResult = item.result();
+                Map<String, Object> source = getResult.source();
+                String id = getResult.id();
+                Document document = getDocument(id, source);
+                documents.add(document);
+            }
+        }
+        return documents;
+    }
+
+    /**
+     * Retrieves documents using Elasticsearch search API with optional filters.
+     *
+     * @param index The index to query
+     * @param extraArgs Additional arguments (limit, offset, filter_query, etc.)
+     * @return List of Documents
+     * @throws IOException if the request fails
+     * @throws JsonProcessingException if JSON processing fails
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private List<Document> getDocuments(String index, Map<String, Object> extraArgs)
+            throws IOException, JsonProcessingException {
+        SearchRequest.Builder builder = new SearchRequest.Builder().index(index);
+
+        // Handle limit (size)
+        Integer limit = (Integer) extraArgs.get("limit");
+        builder.size(Objects.requireNonNullElse(limit, MAX_RESULT_WINDOW));
+
+        // Handle offset (from)
+        Integer offset = (Integer) extraArgs.get("offset");
+        if (offset != null) {
+            builder.from(offset);
+        }
+
+        // Handle filter query
+        String filter = (String) extraArgs.get("filter_query");
+        if (filter != null) {
+            builder.query(q -> q.withJson(new StringReader(filter)));
+        }
+
+        // Execute search
+        SearchResponse<Map<String, Object>> searchResponse =
+                (SearchResponse) this.client.search(builder.build(), Map.class);
+
+        final long total = searchResponse.hits().total().value();
+        if (total == 0) {
+            return Collections.emptyList();
+        }
+
+        return getDocuments((int) total, searchResponse);
+    }
+
+    /**
+     * Deletes documents by their IDs using Elasticsearch bulk delete API.
+     *
+     * @param index The index to delete from
+     * @param ids List of document IDs to delete
+     * @throws IOException if the request fails
+     */
+    private void deleteDocumentsByIds(String index, List<String> ids) throws IOException {
+        // Prepare bulk delete operations
+        List<BulkOperation> bulkOperations = new ArrayList<>();
+        for (String id : ids) {
+            bulkOperations.add(BulkOperation.of(bo -> bo.delete(d -> d.index(index).id(id))));
+        }
+
+        // Execute bulk delete request
+        BulkRequest bulkRequest = BulkRequest.of(br -> br.operations(bulkOperations));
+        BulkResponse bulkResponse = this.client.bulk(bulkRequest);
+
+        // Check for errors
+        if (bulkResponse.errors()) {
+            StringBuilder errorMsg = new StringBuilder("Some documents failed to delete: ");
+            bulkResponse.items().stream()
+                    .filter(item -> item.error() != null)
+                    .forEach(
+                            item ->
+                                    errorMsg.append(
+                                            String.format(
+                                                    "id=%s, error=%s; ",
+                                                    item.id(), item.error().reason())));
+            throw new RuntimeException(errorMsg.toString());
+        }
+    }
+
+    /**
+     * Deletes documents using Elasticsearch delete by query API.
+     *
+     * @param index The index to delete from
+     * @param extraArgs Additional arguments (filter_query, etc.)
+     * @throws IOException if the request fails
+     */
+    private void deleteDocuments(String index, Map<String, Object> extraArgs) throws IOException {
+        DeleteByQueryRequest.Builder builder = new DeleteByQueryRequest.Builder().index(index);
+
+        // Handle filter query
+        String filter = (String) extraArgs.get("filter_query");
+        if (filter != null) {
+            builder.query(q -> q.withJson(new StringReader(filter)));
+        } else {
+            // If no filter provided, delete all documents (match_all query)
+            builder.query(q -> q.matchAll(ma -> ma));
+        }
+
+        // Execute delete by query
+        DeleteByQueryResponse response = this.client.deleteByQuery(builder.build());
+
+        // Check for failures
+        if (response.failures() != null && !response.failures().isEmpty()) {
+            StringBuilder errorMsg = new StringBuilder("Some documents failed to delete: ");
+            response.failures()
+                    .forEach(
+                            failure ->
+                                    errorMsg.append(
+                                            String.format(
+                                                    "id=%s, error=%s; ",
+                                                    failure.id(), failure.cause().reason())));
+            throw new RuntimeException(errorMsg.toString());
+        }
+    }
+
     /**
      * Executes a KNN vector search using a pre-computed embedding.
      *
@@ -246,6 +686,7 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
      * @param embedding The embedding vector to search with
      * @param limit Maximum number of items the caller is interested in; used as a fallback for
      *     {@code k} if not explicitly provided
+     * @param collection The index to query search. If is null, search the default index.
      * @param args Additional arguments. Supported keys: {@code k}, {@code num_candidates}, {@code
      *     filter_query}
      * @return A list of matching documents, possibly empty
@@ -253,8 +694,10 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    public List<Document> queryEmbedding(float[] embedding, int limit, Map<String, Object> args) {
+    public List<Document> queryEmbedding(
+            float[] embedding, int limit, @Nullable String collection, Map<String, Object> args) {
         try {
+            String index = collection == null ? this.index : collection;
             int k = (int) args.getOrDefault("k", Math.max(1, limit));
 
             int numCandidates = (int) args.getOrDefault("num_candidates", Math.max(100, k * 2));
@@ -265,7 +708,7 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
 
             SearchRequest.Builder builder =
                     new SearchRequest.Builder()
-                            .index(this.index)
+                            .index(index)
                             .knn(
                                     kb ->
                                             kb.field(this.vectorField)
@@ -291,6 +734,80 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
     }
 
     /**
+     * Add documents with pre-computed embedding to vector store.
+     *
+     * <p>ElasticSearch will set the content of the document to content field.
+     */
+    @Override
+    protected List<String> addEmbedding(
+            List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
+            throws IOException {
+        String index = collection == null ? this.index : collection;
+        if (documents == null || documents.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Prepare bulk operations
+        List<BulkOperation> bulkOperations = new ArrayList<>();
+        List<String> documentIds = new ArrayList<>();
+
+        for (Document doc : documents) {
+            // Generate ID if not provided
+            String id = doc.getId();
+            if (id == null || id.isEmpty()) {
+                id = UUID.randomUUID().toString();
+            }
+            final String docId = id;
+            documentIds.add(docId);
+
+            Map<String, Object> source = new HashMap<>();
+
+            // Add embedding vector if available
+            float[] embedding = doc.getEmbedding();
+            if (embedding != null && embedding.length > 0) {
+                List<Float> embeddingList = new ArrayList<>(embedding.length);
+                for (float v : embedding) {
+                    embeddingList.add(v);
+                }
+                source.put(this.vectorField, embeddingList);
+            }
+
+            source.put(this.contentField, doc.getContent());
+
+            // Add metadata
+            Map<String, Object> metadata = doc.getMetadata();
+            if (metadata != null && !metadata.isEmpty()) {
+                source.put(this.metadataField, doc.getMetadata());
+            }
+
+            // Create index operation for bulk request
+            bulkOperations.add(
+                    BulkOperation.of(
+                            bo -> bo.index(io -> io.index(index).id(docId).document(source))));
+        }
+
+        // Execute bulk request
+        BulkRequest bulkRequest = BulkRequest.of(br -> br.operations(bulkOperations));
+        BulkResponse bulkResponse = this.client.bulk(bulkRequest);
+
+        // Check for errors
+        if (bulkResponse.errors()) {
+            StringBuilder errorMsg = new StringBuilder("Some documents failed to index: ");
+            bulkResponse.items().stream()
+                    .filter(item -> item.error() != null)
+                    .forEach(
+                            item ->
+                                    errorMsg.append(
+                                            String.format(
+                                                    "id=%s, error=%s; ",
+                                                    item.id(), item.error().reason())));
+            throw new RuntimeException(errorMsg.toString());
+        }
+
+        return documentIds;
+    }
+
+    /**
      * Converts Elasticsearch hits into {@link Document} instances with metadata.
      *
      * @param total total number of hits reported by Elasticsearch
@@ -304,13 +821,35 @@ public class ElasticsearchVectorStore extends BaseVectorStore {
         for (Hit<Map<String, Object>> hit : searchResponse.hits().hits()) {
             final Map<String, Object> _source = hit.source();
             final String id = hit.id();
-            final Double score = hit.score();
-            final String index = hit.index();
-            final Map<String, Object> metadata = Map.of("id", id, "score", score, "index", index);
-            final String content = (_source == null) ? "" : mapper.writeValueAsString(_source);
-            final Document document = new Document(content, metadata, id);
+            final Document document = getDocument(id, _source);
             documents.add(document);
         }
         return documents;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Document getDocument(String id, Map<String, Object> source)
+            throws JsonProcessingException {
+        Map<String, Object> metadata = new HashMap<>();
+        String content = "";
+        if (source != null) {
+            Map<String, Object> extra = (Map<String, Object>) source.remove(this.metadataField);
+            if (extra != null) {
+                metadata.putAll(extra);
+            }
+
+            // Elasticsearch supports store document as mappings. If storeInContentField is
+            // true,
+            // we get the content from the specific field, otherwise, we get the content from
+            // all
+            // the fields.
+            if (this.storeInContentField) {
+                content = (String) source.get(this.contentField);
+            } else {
+                source.remove(this.vectorField);
+                content = mapper.writeValueAsString(source);
+            }
+        }
+        return new Document(content, metadata, id);
     }
 }
