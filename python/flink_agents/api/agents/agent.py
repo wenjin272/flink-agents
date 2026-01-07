@@ -24,7 +24,6 @@ from flink_agents.api.resource import (
     ResourceType,
     SerializableResource,
 )
-from flink_agents.api.tools.mcp import MCPServer
 
 STRUCTURED_OUTPUT = "structured_output"
 
@@ -88,7 +87,6 @@ class Agent(ABC):
 
     _actions: Dict[str, Tuple[List[Type[Event]], Callable, Dict[str, Any]]]
     _resources: Dict[ResourceType, Dict[str, Any]]
-    _mcp_servers: Dict[str, MCPServer]
 
     def __init__(self) -> None:
         """Init method."""

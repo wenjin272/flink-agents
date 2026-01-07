@@ -18,10 +18,9 @@
 import json
 import typing
 from inspect import signature
-from typing import Any, Callable, Dict, Optional, Type, Union
+from typing import Any, Callable, Optional, Type, Union
 
 from docstring_parser import parse
-from mcp import types
 from pydantic import BaseModel, create_model
 from pydantic.fields import Field, FieldInfo
 
@@ -192,44 +191,3 @@ def create_model_from_java_tool_schema_str(name: str, schema_str: str) -> type[B
         type = TYPE_MAPPING.get(properties[param_name]["type"])
         fields[param_name] = (type, FieldInfo(description=description))
     return create_model(name, **fields)
-
-def extract_mcp_content_item(content_item: Any) -> Dict[str, Any] | str:
-    """Extract and normalize a single MCP content item.
-
-    Args:
-        content_item: A single MCP content item (TextContent, ImageContent, etc.)
-
-    Returns:
-        Dict representation of the content item
-
-    Raises:
-        ImportError: If MCP types are not available
-    """
-    if types is None:
-        err_msg = "MCP types not available. Please install the mcp package."
-        raise ImportError(err_msg)
-
-    if isinstance(content_item, types.TextContent):
-        return content_item.text
-    elif isinstance(content_item, types.ImageContent):
-        return {
-            "type": "image",
-            "data": content_item.data,
-            "mimeType": content_item.mimeType
-        }
-    elif isinstance(content_item, types.EmbeddedResource):
-        if isinstance(content_item.resource, types.TextResourceContents):
-            return {
-                "type": "resource",
-                "uri": content_item.resource.uri,
-                "text": content_item.resource.text
-            }
-        elif isinstance(content_item.resource, types.BlobResourceContents):
-            return {
-                "type": "resource",
-                "uri": content_item.resource.uri,
-                "blob": content_item.resource.blob
-            }
-    else:
-        # Handle unknown content types as generic dict
-        return content_item.model_dump() if hasattr(content_item, 'model_dump') else str(content_item)

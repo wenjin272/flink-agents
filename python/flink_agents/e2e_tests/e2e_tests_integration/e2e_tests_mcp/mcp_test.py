@@ -48,12 +48,12 @@ from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.resource import ResourceDescriptor
 from flink_agents.api.runner_context import RunnerContext
-from flink_agents.api.tools.mcp import MCPServer
 from flink_agents.e2e_tests.test_utils import pull_model
 from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelConnection,
     OllamaChatModelSetup,
 )
+from flink_agents.integrations.mcp.mcp import MCPServer
 
 OLLAMA_MODEL = os.environ.get("MCP_OLLAMA_CHAT_MODEL", "qwen3:1.7b")
 MCP_SERVER_ENDPOINT = "http://127.0.0.1:8000/mcp"
