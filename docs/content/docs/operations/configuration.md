@@ -186,6 +186,13 @@ In the following two cases, Flink Agents may not locate the corresponding config
 ## Built-in configuration options
 
 Here is the list of all built-in configuration options.
+### Execution
+Here are the configuration options for Agent execution.
+
+| Key                                 | Default                    | Type                  | Description                                                                                                                                                                                                                                                     |
+|-------------------------------------|----------------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error-handling-strategy`           | ErrorHandlingStrategy.FAIL | ErrorHandlingStrategy | Strategy for handling errors during model requests, include timeout and unexpected output schema. <br/>The option value could be:<br/> <ul><li>`ErrorHandlingStrategy.FAIL`</li> <li>`ErrorHandlingStrategy.RETRY`</li> <li>`ErrorHandlingStrategy.IGNORE`</li> |
+| `max-retries`             | 3                          | int                   | Number of retries when using `ErrorHandlingStrategy.RETRY`.                                                                                                                                                                                                     |
 
 ### ChatModel
 
