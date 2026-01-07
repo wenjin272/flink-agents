@@ -22,6 +22,7 @@ import org.apache.flink.agents.api.embedding.model.BaseEmbeddingModelSetup;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.vectorstores.BaseVectorStore;
 import org.apache.flink.agents.api.vectorstores.CollectionManageableVectorStore;
 import org.apache.flink.agents.api.vectorstores.CollectionManageableVectorStore.Collection;
 import org.apache.flink.agents.api.vectorstores.Document;
@@ -48,7 +49,7 @@ import java.util.Map;
  */
 @Disabled("Should setup Elasticsearch server.")
 public class ElasticsearchVectorStoreTest {
-    public static CollectionManageableVectorStore store;
+    public static BaseVectorStore store;
 
     public static Resource getResource(String name, ResourceType type) {
         BaseEmbeddingModelSetup embeddingModel = Mockito.mock(BaseEmbeddingModelSetup.class);
@@ -78,22 +79,23 @@ public class ElasticsearchVectorStoreTest {
 
     @Test
     public void testCollectionManagement() throws Exception {
+        CollectionManageableVectorStore vectorStore = (CollectionManageableVectorStore) store;
         String name = "collection_management";
         Map<String, Object> metadata = Map.of("key1", "value1", "key2", "value2");
-        store.getOrCreateCollection(name, metadata);
+        vectorStore.getOrCreateCollection(name, metadata);
 
-        Collection collection = store.getCollection(name);
+        Collection collection = vectorStore.getCollection(name);
 
         Assertions.assertNotNull(collection);
         Assertions.assertEquals(name, collection.getName());
         Assertions.assertEquals(0, store.size(name));
         Assertions.assertEquals(metadata, collection.getMetadata());
 
-        store.deleteCollection(name);
+        vectorStore.deleteCollection(name);
 
         Assertions.assertThrows(
                 RuntimeException.class,
-                () -> store.getCollection(name),
+                () -> vectorStore.getCollection(name),
                 String.format("Collection %s not found", name));
     }
 
@@ -101,7 +103,7 @@ public class ElasticsearchVectorStoreTest {
     public void testDocumentManagement() throws Exception {
         String name = "document_management";
         Map<String, Object> metadata = Map.of("key1", "value1", "key2", "value2");
-        store.getOrCreateCollection(name, metadata);
+        ((CollectionManageableVectorStore) store).getOrCreateCollection(name, metadata);
 
         List<Document> documents = new ArrayList<>();
         documents.add(
@@ -144,6 +146,6 @@ public class ElasticsearchVectorStoreTest {
         List<Document> empty = store.get(null, name, Collections.emptyMap());
         Assertions.assertTrue(empty.isEmpty());
 
-        store.deleteCollection(name);
+        ((CollectionManageableVectorStore) store).deleteCollection(name);
     }
 }

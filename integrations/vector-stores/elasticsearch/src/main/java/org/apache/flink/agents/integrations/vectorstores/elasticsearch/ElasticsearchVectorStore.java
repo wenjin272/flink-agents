@@ -114,7 +114,8 @@ import java.util.function.BiFunction;
  *     .build();
  * }</pre>
  */
-public class ElasticsearchVectorStore extends CollectionManageableVectorStore {
+public class ElasticsearchVectorStore extends BaseVectorStore
+        implements CollectionManageableVectorStore {
 
     /** Default vector dimensionality used when {@code dims} is not provided. */
     public static final int DEFAULT_DIMENSION = 768;

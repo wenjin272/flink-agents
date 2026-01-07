@@ -52,8 +52,11 @@ public class VectorStoreQuery {
      *
      * @param queryText the text to embed and search for
      * @param limit maximum number of results to return
+     * @param collection the collection to query to
+     * @param extraArgs store-specific additional parameters
      */
-    public VectorStoreQuery(String queryText, String collection, Integer limit) {
+    public VectorStoreQuery(
+            String queryText, Integer limit, String collection, Map<String, Object> extraArgs) {
         this(VectorStoreQueryMode.SEMANTIC, queryText, limit, collection, new HashMap<>());
     }
 

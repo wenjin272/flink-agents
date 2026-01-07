@@ -17,21 +17,12 @@
  */
 package org.apache.flink.agents.api.vectorstores;
 
-import org.apache.flink.agents.api.resource.Resource;
-import org.apache.flink.agents.api.resource.ResourceDescriptor;
-import org.apache.flink.agents.api.resource.ResourceType;
-
 import java.util.Map;
-import java.util.function.BiFunction;
 
 /** Base abstract class for vector store which support collection management. */
-public abstract class CollectionManageableVectorStore extends BaseVectorStore {
-    public CollectionManageableVectorStore(
-            ResourceDescriptor descriptor, BiFunction<String, ResourceType, Resource> getResource) {
-        super(descriptor, getResource);
-    }
+public interface CollectionManageableVectorStore {
 
-    public static class Collection {
+    class Collection {
         private final String name;
         private final Map<String, Object> metadata;
 
@@ -56,8 +47,7 @@ public abstract class CollectionManageableVectorStore extends BaseVectorStore {
      * @param metadata The metadata of the collection.
      * @return The retrieved or created collection.
      */
-    public abstract Collection getOrCreateCollection(String name, Map<String, Object> metadata)
-            throws Exception;
+    Collection getOrCreateCollection(String name, Map<String, Object> metadata) throws Exception;
 
     /**
      * Get a collection by name.
@@ -65,7 +55,7 @@ public abstract class CollectionManageableVectorStore extends BaseVectorStore {
      * @param name The name of the collection to get.
      * @return The retrieved collection.
      */
-    public abstract Collection getCollection(String name) throws Exception;
+    Collection getCollection(String name) throws Exception;
 
     /**
      * Delete a collection by name.
@@ -73,5 +63,5 @@ public abstract class CollectionManageableVectorStore extends BaseVectorStore {
      * @param name The name of the collection to delete.
      * @return The deleted collection.
      */
-    public abstract Collection deleteCollection(String name) throws Exception;
+    Collection deleteCollection(String name) throws Exception;
 }
