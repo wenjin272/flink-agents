@@ -21,7 +21,7 @@ from pydantic import BaseModel, field_serializer, model_validator
 
 from flink_agents.api.agents.agent import Agent
 from flink_agents.api.resource import Resource, ResourceType
-from flink_agents.api.tools.mcp import MCPServer
+from flink_agents.integrations.mcp.mcp import MCPServer
 from flink_agents.plan.actions.action import Action
 from flink_agents.plan.actions.chat_model_action import CHAT_MODEL_ACTION
 from flink_agents.plan.actions.context_retrieval_action import CONTEXT_RETRIEVAL_ACTION

@@ -40,7 +40,7 @@ from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import ResourceType, SerializableResource
 from flink_agents.api.tools.tool import Tool, ToolMetadata, ToolType
-from flink_agents.api.tools.utils import extract_mcp_content_item
+from flink_agents.integrations.mcp.utils import extract_mcp_content_item
 
 
 class MCPTool(Tool):
