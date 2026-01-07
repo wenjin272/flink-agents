@@ -18,7 +18,11 @@
 
 package org.apache.flink.agents.api.vectorstores;
 
+import javax.annotation.Nullable;
+
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A document retrieved from vector store search.
@@ -38,10 +42,18 @@ public class Document {
     /** Document metadata such as source, author, timestamp, etc. */
     private final Map<String, Object> metadata;
 
+    private @Nullable float[] embedding;
+
     public Document(String content, Map<String, Object> metadata, String id) {
+        this(content, metadata, id, null);
+    }
+
+    public Document(
+            String content, Map<String, Object> metadata, String id, @Nullable float[] embedding) {
         this.content = content;
         this.metadata = metadata;
         this.id = id;
+        this.embedding = embedding;
     }
 
     public String getContent() {
@@ -54,5 +66,45 @@ public class Document {
 
     public String getId() {
         return id;
+    }
+
+    public void setEmbedding(float[] embedding) {
+        this.embedding = embedding;
+    }
+
+    @Nullable
+    public float[] getEmbedding() {
+        return embedding;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        Document document = (Document) o;
+        return Objects.equals(id, document.id)
+                && Objects.equals(content, document.content)
+                && Objects.equals(metadata, document.metadata)
+                && Arrays.equals(embedding, document.embedding);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, content, metadata, Arrays.hashCode(embedding));
+    }
+
+    @Override
+    public String toString() {
+        return "Document{"
+                + "id='"
+                + id
+                + '\''
+                + ", content='"
+                + content
+                + '\''
+                + ", metadata="
+                + metadata
+                + ", embedding="
+                + Arrays.toString(embedding)
+                + '}';
     }
 }
