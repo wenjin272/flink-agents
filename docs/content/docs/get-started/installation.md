@@ -64,7 +64,18 @@ cp $FLINK_HOME/opt/flink-python-1.20.3.jar $FLINK_HOME/lib/
   - Unix-like environment (Linux, Mac OS X, Cygwin, or WSL)
   - Git
   - Maven 3
-  - Java 11
+  - Java 17+ (full functionality), or Java 11+ (some features unavailable)
+
+### Java Versions
+
+For running an agent built with **Python API**, you can use any Java version 11 or higher.
+
+When using **Java API**, there are some functionality limitations for earlier Java versions, as detailed below:
+
+| Java Version | Limitations                   |
+|--------------|-------------------------------|
+| Java 17+     | No limitations.               |
+| Java 11-16   | MCP supports are unavailable. |
 
 ### Set Up Python Environment (Recommended)
 
