@@ -185,7 +185,8 @@ def chat(
             response = chat_model.chat(messages)
             if output_schema is not None and len(response.tool_calls) == 0:
                 response = _generate_structured_output(response, output_schema)
-        except Exception as e:  # noqa: PERF203
+            break
+        except Exception as e:
             if error_handling_strategy == ErrorHandlingStrategy.IGNORE:
                 _logger.warning(
                     f"Chat request {initial_request_id} failed with error: {e}, ignored."

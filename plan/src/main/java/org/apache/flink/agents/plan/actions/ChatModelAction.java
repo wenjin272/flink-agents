@@ -215,6 +215,7 @@ public class ChatModelAction {
                 if (outputSchema != null && response.getToolCalls().isEmpty()) {
                     response = generateStructuredOutput(response, outputSchema);
                 }
+                break;
             } catch (Exception e) {
                 if (strategy == Agent.ErrorHandlingStrategy.IGNORE) {
                     LOG.warn(
