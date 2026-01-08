@@ -46,6 +46,7 @@ github:
     - coderplay
     - weiqingy
     - alnzng
+    - istavrak
 
 notifications:
   commits: commits@flink.apache.org
