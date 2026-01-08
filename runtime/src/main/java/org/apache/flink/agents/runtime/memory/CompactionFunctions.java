@@ -43,13 +43,13 @@ public class CompactionFunctions {
                             + "\n"
                             + "<objective_information>\n"
                             + "You're nearing the total number of input tokens you can accept, so you need compact the context. To achieve this objective, you should extract important topics. Notice,\n"
-                            + "**The topics must no more than {limit}**. Afterwards, you should generate summarization for each topic, and and record which messages the summary was derived from.\n"
-                            + "The message index start from 0.\n"
+                            + "**The topics must no more than {limit}**. Afterwards, you should generate summarization for each topic, and record indices of the messages the summary was derived from. "
+                            + "**There are {count} messages totally, indexed from 0 to {end}, DO NOT omit any message, even if irrelevant**. The messages involved in each topic must not overlap, and their union must equal the entire set of messages.\n"
                             + "</objective_information>\n"
                             + "\n"
                             + "<output_example>\n"
                             + "You must always respond with valid json format in this format:\n"
-                            + "{\"topic1\": {\"summarization\": \"User ask what is 1 * 2, and the result is 3.\", \"messages\": [0,1,2]},\n"
+                            + "{\"topic1\": {\"summarization\": \"User ask what is 1 * 2, and the result is 3.\", \"messages\": [0,1,2,3]},\n"
                             + " ...\n"
                             + " \"topic4\": {\"summarization\": \"User ask what's the weather tomorrow, llm use the search_weather, and the answer is snow.\", \"messages\": [9,10,11,12]}\n"
                             + "}\n"
@@ -85,9 +85,7 @@ public class CompactionFunctions {
                 mapper.readValue(response.getContent(), Map.class);
         for (Map<String, Object> topic : topics.values()) {
             String summarization = (String) topic.get("summarization");
-            List<String> indicesText = (List<String>) topic.get("messages");
-            List<Integer> indices =
-                    indicesText.stream().map(Integer::valueOf).collect(Collectors.toList());
+            List<Integer> indices = (List<Integer>) topic.get("messages");
 
             if (strategy.getLimit() == 1) {
                 indices = IntStream.range(0, items.size()).boxed().collect(Collectors.toList());
@@ -193,7 +191,13 @@ public class CompactionFunctions {
             messages.addAll(
                     DEFAULT_ANALYSIS_PROMPT.formatMessages(
                             MessageRole.SYSTEM,
-                            Map.of("limit", String.valueOf(strategy.getLimit()))));
+                            Map.of(
+                                    "limit",
+                                    String.valueOf(strategy.getLimit()),
+                                    "count",
+                                    String.valueOf(items.size()),
+                                    "end",
+                                    String.valueOf(items.size() - 1))));
         }
 
         return model.chat(messages);

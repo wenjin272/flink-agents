@@ -21,7 +21,7 @@ public interface BaseLongTermMemory {
 
     List<String> add(
             MemorySet memorySet,
-            List<Object> memoryItems,
+            List<?> memoryItems,
             @Nullable List<String> ids,
             @Nullable List<Map<String, Object>> metadatas)
             throws Exception;

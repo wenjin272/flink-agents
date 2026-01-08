@@ -15,16 +15,23 @@ import org.apache.flink.agents.api.vectorstores.CollectionManageableVectorStore.
 import org.apache.flink.agents.api.vectorstores.Document;
 import org.apache.flink.agents.api.vectorstores.VectorStoreQuery;
 import org.apache.flink.agents.api.vectorstores.VectorStoreQueryResult;
+import org.apache.flink.util.concurrent.ExecutorThreadFactory;
 
 import javax.annotation.Nullable;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import static org.apache.flink.agents.runtime.memory.CompactionFunctions.summarize;
 
 public class VectorStoreLongTermMemory implements BaseLongTermMemory {
     public static final ObjectMapper mapper = new ObjectMapper();
@@ -34,6 +41,7 @@ public class VectorStoreLongTermMemory implements BaseLongTermMemory {
     private final String jobId;
     private final String key;
     private final boolean asyncCompaction;
+    private transient ExecutorService lazyCompactExecutor;
     private Object vectorStore;
 
     public VectorStoreLongTermMemory(
@@ -93,7 +101,7 @@ public class VectorStoreLongTermMemory implements BaseLongTermMemory {
     @Override
     public List<String> add(
             MemorySet memorySet,
-            List<Object> memoryItems,
+            List<?> memoryItems,
             @Nullable List<String> ids,
             @Nullable List<Map<String, Object>> metadatas)
             throws Exception {
@@ -135,23 +143,51 @@ public class VectorStoreLongTermMemory implements BaseLongTermMemory {
         }
 
         List<String> itemIds =
-                this.store().add(documents, this.nameMangling(memorySet.getName()), null);
+                this.store()
+                        .add(
+                                documents,
+                                this.nameMangling(memorySet.getName()),
+                                Collections.emptyMap());
 
-        // TODO: compaction
-        return ids;
+        if (memorySet.size() >= memorySet.getCapacity()) {
+            if (this.asyncCompaction) {
+                CompletableFuture.runAsync(
+                                () -> {
+                                    try {
+                                        compact(memorySet);
+                                    } catch (Exception e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                },
+                                this.workerExecutor())
+                        .exceptionally(
+                                e -> {
+                                    throw new RuntimeException(
+                                            String.format(
+                                                    "Compaction for %s failed",
+                                                    this.nameMangling(memorySet.getName())),
+                                            e);
+                                });
+            } else {
+                this.compact(memorySet);
+            }
+        }
+
+        return itemIds;
     }
 
     @Override
     public List<MemorySetItem> get(MemorySet memorySet, @Nullable List<String> ids)
             throws Exception {
         List<Document> documents =
-                this.store().get(ids, this.nameMangling(memorySet.getName()), null);
+                this.store()
+                        .get(ids, this.nameMangling(memorySet.getName()), Collections.emptyMap());
         return this.convertToItems(memorySet, documents);
     }
 
     @Override
     public void delete(MemorySet memorySet, @Nullable List<String> ids) throws Exception {
-        this.store().delete(ids, this.nameMangling(memorySet.getName()), null);
+        this.store().delete(ids, this.nameMangling(memorySet.getName()), Collections.emptyMap());
     }
 
     @Override
@@ -204,13 +240,25 @@ public class VectorStoreLongTermMemory implements BaseLongTermMemory {
         return items;
     }
 
-    private void compact(MemorySet memorySet) {
+    private void compact(MemorySet memorySet) throws Exception {
         CompactionStrategy strategy = memorySet.getStrategy();
         if (strategy.type() == CompactionStrategy.Type.SUMMARIZATION) {
-
+            summarize(this, memorySet, ctx, null);
         } else {
             throw new RuntimeException(
                     String.format("Unknown compaction strategy: %s", strategy.type()));
         }
+    }
+
+    private ExecutorService workerExecutor() {
+        // TODO: shutdown executor when close.
+        if (lazyCompactExecutor == null) {
+            lazyCompactExecutor =
+                    Executors.newFixedThreadPool(
+                            2,
+                            new ExecutorThreadFactory(
+                                    Thread.currentThread().getName() + "-ltm-compact-worker"));
+        }
+        return lazyCompactExecutor;
     }
 }

@@ -7,6 +7,7 @@ import org.apache.flink.agents.api.memory.compaction.CompactionStrategy;
 
 import javax.annotation.Nullable;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,7 +36,7 @@ public class MemorySet {
     }
 
     public List<String> add(
-            List<Object> memoryItems,
+            List<?> memoryItems,
             @Nullable List<String> ids,
             @Nullable List<Map<String, Object>> metadatas)
             throws Exception {
@@ -46,9 +47,10 @@ public class MemorySet {
         return this.ltm.get(this, ids);
     }
 
-    List<MemorySetItem> search(String query, int limit, Map<String, Object> extraArgs)
-            throws Exception {
-        return this.ltm.search(this, query, limit, extraArgs);
+    public List<MemorySetItem> search(
+            String query, int limit, @Nullable Map<String, Object> extraArgs) throws Exception {
+        return this.ltm.search(
+                this, query, limit, extraArgs == null ? Collections.emptyMap() : extraArgs);
     }
 
     public void setLtm(BaseLongTermMemory ltm) {

@@ -200,9 +200,9 @@ def test_compact(  # noqa:D103
         ChatMessage(role=MessageRole.USER, content="What is flink?"),
         ChatMessage(
             role=MessageRole.ASSISTANT,
-            content="Apache Flink is a framework and distributed processing engine for stateful computations over unbounded and bounded data streams. Flink has been designed to run in all common cluster environments, perform computations at in-memory speed and at any scale.?",
+            content="Apache Flink is a framework and distributed processing engine for stateful computations over unbounded and bounded data streams. Flink has been designed to run in all common cluster environments, perform computations at in-memory speed and at any scale.",
         ),
-        ChatMessage(role=MessageRole.USER, content="What is flink agnets?"),
+        ChatMessage(role=MessageRole.USER, content="What is flink agents?"),
         ChatMessage(
             role=MessageRole.ASSISTANT,
             content="Apache Flink Agents is a brand-new sub-project from the Apache Flink community, providing an open-source framework for building event-driven streaming agents.",
