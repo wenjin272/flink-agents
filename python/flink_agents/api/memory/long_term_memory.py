@@ -81,7 +81,7 @@ class LongTermMemoryOptions:
     """Config options for ReActAgent."""
 
     BACKEND = ConfigOption(
-        key="long-term-memory.",
+        key="long-term-memory.backend",
         config_type=LongTermMemoryBackend,
         default=None,
     )
