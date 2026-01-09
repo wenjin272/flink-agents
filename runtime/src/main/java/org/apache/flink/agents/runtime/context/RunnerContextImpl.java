@@ -23,12 +23,16 @@ import org.apache.flink.agents.api.configuration.ReadableConfiguration;
 import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.MemoryUpdate;
 import org.apache.flink.agents.api.context.RunnerContext;
+import org.apache.flink.agents.api.memory.BaseLongTermMemory;
+import org.apache.flink.agents.api.memory.LongTermMemoryOptions;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.plan.utils.JsonUtils;
 import org.apache.flink.agents.runtime.memory.CachedMemoryStore;
+import org.apache.flink.agents.runtime.memory.InteranlBaseLongTermMemory;
 import org.apache.flink.agents.runtime.memory.MemoryObjectImpl;
+import org.apache.flink.agents.runtime.memory.VectorStoreLongTermMemory;
 import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
 import org.apache.flink.util.Preconditions;
 
@@ -80,19 +84,32 @@ public class RunnerContextImpl implements RunnerContext {
 
     protected MemoryContext memoryContext;
     protected String actionName;
+    protected InteranlBaseLongTermMemory ltm;
 
     public RunnerContextImpl(
             FlinkAgentsMetricGroupImpl agentMetricGroup,
             Runnable mailboxThreadChecker,
-            AgentPlan agentPlan) {
+            AgentPlan agentPlan,
+            String jobIdentifier) {
         this.agentMetricGroup = agentMetricGroup;
         this.mailboxThreadChecker = mailboxThreadChecker;
         this.agentPlan = agentPlan;
+
+        LongTermMemoryOptions.LongTermMemoryBackend backend =
+                this.getConfig().get(LongTermMemoryOptions.BACKEND);
+        if (backend == LongTermMemoryOptions.LongTermMemoryBackend.EXTERNAL_VECTOR_STORE) {
+            String vectorStoreName =
+                    this.getConfig().get(LongTermMemoryOptions.EXTERNAL_VECTOR_STORE_NAME);
+            ltm = new VectorStoreLongTermMemory(this, vectorStoreName, jobIdentifier);
+        }
     }
 
-    public void switchActionContext(String actionName, MemoryContext memoryContext) {
+    public void switchActionContext(String actionName, MemoryContext memoryContext, String key) {
         this.actionName = actionName;
         this.memoryContext = memoryContext;
+        if (ltm != null) {
+            ltm.switchContext(key);
+        }
     }
 
     public MemoryContext getMemoryContext() {
@@ -177,6 +194,12 @@ public class RunnerContextImpl implements RunnerContext {
     }
 
     @Override
+    public BaseLongTermMemory getLongTermMemory() throws Exception {
+        Preconditions.checkNotNull(this.ltm);
+        return this.ltm;
+    }
+
+    @Override
     public Resource getResource(String name, ResourceType type) throws Exception {
         if (agentPlan == null) {
             throw new IllegalStateException("AgentPlan is not available in this context");
@@ -200,6 +223,14 @@ public class RunnerContextImpl implements RunnerContext {
     @Override
     public Object getActionConfigValue(String key) {
         return agentPlan.getActionConfigValue(actionName, key);
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (this.ltm != null) {
+            this.ltm.close();
+            this.ltm = null;
+        }
     }
 
     public String getActionName() {
