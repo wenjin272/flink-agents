@@ -101,12 +101,14 @@ def summarize(
         else:
             item = summarization
 
-        create_time_list = [
-            items[index].created_time.start
-            if items[index].compacted
-            else items[index].created_time
-            for index in indices
-        ]
+        create_time_list = []
+        for index in indices:
+            if items[index].compacted:
+                create_time_list.append(items[index].create_time.start)
+                create_time_list.append(items[index].create_time.end)
+            else:
+                create_time_list.append(items[index].create_time)
+
         start = min(create_time_list).isoformat()
         end = max(create_time_list).isoformat()
         last_accessed_time = max(
