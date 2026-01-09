@@ -19,6 +19,7 @@ package org.apache.flink.agents.api.context;
 
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.configuration.ReadableConfiguration;
+import org.apache.flink.agents.api.memory.BaseLongTermMemory;
 import org.apache.flink.agents.api.metrics.FlinkAgentsMetricGroup;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
@@ -55,6 +56,13 @@ public interface RunnerContext {
      * @throws Exception if the underlying state backend cannot be accessed
      */
     MemoryObject getShortTermMemory() throws Exception;
+
+    /**
+     * Gets the long-term memory.
+     *
+     * @return The long-term memory instance
+     */
+    BaseLongTermMemory getLongTermMemory() throws Exception;
 
     /**
      * Gets the metric group for Flink Agents.
@@ -100,4 +108,7 @@ public interface RunnerContext {
      * @return the option value of the action config.
      */
     Object getActionConfigValue(String key);
+
+    /** Clean up the resource. */
+    void close() throws Exception;
 }

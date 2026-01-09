@@ -19,6 +19,7 @@
 package org.apache.flink.agents.integrations.vectorstores.elasticsearch;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.Refresh;
 import co.elastic.clients.elasticsearch._types.mapping.DynamicMapping;
 import co.elastic.clients.elasticsearch._types.mapping.Property;
 import co.elastic.clients.elasticsearch.core.BulkRequest;
@@ -788,7 +789,8 @@ public class ElasticsearchVectorStore extends BaseVectorStore
         }
 
         // Execute bulk request
-        BulkRequest bulkRequest = BulkRequest.of(br -> br.operations(bulkOperations));
+        BulkRequest bulkRequest =
+                BulkRequest.of(br -> br.operations(bulkOperations).refresh(Refresh.WaitFor));
         BulkResponse bulkResponse = this.client.bulk(bulkRequest);
 
         // Check for errors

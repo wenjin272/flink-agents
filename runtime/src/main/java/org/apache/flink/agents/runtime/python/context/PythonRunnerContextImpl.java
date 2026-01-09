@@ -33,8 +33,9 @@ public class PythonRunnerContextImpl extends RunnerContextImpl {
     public PythonRunnerContextImpl(
             FlinkAgentsMetricGroupImpl agentMetricGroup,
             Runnable mailboxThreadChecker,
-            AgentPlan agentPlan) {
-        super(agentMetricGroup, mailboxThreadChecker, agentPlan);
+            AgentPlan agentPlan,
+            String jobIdentifier) {
+        super(agentMetricGroup, mailboxThreadChecker, agentPlan, jobIdentifier);
     }
 
     @Override
