@@ -434,7 +434,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         }
 
         // 2. Invoke the action task.
-        createAndSetRunnerContext(actionTask);
+        createAndSetRunnerContext(actionTask, key);
 
         long sequenceNumber = sequenceNumberKState.value();
         boolean isFinished;
@@ -575,7 +575,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             pythonInterpreter = env.getInterpreter();
             pythonRunnerContext =
                     new PythonRunnerContextImpl(
-                            this.metricGroup, this::checkMailboxThread, this.agentPlan);
+                            this.metricGroup,
+                            this::checkMailboxThread,
+                            this.agentPlan,
+                            this.jobIdentifier);
             if (containPythonAction) {
                 initPythonActionExecutor();
             } else {
@@ -640,6 +643,9 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         }
         if (actionStateStore != null) {
             actionStateStore.close();
+        }
+        if (runnerContext != null) {
+            runnerContext.close();
         }
 
         super.close();
@@ -771,7 +777,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         }
     }
 
-    private void createAndSetRunnerContext(ActionTask actionTask) {
+    private void createAndSetRunnerContext(ActionTask actionTask, Object key) {
         if (actionTask.getRunnerContext() != null) {
             return;
         }
@@ -798,7 +804,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                             new CachedMemoryStore(shortTermMemState));
         }
 
-        runnerContext.switchActionContext(actionTask.action.getName(), memoryContext);
+        runnerContext.switchActionContext(
+                actionTask.action.getName(), memoryContext, String.valueOf(key.hashCode()));
         actionTask.setRunnerContext(runnerContext);
     }
 
@@ -910,14 +917,20 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             if (runnerContext == null) {
                 runnerContext =
                         new RunnerContextImpl(
-                                this.metricGroup, this::checkMailboxThread, this.agentPlan);
+                                this.metricGroup,
+                                this::checkMailboxThread,
+                                this.agentPlan,
+                                this.jobIdentifier);
             }
             return runnerContext;
         } else {
             if (pythonRunnerContext == null) {
                 pythonRunnerContext =
                         new PythonRunnerContextImpl(
-                                this.metricGroup, this::checkMailboxThread, this.agentPlan);
+                                this.metricGroup,
+                                this::checkMailboxThread,
+                                this.agentPlan,
+                                jobIdentifier);
             }
             return pythonRunnerContext;
         }

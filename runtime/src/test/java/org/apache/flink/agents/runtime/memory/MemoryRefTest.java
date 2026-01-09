@@ -21,6 +21,7 @@ import org.apache.flink.agents.api.configuration.ReadableConfiguration;
 import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.MemoryRef;
 import org.apache.flink.agents.api.context.RunnerContext;
+import org.apache.flink.agents.api.memory.BaseLongTermMemory;
 import org.apache.flink.agents.api.metrics.FlinkAgentsMetricGroup;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
@@ -74,6 +75,11 @@ public class MemoryRefTest {
         }
 
         @Override
+        public BaseLongTermMemory getLongTermMemory() throws Exception {
+            return null;
+        }
+
+        @Override
         public MemoryObject getSensoryMemory() {
             return null;
         }
@@ -110,6 +116,9 @@ public class MemoryRefTest {
         public Object getActionConfigValue(String key) {
             return null;
         }
+
+        @Override
+        public void close() throws Exception {}
     }
 
     @BeforeEach
