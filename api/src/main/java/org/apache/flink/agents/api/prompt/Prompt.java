@@ -188,6 +188,23 @@ public abstract class Prompt extends SerializableResource {
                                     .collect(Collectors.toList()));
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            LocalPrompt that = (LocalPrompt) o;
+            return Objects.equals(template, that.template);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(template);
+        }
+
+        @Override
+        public String toString() {
+            return "LocalPrompt{" + "template=" + template + '}';
+        }
+
         /** Format template string with keyword arguments */
         private static String format(String template, Map<String, String> kwargs) {
             if (template == null) {
@@ -247,6 +264,18 @@ public abstract class Prompt extends SerializableResource {
             public String toString() {
                 return "StringTemplate{content='" + content + "'}";
             }
+
+            @Override
+            public boolean equals(Object o) {
+                if (o == null || getClass() != o.getClass()) return false;
+                StringTemplate that = (StringTemplate) o;
+                return Objects.equals(content, that.content);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hashCode(content);
+            }
         }
 
         /** Messages template implementation. */
@@ -278,6 +307,18 @@ public abstract class Prompt extends SerializableResource {
             @Override
             public String toString() {
                 return "MessagesTemplate{messages=" + messages.size() + " items}";
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (o == null || getClass() != o.getClass()) return false;
+                MessagesTemplate that = (MessagesTemplate) o;
+                return Objects.equals(messages, that.messages);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hashCode(messages);
             }
         }
     }
