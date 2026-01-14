@@ -116,7 +116,7 @@ class ReActAgent(Agent):
             response format of llm, and add output parser according to the schema.
         """
         super().__init__()
-        self.add_resource(_DEFAULT_CHAT_MODEL, chat_model)
+        self.add_resource(_DEFAULT_CHAT_MODEL, ResourceType.CHAT_MODEL, chat_model)
 
         if output_schema:
             if isinstance(output_schema, type) and issubclass(output_schema, BaseModel):

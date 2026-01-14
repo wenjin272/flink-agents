@@ -21,10 +21,7 @@ from pydantic import BaseModel
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.prompts.prompt import Prompt
-from flink_agents.api.resource import ResourceDescriptor
-from flink_agents.integrations.chat_models.ollama_chat_model import (
-    OllamaChatModelConnection,
-)
+from flink_agents.api.resource import Constant, ResourceDescriptor
 
 # Prompt for review analysis agent.
 review_analysis_system_prompt_str = """
@@ -201,5 +198,5 @@ class ProductReviewAnalysisRes(BaseModel):
 
 # ollama chat model connection descriptor
 ollama_server_descriptor = ResourceDescriptor(
-    clazz=OllamaChatModelConnection, request_timeout=120
+    clazz=Constant.OLLAMA_CHAT_MODEL_CONNECTION, request_timeout=120
 )

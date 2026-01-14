@@ -38,7 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL_SETUP;
 import static org.apache.flink.agents.examples.agents.CustomTypesAndResources.PRODUCT_SUGGESTION_PROMPT;
 
 /**
@@ -57,7 +57,7 @@ public class ProductSuggestionAgent extends Agent {
 
     @ChatModelSetup
     public static ResourceDescriptor generateSuggestionModel() {
-        return ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL)
+        return ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL_SETUP)
                 .addInitialArgument("connection", "ollamaChatModelConnection")
                 .addInitialArgument("model", "qwen3:8b")
                 .addInitialArgument("extract_reasoning", "true")

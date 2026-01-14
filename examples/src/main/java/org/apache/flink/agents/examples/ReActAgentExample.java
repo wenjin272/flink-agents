@@ -38,7 +38,7 @@ import java.io.File;
 import java.time.Duration;
 import java.util.Collections;
 
-import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL_SETUP;
 import static org.apache.flink.agents.examples.WorkflowSingleAgentExample.copyResource;
 
 /**
@@ -144,7 +144,7 @@ public class ReActAgentExample {
     // Create ReAct agent.
     private static ReActAgent getReActAgent() {
         return new ReActAgent(
-                ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL)
+                ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL_SETUP)
                         .addInitialArgument("connection", "ollamaChatModelConnection")
                         .addInitialArgument("model", "qwen3:8b")
                         .addInitialArgument(

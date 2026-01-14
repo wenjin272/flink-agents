@@ -34,20 +34,13 @@ from flink_agents.api.events.context_retrieval_event import (
 from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.prompts.prompt import Prompt
-from flink_agents.api.resource import ResourceDescriptor, ResourceType
+from flink_agents.api.resource import (
+    Constant,
+    ResourceDescriptor,
+    ResourceType,
+)
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.examples.rag.knowledge_base_setup import populate_knowledge_base
-from flink_agents.integrations.chat_models.ollama_chat_model import (
-    OllamaChatModelConnection,
-    OllamaChatModelSetup,
-)
-from flink_agents.integrations.embedding_models.local.ollama_embedding_model import (
-    OllamaEmbeddingModelConnection,
-    OllamaEmbeddingModelSetup,
-)
-from flink_agents.integrations.vector_stores.chroma.chroma_vector_store import (
-    ChromaVectorStore,
-)
 
 OLLAMA_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:8b")
 OLLAMA_EMBEDDING_MODEL = os.environ.get("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
@@ -85,7 +78,7 @@ Please provide a helpful answer based on the context provided."""
     def text_embedder() -> ResourceDescriptor:
         """Embedding model setup for generating text embeddings."""
         return ResourceDescriptor(
-            clazz=OllamaEmbeddingModelSetup,
+            clazz=Constant.OllamaEmbeddingModelSetup,
             connection="ollama_embedding_connection",
             model=OLLAMA_EMBEDDING_MODEL,
         )
@@ -95,7 +88,7 @@ Please provide a helpful answer based on the context provided."""
     def knowledge_base() -> ResourceDescriptor:
         """Vector store setup for knowledge base."""
         return ResourceDescriptor(
-            clazz=ChromaVectorStore,
+            clazz=Constant.CHROMA_VECTOR_STORE,
             embedding_model="text_embedder",
             collection="example_knowledge_base",
         )
@@ -105,7 +98,7 @@ Please provide a helpful answer based on the context provided."""
     def chat_model() -> ResourceDescriptor:
         """Chat model setup for generating responses."""
         return ResourceDescriptor(
-            clazz=OllamaChatModelSetup,
+            clazz=Constant.OLLAMA_CHAT_MODEL_SETUP,
             connection="ollama_chat_connection",
             model=OLLAMA_CHAT_MODEL
         )
@@ -181,8 +174,8 @@ if __name__ == "__main__":
     agents_env = AgentsExecutionEnvironment.get_execution_environment()
 
     # Setup Ollama embedding and chat model connections
-    agents_env.add_resource("ollama_embedding_connection", ResourceDescriptor(clazz=OllamaEmbeddingModelConnection))
-    agents_env.add_resource("ollama_chat_connection", ResourceDescriptor(clazz=OllamaChatModelConnection))
+    agents_env.add_resource("ollama_embedding_connection", ResourceType.EMBEDDING_MODEL_CONNECTION, ResourceDescriptor(clazz=Constant.OLLAMA_EMBEDDING_MODEL_CONNECTION))
+    agents_env.add_resource("ollama_chat_connection", ResourceType.EMBEDDING_MODEL, ResourceDescriptor(clazz=Constant.OLLAMA_CHAT_MODEL_CONNECTION))
 
     output_list = agents_env.from_list(input_list).apply(agent).to_list()
 

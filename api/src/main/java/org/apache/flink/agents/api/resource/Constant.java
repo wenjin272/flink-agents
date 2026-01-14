@@ -26,38 +26,56 @@ package org.apache.flink.agents.api.resource;
  */
 public class Constant {
     // Built-in ChatModel
+    // python wrapper
+    public static String PYTHON_CHAT_MODEL_CONNECTION =
+            "org.apache.flink.agents.api.chat.model.python.PythonChatModelConnection";
+    public static String PYTHON_CHAT_MODEL_SETUP =
+            "org.apache.flink.agents.api.chat.model.python.PythonChatModelSetup";
+
     // ollama
     public static String OLLAMA_CHAT_MODEL_CONNECTION =
             "org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelConnection";
-    public static String OLLAMA_CHAT_MODEL =
+    public static String OLLAMA_CHAT_MODEL_SETUP =
             "org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSetup";
 
     // anthropic
     public static String ANTHROPIC_CHAT_MODEL_CONNECTION =
             "org.apache.flink.agents.integrations.chatmodels.anthropic.AnthropicChatModelConnection";
-    public static String ANTHROPIC_CHAT_MODEL =
+    public static String ANTHROPIC_CHAT_MODEL_SETUP =
             "org.apache.flink.agents.integrations.chatmodels.anthropic.AnthropicChatModelSetup";
 
     // Azure
     public static String AZURE_CHAT_MODEL_CONNECTION =
             "org.apache.flink.agents.integrations.chatmodels.anthropic.AzureAIChatModelConnection";
-    public static String AZURE_CHAT_MODEL =
+    public static String AZURE_CHAT_MODEL_SETUP =
             "org.apache.flink.agents.integrations.chatmodels.anthropic.AzureAIChatModelSetup";
 
     // OpenAI
     public static String OPENAI_CHAT_MODEL_CONNECTION =
             "org.apache.flink.agents.integrations.chatmodels.openai.OpenAIChatModelConnection";
-    public static String OPENAI_CHAT_MODEL =
+    public static String OPENAI_CHAT_MODEL_SETUP =
             "org.apache.flink.agents.integrations.chatmodels.openai.OpenAIChatModelSetup";
 
     // Built-in EmbeddingModel
+    // python wrapper
+    public static String PYTHON_EMBEDDING_MODEL_CONNECTION =
+            "org.apache.flink.agents.api.embedding.model.python.PythonEmbeddingModelConnection";
+    public static String PYTHON_EMBEDDING_MODEL_SETUP =
+            "org.apache.flink.agents.api.embedding.model.python.PythonEmbeddingModelSetup";
+
     // ollama
     public static String OLLAMA_EMBEDDING_MODEL_CONNECTION =
             "org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelConnection";
-    public static String OLLAMA_EMBEDDING_MODEL =
+    public static String OLLAMA_EMBEDDING_MODEL_SETUP =
             "org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelSetup";
 
     // Built-in VectorStore
+    // python wrapper
+    public static String PYTHON_VECTOR_STORE =
+            "org.apache.flink.agents.api.vectorstores.python.PythonVectorStore";
+    public static String PYTHON_COLLECTION_MANAGEABLE_VECTOR_STORE =
+            "org.apache.flink.agents.api.vectorstores.python.PythonCollectionManageableVectorStore";
+
     // elasticsearch
     public static String ELASTICSEARCH_VECTOR_STORE =
             "org.apache.flink.agents.integrations.vectorstores.elasticsearch.ElasticsearchVectorStore";

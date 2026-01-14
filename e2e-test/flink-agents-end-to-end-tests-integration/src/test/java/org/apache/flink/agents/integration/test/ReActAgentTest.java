@@ -49,8 +49,8 @@ import java.util.List;
 
 import static org.apache.flink.agents.api.agents.AgentExecutionOptions.ERROR_HANDLING_STRATEGY;
 import static org.apache.flink.agents.api.agents.AgentExecutionOptions.MAX_RETRIES;
-import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL;
 import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL_CONNECTION;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL_SETUP;
 import static org.apache.flink.agents.integration.test.OllamaPreparationUtils.pullModel;
 
 public class ReActAgentTest {
@@ -155,7 +155,7 @@ public class ReActAgentTest {
     // create ReAct agent.
     private static Agent getAgent() {
         ResourceDescriptor chatModelDescriptor =
-                ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL)
+                ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL_SETUP)
                         .addInitialArgument("connection", "ollama")
                         .addInitialArgument("model", OLLAMA_MODEL)
                         .addInitialArgument("tools", List.of("add", "multiply"))

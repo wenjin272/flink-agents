@@ -183,7 +183,7 @@ class MyAgent(Agent):  # noqa: D101
     @staticmethod
     def mock() -> ResourceDescriptor:  # noqa: D102
         return ResourceDescriptor(
-            clazz=MockChatModelImpl,
+            clazz=f"{MockChatModelImpl.__module__}.{MockChatModelImpl.__name__}",
             host="8.8.8.8",
             desc="mock resource just for testing.",
             connection="mock",
@@ -193,14 +193,14 @@ class MyAgent(Agent):  # noqa: D101
     @staticmethod
     def mock_embedding_conn() -> ResourceDescriptor:  # noqa: D102
         return ResourceDescriptor(
-            clazz=MockEmbeddingModelConnection, api_key="mock-api-key"
+            clazz=f"{MockEmbeddingModelConnection.__module__}.{MockEmbeddingModelConnection.__name__}", api_key="mock-api-key"
         )
 
     @embedding_model_setup
     @staticmethod
     def mock_embedding() -> ResourceDescriptor:  # noqa: D102
         return ResourceDescriptor(
-            clazz=MockEmbeddingModelSetup,
+            clazz=f"{MockEmbeddingModelSetup.__module__}.{MockEmbeddingModelSetup.__name__}",
             model="test-model",
             connection="mock_embedding_conn",
         )
@@ -209,7 +209,7 @@ class MyAgent(Agent):  # noqa: D101
     @staticmethod
     def mock_vector_store() -> ResourceDescriptor:  # noqa: D102
         return ResourceDescriptor(
-            clazz=MockVectorStore,
+            clazz=f"{MockVectorStore.__module__}.{MockVectorStore.__name__}",
             embedding_model="mock_embedding",
             host="localhost",
             port=8000,
@@ -272,8 +272,9 @@ def test_add_action_and_resource_to_agent() -> None:  # noqa: D103
     )
     my_agent.add_resource(
         name="mock",
+        resource_type=ResourceType.CHAT_MODEL,
         instance=ResourceDescriptor(
-            clazz=MockChatModelImpl,
+            clazz=f"{MockChatModelImpl.__module__}.{MockChatModelImpl.__name__}",
             host="8.8.8.8",
             desc="mock resource just for testing.",
             connection="mock",
@@ -282,22 +283,25 @@ def test_add_action_and_resource_to_agent() -> None:  # noqa: D103
 
     my_agent.add_resource(
         name="mock_embedding_conn",
+        resource_type=ResourceType.EMBEDDING_MODEL_CONNECTION,
         instance=ResourceDescriptor(
-            clazz=MockEmbeddingModelConnection, api_key="mock-api-key"
+            clazz=f"{MockEmbeddingModelConnection.__module__}.{MockEmbeddingModelConnection.__name__}", api_key="mock-api-key"
         ),
     )
     my_agent.add_resource(
         name="mock_embedding",
+        resource_type=ResourceType.EMBEDDING_MODEL,
         instance=ResourceDescriptor(
-            clazz=MockEmbeddingModelSetup,
+            clazz=f"{MockEmbeddingModelSetup.__module__}.{MockEmbeddingModelSetup.__name__}",
             model="test-model",
             connection="mock_embedding_conn",
         ),
     )
     my_agent.add_resource(
         name="mock_vector_store",
+        resource_type=ResourceType.VECTOR_STORE,
         instance=ResourceDescriptor(
-            clazz=MockVectorStore,
+            clazz=f"{MockVectorStore.__module__}.{MockVectorStore.__name__}",
             embedding_model="mock_embedding",
             host="localhost",
             port=8000,

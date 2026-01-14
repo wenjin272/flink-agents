@@ -27,20 +27,11 @@ from flink_agents.api.decorators import (
 )
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.event import InputEvent, OutputEvent
-from flink_agents.api.resource import ResourceDescriptor
+from flink_agents.api.resource import (
+    Constant,
+    ResourceDescriptor,
+)
 from flink_agents.api.runner_context import RunnerContext
-from flink_agents.integrations.chat_models.ollama_chat_model import (
-    OllamaChatModelConnection,
-    OllamaChatModelSetup,
-)
-from flink_agents.integrations.chat_models.openai.openai_chat_model import (
-    OpenAIChatModelConnection,
-    OpenAIChatModelSetup,
-)
-from flink_agents.integrations.chat_models.tongyi_chat_model import (
-    TongyiChatModelConnection,
-    TongyiChatModelSetup,
-)
 
 
 class ChatModelTestAgent(Agent):
@@ -51,21 +42,21 @@ class ChatModelTestAgent(Agent):
     def openai_connection() -> ResourceDescriptor:
         """ChatModelConnection responsible for openai model service connection."""
         return ResourceDescriptor(
-            clazz=OpenAIChatModelConnection, api_key=os.environ.get("OPENAI_API_KEY")
+            clazz=Constant.OPENAI_CHAT_MODEL_CONNECTION, api_key=os.environ.get("OPENAI_API_KEY")
         )
 
     @chat_model_connection
     @staticmethod
     def tongyi_connection() -> ResourceDescriptor:
         """ChatModelConnection responsible for tongyi model service connection."""
-        return ResourceDescriptor(clazz=TongyiChatModelConnection)
+        return ResourceDescriptor(clazz=Constant.TONGYI_CHAT_MODEL_CONNECTION)
 
     @chat_model_connection
     @staticmethod
     def ollama_connection() -> ResourceDescriptor:
         """ChatModelConnection responsible for ollama model service connection."""
         return ResourceDescriptor(
-            clazz=OllamaChatModelConnection, request_timeout=240.0
+            clazz=Constant.OLLAMA_CHAT_MODEL_CONNECTION, request_timeout=240.0
         )
 
     @chat_model_setup
@@ -75,14 +66,14 @@ class ChatModelTestAgent(Agent):
         model_provider = os.environ.get("MODEL_PROVIDER")
         if model_provider == "Tongyi":
             return ResourceDescriptor(
-                clazz=TongyiChatModelSetup,
+                clazz=Constant.TONGYI_CHAT_MODEL_SETUP,
                 connection="tongyi_connection",
                 model=os.environ.get("TONGYI_CHAT_MODEL", "qwen-plus"),
                 tools=["add"],
             )
         elif model_provider == "Ollama":
             return ResourceDescriptor(
-                clazz=OllamaChatModelSetup,
+                clazz=Constant.OLLAMA_CHAT_MODEL_SETUP,
                 connection="ollama_connection",
                 model=os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:1.7b"),
                 tools=["add"],
@@ -90,7 +81,7 @@ class ChatModelTestAgent(Agent):
             )
         elif model_provider == "OpenAI":
             return ResourceDescriptor(
-                clazz=OpenAIChatModelSetup,
+                clazz=Constant.OPENAI_CHAT_MODEL_SETUP,
                 connection="openai_connection",
                 model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo"),
                 tools=["add"],
@@ -106,20 +97,20 @@ class ChatModelTestAgent(Agent):
         model_provider = os.environ.get("MODEL_PROVIDER")
         if model_provider == "Tongyi":
             return ResourceDescriptor(
-                clazz=TongyiChatModelSetup,
+                clazz=Constant.TONGYI_CHAT_MODEL_SETUP,
                 connection="tongyi_connection",
                 model=os.environ.get("TONGYI_CHAT_MODEL", "qwen-plus"),
             )
         elif model_provider == "Ollama":
             return ResourceDescriptor(
-                clazz=TongyiChatModelSetup,
+                clazz=Constant.OLLAMA_CHAT_MODEL_SETUP,
                 connection="ollama_connection",
                 model=os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:1.7b"),
                 extract_reasoning=True,
             )
         elif model_provider == "OpenAI":
             return ResourceDescriptor(
-                clazz=OpenAIChatModelSetup,
+                clazz=Constant.OPENAI_CHAT_MODEL_SETUP,
                 connection="openai_connection",
                 model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo"),
             )

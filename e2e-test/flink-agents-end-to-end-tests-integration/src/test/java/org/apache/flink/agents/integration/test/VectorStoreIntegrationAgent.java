@@ -36,8 +36,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.flink.agents.api.resource.Constant.ELASTICSEARCH_VECTOR_STORE;
-import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL;
 import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL_CONNECTION;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL_SETUP;
 
 public class VectorStoreIntegrationAgent extends Agent {
     public static final String OLLAMA_MODEL = "nomic-embed-text";
@@ -59,7 +59,7 @@ public class VectorStoreIntegrationAgent extends Agent {
     public static ResourceDescriptor embeddingModel() {
         String provider = System.getProperty("MODEL_PROVIDER", "OLLAMA");
         if (provider.equals("OLLAMA")) {
-            return ResourceDescriptor.Builder.newBuilder(OLLAMA_EMBEDDING_MODEL)
+            return ResourceDescriptor.Builder.newBuilder(OLLAMA_EMBEDDING_MODEL_SETUP)
                     .addInitialArgument("connection", "embeddingConnection")
                     .addInitialArgument("model", OLLAMA_MODEL)
                     .build();

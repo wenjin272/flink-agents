@@ -40,6 +40,9 @@ import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelCon
 import java.util.Collections;
 import java.util.List;
 
+import static org.apache.flink.agents.api.resource.Constant.PYTHON_CHAT_MODEL_CONNECTION;
+import static org.apache.flink.agents.api.resource.Constant.PYTHON_CHAT_MODEL_SETUP;
+
 /**
  * Agent example that integrates an external Ollama chat model into Flink Agents.
  *
@@ -74,7 +77,7 @@ public class ChatModelCrossLanguageAgent extends Agent {
 
     @ChatModelConnection
     public static ResourceDescriptor pythonChatModelConnection() {
-        return ResourceDescriptor.Builder.newBuilder(PythonChatModelConnection.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(PYTHON_CHAT_MODEL_CONNECTION)
                 .addInitialArgument(
                         "module", "flink_agents.integrations.chat_models.ollama_chat_model")
                 .addInitialArgument("clazz", "OllamaChatModelConnection")
@@ -83,7 +86,7 @@ public class ChatModelCrossLanguageAgent extends Agent {
 
     @ChatModelSetup
     public static ResourceDescriptor temperatureChatModel() {
-        return ResourceDescriptor.Builder.newBuilder(PythonChatModelSetup.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(PYTHON_CHAT_MODEL_SETUP)
                 .addInitialArgument(
                         "module", "flink_agents.integrations.chat_models.ollama_chat_model")
                 .addInitialArgument("clazz", "OllamaChatModelSetup")
@@ -96,7 +99,7 @@ public class ChatModelCrossLanguageAgent extends Agent {
 
     @ChatModelSetup
     public static ResourceDescriptor chatModel() {
-        return ResourceDescriptor.Builder.newBuilder(PythonChatModelSetup.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(PYTHON_CHAT_MODEL_SETUP)
                 .addInitialArgument(
                         "module", "flink_agents.integrations.chat_models.ollama_chat_model")
                 .addInitialArgument("clazz", "OllamaChatModelSetup")

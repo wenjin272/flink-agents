@@ -22,6 +22,7 @@ from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.datastream.connectors.file_system import FileSource, StreamFormat
 
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
+from flink_agents.api.resource import ResourceType
 from flink_agents.examples.quickstart.agents.custom_types_and_resources import (
     ProductReview,
     ollama_server_descriptor,
@@ -49,6 +50,7 @@ def main() -> None:
     # Add Ollama chat model connection to be used by the ReviewAnalysisAgent.
     agents_env.add_resource(
         "ollama_server",
+        ResourceType.CHAT_MODEL_CONNECTION,
         ollama_server_descriptor,
     )
 

@@ -30,15 +30,12 @@ from flink_agents.api.decorators import (
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.prompts.prompt import Prompt
-from flink_agents.api.resource import ResourceDescriptor
+from flink_agents.api.resource import Constant, ResourceDescriptor
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.examples.quickstart.agents.custom_types_and_resources import (
     ProductReviewAnalysisRes,
     notify_shipping_manager,
     review_analysis_prompt,
-)
-from flink_agents.integrations.chat_models.ollama_chat_model import (
-    OllamaChatModelSetup,
 )
 
 if TYPE_CHECKING:
@@ -84,7 +81,7 @@ class ReviewAnalysisAgent(Agent):
     def review_analysis_model() -> ResourceDescriptor:
         """ChatModel which focus on review analysis."""
         return ResourceDescriptor(
-            clazz=OllamaChatModelSetup,
+            clazz=Constant.OLLAMA_CHAT_MODEL_SETUP,
             connection="ollama_server",
             model="qwen3:8b",
             prompt="review_analysis_prompt",

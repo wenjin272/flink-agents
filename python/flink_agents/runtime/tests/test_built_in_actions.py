@@ -126,14 +126,14 @@ class MyAgent(Agent):
     @staticmethod
     def mock_connection() -> ResourceDescriptor:
         """Chat model server can be used by ChatModel."""
-        return ResourceDescriptor(clazz=MockChatModelConnection)
+        return ResourceDescriptor(clazz=f"{MockChatModelConnection.__module__}.{MockChatModelConnection.__name__}")
 
     @chat_model_setup
     @staticmethod
     def mock_chat_model() -> ResourceDescriptor:
         """Chat model can be used in action."""
         return ResourceDescriptor(
-            clazz=MockChatModel,
+            clazz=f"{MockChatModel.__module__}.{MockChatModel.__name__}",
             connection="mock_connection",
             prompt="prompt",
             tools=["add"],
