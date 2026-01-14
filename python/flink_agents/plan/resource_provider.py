@@ -99,7 +99,7 @@ class PythonResourceProvider(ResourceProvider):
         return PythonResourceProvider(
                     name=name,
                     type=clazz.resource_type(),
-                    descriptor= descriptor,
+                    descriptor=descriptor,
                 )
 
 

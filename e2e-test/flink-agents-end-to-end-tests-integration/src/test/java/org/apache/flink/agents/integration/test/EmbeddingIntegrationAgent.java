@@ -34,8 +34,8 @@ import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL;
 import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL_CONNECTION;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL_SETUP;
 
 /**
  * Integration test agent for verifying embedding functionality with Ollama models.
@@ -67,7 +67,7 @@ public class EmbeddingIntegrationAgent extends Agent {
     public static ResourceDescriptor embeddingModel() {
         String provider = System.getProperty("MODEL_PROVIDER", "OLLAMA");
         if (provider.equals("OLLAMA")) {
-            return ResourceDescriptor.Builder.newBuilder(OLLAMA_EMBEDDING_MODEL)
+            return ResourceDescriptor.Builder.newBuilder(OLLAMA_EMBEDDING_MODEL_SETUP)
                     .addInitialArgument("connection", "embeddingConnection")
                     .addInitialArgument("model", OLLAMA_MODEL)
                     .build();

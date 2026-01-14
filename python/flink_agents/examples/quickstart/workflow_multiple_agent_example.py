@@ -32,6 +32,7 @@ from pyflink.datastream.window import (
 )
 
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
+from flink_agents.api.resource import ResourceType
 from flink_agents.examples.quickstart.agents.custom_types_and_resources import (
     ProductReview,
     ProductReviewSummary,
@@ -115,6 +116,7 @@ def main() -> None:
     # and ProductSuggestionAgent.
     agents_env.add_resource(
         "ollama_server",
+        ResourceType.CHAT_MODEL_CONNECTION,
         ollama_server_descriptor,
     )
 

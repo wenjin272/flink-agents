@@ -27,13 +27,14 @@ import org.apache.flink.agents.api.annotation.EmbeddingModelConnection;
 import org.apache.flink.agents.api.annotation.EmbeddingModelSetup;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.embedding.model.BaseEmbeddingModelSetup;
-import org.apache.flink.agents.api.embedding.model.python.PythonEmbeddingModelConnection;
-import org.apache.flink.agents.api.embedding.model.python.PythonEmbeddingModelSetup;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.apache.flink.agents.api.resource.Constant.PYTHON_EMBEDDING_MODEL_CONNECTION;
+import static org.apache.flink.agents.api.resource.Constant.PYTHON_EMBEDDING_MODEL_SETUP;
 
 /**
  * Integration test agent for verifying embedding functionality with Python embedding model.
@@ -50,7 +51,7 @@ public class EmbeddingCrossLanguageAgent extends Agent {
 
     @EmbeddingModelConnection
     public static ResourceDescriptor embeddingConnection() {
-        return ResourceDescriptor.Builder.newBuilder(PythonEmbeddingModelConnection.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(PYTHON_EMBEDDING_MODEL_CONNECTION)
                 .addInitialArgument(
                         "module",
                         "flink_agents.integrations.embedding_models.local.ollama_embedding_model")
@@ -60,7 +61,7 @@ public class EmbeddingCrossLanguageAgent extends Agent {
 
     @EmbeddingModelSetup
     public static ResourceDescriptor embeddingModel() {
-        return ResourceDescriptor.Builder.newBuilder(PythonEmbeddingModelSetup.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(PYTHON_EMBEDDING_MODEL_SETUP)
                 .addInitialArgument(
                         "module",
                         "flink_agents.integrations.embedding_models.local.ollama_embedding_model")

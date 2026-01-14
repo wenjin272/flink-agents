@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL_SETUP;
 import static org.apache.flink.agents.examples.agents.CustomTypesAndResources.REVIEW_ANALYSIS_PROMPT;
 
 /**
@@ -61,7 +61,7 @@ public class ReviewAnalysisAgent extends Agent {
 
     @ChatModelSetup
     public static ResourceDescriptor reviewAnalysisModel() {
-        return ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL)
+        return ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL_SETUP)
                 .addInitialArgument("connection", "ollamaChatModelConnection")
                 .addInitialArgument("model", "qwen3:8b")
                 .addInitialArgument("prompt", "reviewAnalysisPrompt")

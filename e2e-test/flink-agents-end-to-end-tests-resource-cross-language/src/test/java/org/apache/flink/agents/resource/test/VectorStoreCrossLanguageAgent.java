@@ -27,8 +27,6 @@ import org.apache.flink.agents.api.annotation.EmbeddingModelSetup;
 import org.apache.flink.agents.api.annotation.VectorStore;
 import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.RunnerContext;
-import org.apache.flink.agents.api.embedding.model.python.PythonEmbeddingModelConnection;
-import org.apache.flink.agents.api.embedding.model.python.PythonEmbeddingModelSetup;
 import org.apache.flink.agents.api.event.ContextRetrievalRequestEvent;
 import org.apache.flink.agents.api.event.ContextRetrievalResponseEvent;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
@@ -36,14 +34,18 @@ import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.vectorstores.CollectionManageableVectorStore;
 import org.apache.flink.agents.api.vectorstores.Document;
 import org.apache.flink.agents.api.vectorstores.python.PythonCollectionManageableVectorStore;
-import org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelConnection;
-import org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelSetup;
 import org.junit.jupiter.api.Assertions;
 import pemja.core.PythonException;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL_CONNECTION;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL_SETUP;
+import static org.apache.flink.agents.api.resource.Constant.PYTHON_COLLECTION_MANAGEABLE_VECTOR_STORE;
+import static org.apache.flink.agents.api.resource.Constant.PYTHON_EMBEDDING_MODEL_CONNECTION;
+import static org.apache.flink.agents.api.resource.Constant.PYTHON_EMBEDDING_MODEL_SETUP;
 
 /**
  * Integration test agent for verifying vector store functionality with Python vector store
@@ -63,16 +65,14 @@ public class VectorStoreCrossLanguageAgent extends Agent {
     @EmbeddingModelConnection
     public static ResourceDescriptor embeddingConnection() {
         if (System.getProperty("EMBEDDING_TYPE", "PYTHON").equals("PYTHON")) {
-            return ResourceDescriptor.Builder.newBuilder(
-                            PythonEmbeddingModelConnection.class.getName())
+            return ResourceDescriptor.Builder.newBuilder(PYTHON_EMBEDDING_MODEL_CONNECTION)
                     .addInitialArgument(
                             "module",
                             "flink_agents.integrations.embedding_models.local.ollama_embedding_model")
                     .addInitialArgument("clazz", "OllamaEmbeddingModelConnection")
                     .build();
         } else {
-            return ResourceDescriptor.Builder.newBuilder(
-                            OllamaEmbeddingModelConnection.class.getName())
+            return ResourceDescriptor.Builder.newBuilder(OLLAMA_EMBEDDING_MODEL_CONNECTION)
                     .addInitialArgument("host", "http://localhost:11434")
                     .addInitialArgument("timeout", 60)
                     .build();
@@ -82,7 +82,7 @@ public class VectorStoreCrossLanguageAgent extends Agent {
     @EmbeddingModelSetup
     public static ResourceDescriptor embeddingModel() {
         if (System.getProperty("EMBEDDING_TYPE", "PYTHON").equals("PYTHON")) {
-            return ResourceDescriptor.Builder.newBuilder(PythonEmbeddingModelSetup.class.getName())
+            return ResourceDescriptor.Builder.newBuilder(PYTHON_EMBEDDING_MODEL_SETUP)
                     .addInitialArgument(
                             "module",
                             "flink_agents.integrations.embedding_models.local.ollama_embedding_model")
@@ -91,7 +91,7 @@ public class VectorStoreCrossLanguageAgent extends Agent {
                     .addInitialArgument("model", OLLAMA_MODEL)
                     .build();
         } else {
-            return ResourceDescriptor.Builder.newBuilder(OllamaEmbeddingModelSetup.class.getName())
+            return ResourceDescriptor.Builder.newBuilder(OLLAMA_EMBEDDING_MODEL_SETUP)
                     .addInitialArgument("connection", "embeddingConnection")
                     .addInitialArgument("model", OLLAMA_MODEL)
                     .build();
@@ -100,8 +100,7 @@ public class VectorStoreCrossLanguageAgent extends Agent {
 
     @VectorStore
     public static ResourceDescriptor vectorStore() {
-        return ResourceDescriptor.Builder.newBuilder(
-                        PythonCollectionManageableVectorStore.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(PYTHON_COLLECTION_MANAGEABLE_VECTOR_STORE)
                 .addInitialArgument(
                         "module",
                         "flink_agents.integrations.vector_stores.chroma.chroma_vector_store")

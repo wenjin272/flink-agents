@@ -27,27 +27,16 @@ from flink_agents.api.decorators import (
     embedding_model_setup,
     vector_store,
 )
-from flink_agents.api.embedding_models.java_embedding_model import (
-    JavaEmbeddingModelConnection,
-    JavaEmbeddingModelSetup,
-)
 from flink_agents.api.events.context_retrieval_event import (
     ContextRetrievalRequestEvent,
     ContextRetrievalResponseEvent,
 )
 from flink_agents.api.events.event import InputEvent, OutputEvent
-from flink_agents.api.resource import ResourceDescriptor, ResourceType
+from flink_agents.api.resource import Constant, ResourceDescriptor, ResourceType
 from flink_agents.api.runner_context import RunnerContext
-from flink_agents.api.vector_stores.java_vector_store import (
-    JavaCollectionManageableVectorStore,
-)
 from flink_agents.api.vector_stores.vector_store import (
     CollectionManageableVectorStore,
     Document,
-)
-from flink_agents.integrations.embedding_models.local.ollama_embedding_model import (
-    OllamaEmbeddingModelConnection,
-    OllamaEmbeddingModelSetup,
 )
 
 TEST_COLLECTION = "test_collection"
@@ -62,12 +51,12 @@ class VectorStoreCrossLanguageAgent(Agent):
         """EmbeddingModelConnection responsible for ollama model service connection."""
         if os.environ.get("EMBEDDING_TYPE") == "JAVA":
             return ResourceDescriptor(
-                clazz=JavaEmbeddingModelConnection,
+                clazz=Constant.JAVA_EMBEDDING_MODEL_CONNECTION,
                 java_clazz="org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelConnection",
                 host="http://localhost:11434",
             )
         return ResourceDescriptor(
-            clazz=OllamaEmbeddingModelConnection,
+            clazz=Constant.OLLAMA_EMBEDDING_MODEL_CONNECTION,
             host="http://localhost:11434",
         )
 
@@ -77,7 +66,7 @@ class VectorStoreCrossLanguageAgent(Agent):
         """EmbeddingModel which focus on math, and reuse ChatModelConnection."""
         if os.environ.get("EMBEDDING_TYPE") == "JAVA":
             return ResourceDescriptor(
-                clazz=JavaEmbeddingModelSetup,
+                clazz=Constant.JAVA_EMBEDDING_MODEL_SETUP,
                 java_clazz="org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelSetup",
                 connection="embedding_model_connection",
                 model=os.environ.get(
@@ -85,7 +74,7 @@ class VectorStoreCrossLanguageAgent(Agent):
                 ),
             )
         return ResourceDescriptor(
-            clazz=OllamaEmbeddingModelSetup,
+            clazz=Constant.OLLAMA_EMBEDDING_MODEL_SETUP,
             connection="embedding_model_connection",
             model=os.environ.get("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text:latest"),
         )
@@ -95,7 +84,7 @@ class VectorStoreCrossLanguageAgent(Agent):
     def vector_store() -> ResourceDescriptor:
         """Vector store setup for knowledge base."""
         return ResourceDescriptor(
-            clazz=JavaCollectionManageableVectorStore,
+            clazz=Constant.JAVA_COLLECTION_MANAGEABLE_VECTOR_STORE,
             java_clazz="org.apache.flink.agents.integrations.vectorstores.elasticsearch.ElasticsearchVectorStore",
             embedding_model="embedding_model",
             host=os.environ.get("ES_HOST"),

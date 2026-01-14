@@ -46,13 +46,12 @@ from flink_agents.api.decorators import (
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.event import InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
-from flink_agents.api.resource import ResourceDescriptor
+from flink_agents.api.resource import (
+    Constant,
+    ResourceDescriptor,
+)
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.e2e_tests.test_utils import pull_model
-from flink_agents.integrations.chat_models.ollama_chat_model import (
-    OllamaChatModelConnection,
-    OllamaChatModelSetup,
-)
 from flink_agents.integrations.mcp.mcp import MCPServer
 
 OLLAMA_MODEL = os.environ.get("MCP_OLLAMA_CHAT_MODEL", "qwen3:1.7b")
@@ -80,7 +79,7 @@ class MyMCPAgent(Agent):
     def ollama_connection() -> ResourceDescriptor:
         """ChatModelConnection for Ollama."""
         return ResourceDescriptor(
-            clazz=OllamaChatModelConnection, request_timeout=240.0
+            clazz=Constant.OLLAMA_CHAT_MODEL_CONNECTION, request_timeout=240.0
         )
 
     @chat_model_setup
@@ -88,7 +87,7 @@ class MyMCPAgent(Agent):
     def math_chat_model() -> ResourceDescriptor:
         """ChatModel using MCP prompt and tool."""
         return ResourceDescriptor(
-            clazz=OllamaChatModelSetup,
+            clazz=Constant.OLLAMA_CHAT_MODEL_SETUP,
             connection="ollama_connection",
             model=OLLAMA_MODEL,
             prompt="ask_sum",  # MCP prompt registered from my_mcp_server

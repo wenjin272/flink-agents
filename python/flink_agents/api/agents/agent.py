@@ -133,7 +133,7 @@ class Agent(ABC):
         return self
 
     def add_resource(
-        self, name: str, instance: SerializableResource | ResourceDescriptor
+        self, name: str, resource_type: ResourceType, instance: SerializableResource | ResourceDescriptor
     ) -> "Agent":
         """Add resource to agent instance.
 
@@ -141,6 +141,8 @@ class Agent(ABC):
         ----------
         name : str
             The name of the prompt, should be unique in the same Agent.
+        resource_type: ResourceType
+            The type of the resource.
         instance: SerializableResource | ResourceDescriptor
             The serializable resource instance, or the descriptor of resource.
 
@@ -149,14 +151,6 @@ class Agent(ABC):
         Agent
             The agent to add the resource.
         """
-        if isinstance(instance, SerializableResource):
-            resource_type = instance.resource_type()
-        elif isinstance(instance, ResourceDescriptor):
-            resource_type = instance.clazz.resource_type()
-        else:
-            err_msg = f"Unexpected resource {instance}"
-            raise TypeError(err_msg)
-
         if name in self._resources[resource_type]:
             msg = f"{resource_type.value} {name} already defined"
             raise ValueError(msg)
