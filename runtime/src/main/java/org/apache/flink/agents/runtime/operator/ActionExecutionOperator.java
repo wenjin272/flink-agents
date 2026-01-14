@@ -38,7 +38,9 @@ import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
 import org.apache.flink.agents.runtime.actionstate.ActionState;
 import org.apache.flink.agents.runtime.actionstate.ActionStateStore;
 import org.apache.flink.agents.runtime.actionstate.KafkaActionStateStore;
+import org.apache.flink.agents.runtime.async.ContinuationActionExecutor;
 import org.apache.flink.agents.runtime.context.ActionStatePersister;
+import org.apache.flink.agents.runtime.context.JavaRunnerContextImpl;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
 import org.apache.flink.agents.runtime.env.EmbeddedPythonEnvironment;
 import org.apache.flink.agents.runtime.env.PythonEnvironmentManager;
@@ -93,6 +95,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.apache.flink.agents.api.configuration.AgentConfigOptions.ACTION_STATE_STORE_BACKEND;
 import static org.apache.flink.agents.api.configuration.AgentConfigOptions.JOB_IDENTIFIER;
@@ -203,6 +207,9 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     // Inspired by Apache Paimon.
     private transient String jobIdentifier;
 
+    // Thread pool for executing async tasks in Java actions
+    private transient ExecutorService asyncExecutor;
+
     public ActionExecutionOperator(
             AgentPlan agentPlan,
             Boolean inputIsJava,
@@ -303,6 +310,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
         // init PythonActionExecutor and PythonResourceAdapter
         initPythonEnvironment();
+
+        // init async executor for Java async execution with bounded thread pool
+        asyncExecutor =
+                Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
 
         mailboxProcessor = getMailboxProcessor();
 
@@ -694,6 +705,9 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         if (runnerContext != null) {
             runnerContext.close();
         }
+        if (asyncExecutor != null) {
+            asyncExecutor.shutdownNow();
+        }
 
         super.close();
     }
@@ -1024,11 +1038,12 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         if (isJava) {
             if (runnerContext == null) {
                 runnerContext =
-                        new RunnerContextImpl(
+                        new JavaRunnerContextImpl(
                                 this.metricGroup,
                                 this::checkMailboxThread,
                                 this.agentPlan,
-                                this.jobIdentifier);
+                                this.jobIdentifier,
+                                new ContinuationActionExecutor(asyncExecutor));
             }
             return runnerContext;
         } else {
