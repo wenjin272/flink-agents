@@ -231,3 +231,7 @@ class RunnerContext(ABC):
         ReadableConfiguration
             The configuration for flink agents.
         """
+
+    @abstractmethod
+    def close(self) -> None:
+        """Clean up the resources."""

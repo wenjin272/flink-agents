@@ -212,6 +212,15 @@ public class AgentPlan implements Serializable {
         return config.getConfData();
     }
 
+    public void close() throws Exception {
+        for (Map<String, Resource> resources : resourceCache.values()) {
+            for (Resource resource : resources.values()) {
+                resource.close();
+            }
+        }
+        resourceCache.clear();
+    }
+
     private void writeObject(ObjectOutputStream out) throws IOException {
         String serializedStr = new ObjectMapper().writeValueAsString(this);
         out.writeUTF(serializedStr);

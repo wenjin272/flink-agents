@@ -22,6 +22,7 @@ from anthropic import Anthropic
 from anthropic._types import NOT_GIVEN
 from anthropic.types import MessageParam, TextBlockParam, ToolParam
 from pydantic import Field, PrivateAttr
+from typing_extensions import override
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.chat_models.chat_model import (
@@ -207,6 +208,14 @@ class AnthropicChatModelConnection(BaseChatModelConnection):
                 role=MessageRole(message.role),
                 content=message.content[0].text,
             )
+
+    @override
+    def close(self) -> None:
+        if self._client is not None:
+            try:
+                self._client.close()
+            finally:
+                self._client = None
 
 
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514"

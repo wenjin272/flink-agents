@@ -57,7 +57,7 @@ class LocalRunnerContext(RunnerContext):
         Name of the action being executed.
     """
 
-    __agent_plan: AgentPlan
+    __agent_plan: AgentPlan | None
     __key: Any
     events: deque[Event]
     action_name: str
@@ -220,6 +220,14 @@ class LocalRunnerContext(RunnerContext):
     def clear_sensory_memory(self) -> None:
         """Clean up sensory memory."""
         self._sensory_mem_store.clear()
+
+    def close(self) -> None:
+        """Cleanup the resource."""
+        if self.__agent_plan is not None:
+            try:
+                self.__agent_plan.close()
+            finally:
+                self.__agent_plan = None
 
 
 class LocalRunner(AgentRunner):

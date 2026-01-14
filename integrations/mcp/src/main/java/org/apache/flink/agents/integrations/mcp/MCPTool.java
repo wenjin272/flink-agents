@@ -125,4 +125,9 @@ public class MCPTool extends Tool {
         return String.format(
                 "MCPTool{name='%s', server='%s'}", metadata.getName(), mcpServer.getEndpoint());
     }
+
+    @Override
+    public void close() throws Exception {
+        this.mcpServer.close();
+    }
 }

@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Literal, Sequence
 import httpx
 from openai import NOT_GIVEN, OpenAI
 from pydantic import Field, PrivateAttr
+from typing_extensions import override
 
 from flink_agents.api.chat_message import ChatMessage
 from flink_agents.api.chat_models.chat_model import (
@@ -183,6 +184,14 @@ class OpenAIChatModelConnection(BaseChatModelConnection):
         message = response.choices[0].message
 
         return convert_from_openai_message(message)
+
+    @override
+    def close(self) -> None:
+        if self._client is not None:
+            try:
+                self._client.close()
+            finally:
+                self._client = None
 
 
 DEFAULT_TEMPERATURE = 0.1

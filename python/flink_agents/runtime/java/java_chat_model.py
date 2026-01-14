@@ -81,6 +81,10 @@ class JavaChatModelConnectionImpl(JavaChatModelConnection):
 
         return from_java_chat_message(j_response_message)
 
+    @override
+    def close(self) -> None:
+        self.j_resource.close()
+
 
 class JavaChatModelSetupImpl(JavaChatModelSetup):
     """Java-based implementation of ChatModelSetup that bridges Python and Java chat

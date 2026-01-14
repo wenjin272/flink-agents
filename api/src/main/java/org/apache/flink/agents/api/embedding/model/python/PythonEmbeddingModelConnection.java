@@ -124,4 +124,9 @@ public class PythonEmbeddingModelConnection extends BaseEmbeddingModelConnection
     public Object getPythonResource() {
         return embeddingModel;
     }
+
+    @Override
+    public void close() throws Exception {
+        this.embeddingModel.close();
+    }
 }

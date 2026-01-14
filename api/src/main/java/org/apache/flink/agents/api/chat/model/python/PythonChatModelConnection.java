@@ -87,4 +87,9 @@ public class PythonChatModelConnection extends BaseChatModelConnection
         Object pythonMessageResponse = adapter.callMethod(chatModel, "chat", kwargs);
         return adapter.fromPythonChatMessage(pythonMessageResponse);
     }
+
+    @Override
+    public void close() throws Exception {
+        this.chatModel.close();
+    }
 }

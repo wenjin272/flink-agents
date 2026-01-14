@@ -250,6 +250,11 @@ public class ElasticsearchVectorStore extends BaseVectorStore
     }
 
     @Override
+    public void close() throws Exception {
+        this.client.close();
+    }
+
+    @Override
     public Collection getOrCreateCollection(String name, Map<String, Object> metadata)
             throws Exception {
         // Check if index exists

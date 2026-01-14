@@ -62,6 +62,10 @@ class JavaPrompt(Prompt):
                                             extra_args=j_chat_message.getExtraArgs()) for j_chat_message in j_chat_messages]
         return chatMessages
 
+    @override
+    def close(self) -> None:
+        self.j_prompt.close()
+
 class JavaGetResourceWrapper:
     """Python wrapper for Java ResourceAdapter."""
 

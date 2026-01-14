@@ -112,6 +112,11 @@ public class AnthropicChatModelConnection extends BaseChatModelConnection {
     }
 
     @Override
+    public void close() {
+        this.client.close();
+    }
+
+    @Override
     public ChatMessage chat(
             List<ChatMessage> messages,
             List<org.apache.flink.agents.api.tools.Tool> tools,

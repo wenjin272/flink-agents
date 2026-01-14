@@ -90,6 +90,9 @@ class Resource(BaseModel, ABC):
         """
         return self._metric_group
 
+    def close(self) -> None:
+        """Close the resource."""
+
 
 class SerializableResource(Resource, ABC):
     """Resource which is serializable."""

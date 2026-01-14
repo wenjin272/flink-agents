@@ -67,6 +67,14 @@ class MCPTool(Tool):
             self.mcp_server.call_tool_async(self.metadata.name, *args, **kwargs)
         )
 
+    @override
+    def close(self) -> None:
+        if self.mcp_server is not None:
+            try:
+                self.mcp_server.close()
+            finally:
+                self.mcp_server = None
+
 
 class MCPPrompt(Prompt):
     """MCP prompt definition that extends the base Prompt class.
@@ -117,6 +125,13 @@ class MCPPrompt(Prompt):
         arguments = self._check_arguments(**arguments)
         return self.mcp_server.get_prompt(self.name, arguments)
 
+    @override
+    def close(self) -> None:
+        if self.mcp_server is not None:
+            try:
+                self.mcp_server.close()
+            finally:
+                self.mcp_server = None
 
 class MCPServer(SerializableResource, ABC):
     """Resource representing an MCP server and exposing its tools/prompts.
@@ -308,6 +323,7 @@ class MCPServer(SerializableResource, ABC):
 
         return chat_messages
 
+    @override
     def close(self) -> None:
         """Close the MCP server connection and clean up resources."""
         asyncio.run(self._cleanup_connection())
