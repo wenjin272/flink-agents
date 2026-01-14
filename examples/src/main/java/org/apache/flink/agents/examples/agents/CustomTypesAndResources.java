@@ -25,10 +25,11 @@ import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.prompt.Prompt;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
-import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelConnection;
 
 import java.util.Arrays;
 import java.util.List;
+
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL_CONNECTION;
 
 /** Custom types and resources for the quickstart agents. */
 public class CustomTypesAndResources {
@@ -111,7 +112,7 @@ public class CustomTypesAndResources {
 
     // Ollama chat model connection descriptor
     public static final ResourceDescriptor OLLAMA_SERVER_DESCRIPTOR =
-            ResourceDescriptor.Builder.newBuilder(OllamaChatModelConnection.class.getName())
+            ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL_CONNECTION)
                     .addInitialArgument("requestTimeout", 120)
                     .addInitialArgument("endpoint", "http://localhost:11434")
                     .build();

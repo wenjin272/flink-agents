@@ -26,7 +26,6 @@ import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.examples.agents.CustomTypesAndResources;
-import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSetup;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
@@ -39,6 +38,7 @@ import java.io.File;
 import java.time.Duration;
 import java.util.Collections;
 
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL;
 import static org.apache.flink.agents.examples.WorkflowSingleAgentExample.copyResource;
 
 /**
@@ -144,7 +144,7 @@ public class ReActAgentExample {
     // Create ReAct agent.
     private static ReActAgent getReActAgent() {
         return new ReActAgent(
-                ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
+                ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL)
                         .addInitialArgument("connection", "ollamaChatModelConnection")
                         .addInitialArgument("model", "qwen3:8b")
                         .addInitialArgument(

@@ -1,0 +1,64 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.flink.agents.api.resource;
+
+/**
+ * Constant strings for pointing a resource implementation in {@link ResourceDescriptor}.
+ *
+ * <p>TODO: Could use service provider interface to simplify the definition of constant in the
+ * future.
+ */
+public class Constant {
+    // Built-in ChatModel
+    // ollama
+    public static String OLLAMA_CHAT_MODEL_CONNECTION =
+            "org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelConnection";
+    public static String OLLAMA_CHAT_MODEL =
+            "org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSetup";
+
+    // anthropic
+    public static String ANTHROPIC_CHAT_MODEL_CONNECTION =
+            "org.apache.flink.agents.integrations.chatmodels.anthropic.AnthropicChatModelConnection";
+    public static String ANTHROPIC_CHAT_MODEL =
+            "org.apache.flink.agents.integrations.chatmodels.anthropic.AnthropicChatModelSetup";
+
+    // Azure
+    public static String AZURE_CHAT_MODEL_CONNECTION =
+            "org.apache.flink.agents.integrations.chatmodels.anthropic.AzureAIChatModelConnection";
+    public static String AZURE_CHAT_MODEL =
+            "org.apache.flink.agents.integrations.chatmodels.anthropic.AzureAIChatModelSetup";
+
+    // OpenAI
+    public static String OPENAI_CHAT_MODEL_CONNECTION =
+            "org.apache.flink.agents.integrations.chatmodels.openai.OpenAIChatModelConnection";
+    public static String OPENAI_CHAT_MODEL =
+            "org.apache.flink.agents.integrations.chatmodels.openai.OpenAIChatModelSetup";
+
+    // Built-in EmbeddingModel
+    // ollama
+    public static String OLLAMA_EMBEDDING_MODEL_CONNECTION =
+            "org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelConnection";
+    public static String OLLAMA_EMBEDDING_MODEL =
+            "org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelSetup";
+
+    // Built-in VectorStore
+    // elasticsearch
+    public static String ELASTICSEARCH_VECTOR_STORE =
+            "org.apache.flink.agents.integrations.vectorstores.elasticsearch.ElasticsearchVectorStore";
+}
