@@ -19,6 +19,7 @@ from typing import Any, Dict, Sequence
 
 from openai import NOT_GIVEN, OpenAI
 from pydantic import Field
+from typing_extensions import override
 
 from flink_agents.api.embedding_models.embedding_model import (
     BaseEmbeddingModelConnection,
@@ -94,7 +95,7 @@ class OpenAIEmbeddingModelConnection(BaseEmbeddingModelConnection):
             **kwargs,
         )
 
-    __client: OpenAI = None
+    __client: OpenAI | None = None
 
     @property
     def client(self) -> OpenAI:
@@ -129,6 +130,15 @@ class OpenAIEmbeddingModelConnection(BaseEmbeddingModelConnection):
 
         embeddings = [list(embedding.embedding) for embedding in response.data]
         return embeddings[0] if isinstance(text, str) else embeddings
+
+    @override
+    def close(self) -> None:
+        """Do nothing."""
+        if self.__client is not None:
+            try:
+                self.__client.close()
+            finally:
+                self.__client = None
 
 
 class OpenAIEmbeddingModelSetup(BaseEmbeddingModelSetup):

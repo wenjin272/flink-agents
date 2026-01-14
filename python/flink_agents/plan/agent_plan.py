@@ -223,6 +223,14 @@ class AgentPlan(BaseModel):
         """Set java resource adapter for java resource provider."""
         self.__j_resource_adapter = j_resource_adapter
 
+    def close(self) -> None:
+        """Clean up the resources."""
+        for type in self.__resources:
+            for name in self.__resources[type]:
+                self.__resources[type][name].close()
+        self.__resources.clear()
+
+
 
 def _get_actions(agent: Agent) -> List[Action]:
     """Extract all registered agent actions from an agent.

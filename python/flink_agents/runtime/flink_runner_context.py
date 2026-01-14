@@ -46,7 +46,7 @@ class FlinkRunnerContext(RunnerContext):
     This context allows access to event handling.
     """
 
-    __agent_plan: AgentPlan
+    __agent_plan: AgentPlan | None
     __ltm: BaseLongTermMemory = None
 
     def __init__(
@@ -209,6 +209,14 @@ class FlinkRunnerContext(RunnerContext):
         """
         return self.__agent_plan.config
 
+    @override
+    def close(self) -> None:
+        if self.__agent_plan is not None:
+            try:
+                self.__agent_plan.close()
+            finally:
+                self.__agent_plan = None
+
 
 def create_flink_runner_context(
     j_runner_context: Any,
@@ -246,6 +254,12 @@ def flink_runner_context_switch_action_context(
                 key=str(key),
             )
         )
+
+def close_flink_runner_context(
+    ctx: FlinkRunnerContext,
+) -> None:
+    """Clean up the resources kept by the flink runner context."""
+    ctx.close()
 
 
 def create_async_thread_pool() -> ThreadPoolExecutor:

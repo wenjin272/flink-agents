@@ -43,6 +43,9 @@ public class PythonActionExecutor {
     private static final String FLINK_RUNNER_CONTEXT_SWITCH_ACTION_CONTEXT =
             "flink_runner_context.flink_runner_context_switch_action_context";
 
+    private static final String CLOSE_FLINK_RUNNER_CONTEXT =
+            "flink_runner_context.close_flink_runner_context";
+
     // ========== ASYNC THREAD POOL ===========
     private static final String CREATE_ASYNC_THREAD_POOL =
             "flink_runner_context.create_async_thread_pool";
@@ -175,6 +178,14 @@ public class PythonActionExecutor {
         if (interpreter != null) {
             if (pythonAsyncThreadPool != null) {
                 interpreter.invoke(CLOSE_ASYNC_THREAD_POOL, pythonAsyncThreadPool);
+            }
+
+            if (pythonRunnerContext != null) {
+                try {
+                    interpreter.invoke(CLOSE_FLINK_RUNNER_CONTEXT, pythonRunnerContext);
+                } finally {
+                    pythonRunnerContext = null;
+                }
             }
         }
     }

@@ -64,4 +64,7 @@ public abstract class Resource {
     protected FlinkAgentsMetricGroup getMetricGroup() {
         return metricGroup;
     }
+
+    /** Close the resource. */
+    public void close() throws Exception {}
 }

@@ -451,4 +451,9 @@ public class OpenAIChatModelConnection extends BaseChatModelConnection {
         }
         return mapper.convertValue(value, MAP_TYPE);
     }
+
+    @Override
+    public void close() throws Exception {
+        this.client.close();
+    }
 }

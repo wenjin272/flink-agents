@@ -231,6 +231,8 @@ public class RunnerContextImpl implements RunnerContext {
             this.ltm.close();
             this.ltm = null;
         }
+
+        this.agentPlan.close();
     }
 
     public String getActionName() {

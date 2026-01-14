@@ -227,4 +227,9 @@ public class MCPPrompt extends Prompt {
     public String toString() {
         return String.format("MCPPrompt{name='%s', server='%s'}", name, mcpServer.getEndpoint());
     }
+
+    @Override
+    public void close() throws Exception {
+        this.mcpServer.close();
+    }
 }

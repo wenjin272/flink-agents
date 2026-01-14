@@ -643,6 +643,13 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
     @Override
     public void close() throws Exception {
+        if (runnerContext != null) {
+            try {
+                runnerContext.close();
+            } finally {
+                runnerContext = null;
+            }
+        }
         if (pythonActionExecutor != null) {
             pythonActionExecutor.close();
         }
