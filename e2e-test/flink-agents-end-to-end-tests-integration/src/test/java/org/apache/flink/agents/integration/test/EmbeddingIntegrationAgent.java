@@ -28,12 +28,14 @@ import org.apache.flink.agents.api.annotation.EmbeddingModelSetup;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.agents.api.context.RunnerContext;
+import org.apache.flink.agents.api.embedding.model.BaseEmbeddingModelSetup;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
-import org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelConnection;
-import org.apache.flink.agents.integrations.embeddingmodels.ollama.OllamaEmbeddingModelSetup;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_EMBEDDING_MODEL_CONNECTION;
 
 /**
  * Integration test agent for verifying embedding functionality with Ollama models.
@@ -52,8 +54,7 @@ public class EmbeddingIntegrationAgent extends Agent {
     public static ResourceDescriptor embeddingConnection() {
         String provider = System.getProperty("MODEL_PROVIDER", "OLLAMA");
         if (provider.equals("OLLAMA")) {
-            return ResourceDescriptor.Builder.newBuilder(
-                            OllamaEmbeddingModelConnection.class.getName())
+            return ResourceDescriptor.Builder.newBuilder(OLLAMA_EMBEDDING_MODEL_CONNECTION)
                     .addInitialArgument("host", "http://localhost:11434")
                     .addInitialArgument("timeout", 60)
                     .build();
@@ -66,7 +67,7 @@ public class EmbeddingIntegrationAgent extends Agent {
     public static ResourceDescriptor embeddingModel() {
         String provider = System.getProperty("MODEL_PROVIDER", "OLLAMA");
         if (provider.equals("OLLAMA")) {
-            return ResourceDescriptor.Builder.newBuilder(OllamaEmbeddingModelSetup.class.getName())
+            return ResourceDescriptor.Builder.newBuilder(OLLAMA_EMBEDDING_MODEL)
                     .addInitialArgument("connection", "embeddingConnection")
                     .addInitialArgument("model", OLLAMA_MODEL)
                     .build();
@@ -200,8 +201,8 @@ public class EmbeddingIntegrationAgent extends Agent {
     /** Generate embedding using the framework's resource system for testing. */
     private static float[] generateEmbeddingForTest(String text, RunnerContext ctx) {
         try {
-            OllamaEmbeddingModelSetup embeddingModel =
-                    (OllamaEmbeddingModelSetup)
+            BaseEmbeddingModelSetup embeddingModel =
+                    (BaseEmbeddingModelSetup)
                             ctx.getResource(
                                     "embeddingModel",
                                     org.apache.flink.agents.api.resource.ResourceType

@@ -28,8 +28,6 @@ import org.apache.flink.agents.api.prompt.Prompt;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.tools.Tool;
-import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelConnection;
-import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSetup;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -51,6 +49,8 @@ import java.util.List;
 
 import static org.apache.flink.agents.api.agents.AgentExecutionOptions.ERROR_HANDLING_STRATEGY;
 import static org.apache.flink.agents.api.agents.AgentExecutionOptions.MAX_RETRIES;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL;
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL_CONNECTION;
 import static org.apache.flink.agents.integration.test.OllamaPreparationUtils.pullModel;
 
 public class ReActAgentTest {
@@ -94,8 +94,7 @@ public class ReActAgentTest {
                 .addResource(
                         "ollama",
                         ResourceType.CHAT_MODEL_CONNECTION,
-                        ResourceDescriptor.Builder.newBuilder(
-                                        OllamaChatModelConnection.class.getName())
+                        ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL_CONNECTION)
                                 .addInitialArgument("endpoint", "http://localhost:11434")
                                 .addInitialArgument("requestTimeout", 240)
                                 .build())
@@ -156,7 +155,7 @@ public class ReActAgentTest {
     // create ReAct agent.
     private static Agent getAgent() {
         ResourceDescriptor chatModelDescriptor =
-                ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
+                ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL)
                         .addInitialArgument("connection", "ollama")
                         .addInitialArgument("model", OLLAMA_MODEL)
                         .addInitialArgument("tools", List.of("add", "multiply"))

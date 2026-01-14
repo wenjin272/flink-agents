@@ -33,12 +33,12 @@ import org.apache.flink.agents.api.event.ChatRequestEvent;
 import org.apache.flink.agents.api.event.ChatResponseEvent;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.examples.agents.CustomTypesAndResources.ProductReviewSummary;
-import org.apache.flink.agents.integrations.chatmodels.ollama.OllamaChatModelSetup;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.flink.agents.api.resource.Constant.OLLAMA_CHAT_MODEL;
 import static org.apache.flink.agents.examples.agents.CustomTypesAndResources.PRODUCT_SUGGESTION_PROMPT;
 
 /**
@@ -57,7 +57,7 @@ public class ProductSuggestionAgent extends Agent {
 
     @ChatModelSetup
     public static ResourceDescriptor generateSuggestionModel() {
-        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL)
                 .addInitialArgument("connection", "ollamaChatModelConnection")
                 .addInitialArgument("model", "qwen3:8b")
                 .addInitialArgument("extract_reasoning", "true")
