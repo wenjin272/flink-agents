@@ -15,15 +15,25 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import logging
+
+from flink_agents.api.core_options import AgentExecutionOptions
 from flink_agents.api.events.tool_event import ToolRequestEvent, ToolResponseEvent
 from flink_agents.api.resource import ResourceType
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.plan.actions.action import Action
 from flink_agents.plan.function import PythonFunction
 
+_logger = logging.getLogger(__name__)
 
-def process_tool_request(event: ToolRequestEvent, ctx: RunnerContext) -> None:
+async def process_tool_request(event: ToolRequestEvent, ctx: RunnerContext) -> None:
     """Built-in action for processing tool call requests."""
+    tool_call_async = ctx.config.get(AgentExecutionOptions.TOOL_CALL_ASYNC)
+
+    if tool_call_async:
+        # To avoid https://github.com/alibaba/pemja/issues/88, we log a message here.
+        _logger.debug("Processing tool call asynchronously.")
+
     responses = {}
     external_ids = {}
     for tool_call in event.tool_calls:
@@ -35,7 +45,10 @@ def process_tool_request(event: ToolRequestEvent, ctx: RunnerContext) -> None:
         if not tool:
             response = f"Tool `{name}` does not exist."
         else:
-            response = tool.call(**kwargs)
+            if tool_call_async:
+                response = await ctx.durable_execute_async(tool.call, **kwargs)
+            else:
+                response = tool.call(**kwargs)
         responses[id] = response
         external_ids[id] = external_id
     ctx.send_event(

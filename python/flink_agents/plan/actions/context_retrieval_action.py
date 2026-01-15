@@ -15,6 +15,9 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import logging
+
+from flink_agents.api.core_options import AgentExecutionOptions
 from flink_agents.api.events.context_retrieval_event import (
     ContextRetrievalRequestEvent,
     ContextRetrievalResponseEvent,
@@ -22,31 +25,36 @@ from flink_agents.api.events.context_retrieval_event import (
 from flink_agents.api.events.event import Event
 from flink_agents.api.resource import ResourceType
 from flink_agents.api.runner_context import RunnerContext
+from flink_agents.api.vector_stores.java_vector_store import JavaVectorStore
 from flink_agents.api.vector_stores.vector_store import VectorStoreQuery
 from flink_agents.plan.actions.action import Action
 from flink_agents.plan.function import PythonFunction
 
+_logger = logging.getLogger(__name__)
 
-def process_context_retrieval_request(event: Event, ctx: RunnerContext) -> None:
+async def process_context_retrieval_request(event: Event, ctx: RunnerContext) -> None:
     """Built-in action for processing context retrieval requests."""
     if isinstance(event, ContextRetrievalRequestEvent):
-        vector_store = ctx.get_resource(
-            event.vector_store,
-            ResourceType.VECTOR_STORE
+        vector_store = ctx.get_resource(event.vector_store, ResourceType.VECTOR_STORE)
+
+        query = VectorStoreQuery(query_text=event.query, limit=event.max_results)
+
+        rag_async = ctx.config.get(AgentExecutionOptions.RAG_ASYNC)
+        # java vector store doesn't support async execution.
+        rag_async = rag_async and not isinstance(vector_store, JavaVectorStore)
+        if rag_async:
+            # To avoid https://github.com/alibaba/pemja/issues/88,
+            # we log a message here.
+            _logger.debug("Processing context retrieval asynchronously.")
+            result = await ctx.durable_execute_async(vector_store.query, query)
+        else:
+            result = vector_store.query(query)
+
+        ctx.send_event(
+            ContextRetrievalResponseEvent(
+                request_id=event.id, query=event.query, documents=result.documents
+            )
         )
-
-        query = VectorStoreQuery(
-            query_text=event.query,
-            limit=event.max_results
-        )
-
-        result = vector_store.query(query)
-
-        ctx.send_event(ContextRetrievalResponseEvent(
-            request_id=event.id,
-            query=event.query,
-            documents=result.documents
-        ))
 
 
 CONTEXT_RETRIEVAL_ACTION = Action(
