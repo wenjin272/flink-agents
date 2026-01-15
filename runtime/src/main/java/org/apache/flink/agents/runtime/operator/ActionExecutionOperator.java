@@ -825,10 +825,6 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     }
 
     private void createAndSetRunnerContext(ActionTask actionTask, Object key) {
-        if (actionTask.getRunnerContext() != null) {
-            return;
-        }
-
         RunnerContextImpl runnerContext;
         if (actionTask.action.getExec() instanceof JavaFunction) {
             runnerContext = createOrGetRunnerContext(true);
