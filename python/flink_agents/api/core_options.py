@@ -101,3 +101,25 @@ class AgentConfigOptions(metaclass=AgentConfigOptionsMeta):
         config_type=int,
         default=3,
     )
+
+
+class AgentExecutionOptions(metaclass=AgentConfigOptionsMeta):
+    """Execution options for Flink Agents."""
+
+    CHAT_ASYNC = ConfigOption(
+        key="chat.async",
+        config_type=bool,
+        default=True,
+    )
+
+    TOOL_CALL_ASYNC = ConfigOption(
+        key="tool-call.async",
+        config_type=bool,
+        default=True,
+    )
+
+    RAG_ASYNC = ConfigOption(
+        key="rag.async",
+        config_type=bool,
+        default=True,
+    )

@@ -28,7 +28,12 @@ from pyflink.common.typeinfo import RowTypeInfo
 from flink_agents.api.agents.agent import STRUCTURED_OUTPUT
 from flink_agents.api.agents.react_agent import OutputSchema
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.core_options import AgentConfigOptions, ErrorHandlingStrategy
+from flink_agents.api.chat_models.java_chat_model import JavaChatModelSetup
+from flink_agents.api.core_options import (
+    AgentConfigOptions,
+    AgentExecutionOptions,
+    ErrorHandlingStrategy,
+)
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.event import Event
 from flink_agents.api.events.tool_event import ToolRequestEvent, ToolResponseEvent
@@ -79,6 +84,7 @@ def _update_tool_call_context(
     # update tool call context
     sensory_memory.set(_TOOL_CALL_CONTEXT, tool_call_context)
     return tool_call_context[initial_request_id]
+
 
 def _save_tool_request_event_context(
     sensory_memory: MemoryObject,
@@ -156,7 +162,7 @@ def _generate_structured_output(
     return response
 
 
-def chat(
+async def chat(
     initial_request_id: UUID,
     model: str,
     messages: List[ChatMessage],
@@ -173,16 +179,23 @@ def chat(
         "BaseChatModelSetup", ctx.get_resource(model, ResourceType.CHAT_MODEL)
     )
 
+    chat_async = ctx.config.get(AgentExecutionOptions.CHAT_ASYNC)
+    # java chat model doesn't support async execution.
+    chat_async = chat_async and not isinstance(chat_model, JavaChatModelSetup)
+
     error_handling_strategy = ctx.config.get(AgentConfigOptions.ERROR_HANDLING_STRATEGY)
     num_retries = 0
     if error_handling_strategy == ErrorHandlingStrategy.RETRY:
         num_retries = max(0, ctx.config.get(AgentConfigOptions.MAX_RETRIES))
 
-    # TODO: support async execution of chat.
     response = None
     for attempt in range(num_retries + 1):
         try:
-            response = chat_model.chat(messages)
+            if chat_async:
+                response = await ctx.durable_execute_async(chat_model.chat, messages)
+            else:
+                response = chat_model.chat(messages)
+
             if response.extra_args.get("model_name") and response.extra_args.get("promptTokens") and response.extra_args.get("completionTokens"):
                 chat_model._record_token_metrics(response.extra_args["model_name"], response.extra_args["promptTokens"], response.extra_args["completionTokens"])
             if output_schema is not None and len(response.tool_calls) == 0:
@@ -221,9 +234,9 @@ def chat(
         )
 
 
-def _process_chat_request(event: ChatRequestEvent, ctx: RunnerContext) -> None:
+async def _process_chat_request(event: ChatRequestEvent, ctx: RunnerContext) -> None:
     """Process chat request event."""
-    chat(
+    await chat(
         initial_request_id=event.id,
         model=event.model,
         messages=event.messages,
@@ -232,7 +245,7 @@ def _process_chat_request(event: ChatRequestEvent, ctx: RunnerContext) -> None:
     )
 
 
-def _process_tool_response(event: ToolResponseEvent, ctx: RunnerContext) -> None:
+async def _process_tool_response(event: ToolResponseEvent, ctx: RunnerContext) -> None:
     """Organize the tool call context and return it to the LLM."""
     sensory_memory = ctx.sensory_memory
     request_id = event.request_id
@@ -260,7 +273,7 @@ def _process_tool_response(event: ToolResponseEvent, ctx: RunnerContext) -> None
         ],
     )
 
-    chat(
+    await chat(
         initial_request_id=initial_request_id,
         model=tool_request_event_context["model"],
         messages=messages,
@@ -269,17 +282,21 @@ def _process_tool_response(event: ToolResponseEvent, ctx: RunnerContext) -> None
     )
 
 
-def process_chat_request_or_tool_response(event: Event, ctx: RunnerContext) -> None:
+async def process_chat_request_or_tool_response(
+    event: Event, ctx: RunnerContext
+) -> None:
     """Built-in action for processing a chat request or tool response.
 
     This action listens to ChatRequestEvent and ToolResponseEvent, and handles
     the complete chat flow including tool calls. It uses sensory memory to save
     the tool call context, which is a dict mapping request id to chat messages.
     """
+    # To avoid https://github.com/alibaba/pemja/issues/88, we log a message here.
+    logging.debug("Processing chat request asynchronously.")
     if isinstance(event, ChatRequestEvent):
-        _process_chat_request(event, ctx)
+        await _process_chat_request(event, ctx)
     elif isinstance(event, ToolResponseEvent):
-        _process_tool_response(event, ctx)
+        await _process_tool_response(event, ctx)
 
 
 CHAT_MODEL_ACTION = Action(
