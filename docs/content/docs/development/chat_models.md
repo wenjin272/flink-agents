@@ -65,7 +65,7 @@ class MyAgent(Agent):
     @staticmethod
     def ollama_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OllamaChatModelConnection,
+            clazz=Constant.OLLAMA_CHAT_MODEL_CONNECTION,
             base_url="http://localhost:11434",
             request_timeout=30.0
         )
@@ -74,7 +74,7 @@ class MyAgent(Agent):
     @staticmethod
     def ollama_chat_model() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OllamaChatModelSetup,
+            clazz=Constant.OLLAMA_CHAT_MODEL_SETUP,
             connection="ollama_connection",
             model="qwen3:8b",
             temperature=0.7
@@ -106,14 +106,14 @@ class MyAgent(Agent):
 public class MyAgent extends Agent {
     @ChatModelConnection
     public static ResourceDescriptor ollamaConnection() {
-        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelConnection.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(Constant.OLLAMA_CHAT_MODEL_CONNECTION)
                 .addInitialArgument("endpoint", "http://localhost:11434")
                 .build();
     }
 
     @ChatModelSetup
     public static ResourceDescriptor ollamaChatModel() {
-        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(Constant.OLLAMA_CHAT_MODEL_SETUP)
                 .addInitialArgument("connection", "ollamaConnection")
                 .addInitialArgument("model", "qwen3:8b")
                 .build();
@@ -196,7 +196,7 @@ Azure AI is only supported in Java currently.
 public class MyAgent extends Agent {
     @ChatModelConnection
     public static ResourceDescriptor azureAIConnection() {
-        return ResourceDescriptor.Builder.newBuilder(AzureAIChatModelConnection.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(Constant.AZURE_CHAT_MODEL_CONNECTION)
                 .addInitialArgument("endpoint", "https://your-resource.inference.ai.azure.com")
                 .addInitialArgument("apiKey", "your-api-key-here")
                 .build();
@@ -204,7 +204,7 @@ public class MyAgent extends Agent {
 
     @ChatModelSetup
     public static ResourceDescriptor azureAIChatModel() {
-        return ResourceDescriptor.Builder.newBuilder(AzureAIChatModelSetup.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(Constant.AZURE_CHAT_MODEL_SETUP)
                 .addInitialArgument("connection", "azureAIConnection")
                 .addInitialArgument("model", "gpt-4o")
                 .build();
@@ -272,7 +272,7 @@ class MyAgent(Agent):
     @staticmethod
     def anthropic_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=AnthropicChatModelConnection,
+            clazz=Constant.ANTHROPIC_CHAT_MODEL_CONNECTION,
             api_key="your-api-key-here",  # Or set ANTHROPIC_API_KEY env var
             max_retries=3,
             timeout=60.0
@@ -282,7 +282,7 @@ class MyAgent(Agent):
     @staticmethod
     def anthropic_chat_model() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=AnthropicChatModelSetup,
+            clazz=Constant.ANTHROPIC_CHAT_MODEL_SETUP,
             connection="anthropic_connection",
             model="claude-sonnet-4-20250514",
             max_tokens=2048,
@@ -383,7 +383,7 @@ class MyAgent(Agent):
     @staticmethod
     def ollama_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OllamaChatModelConnection,
+            clazz=Constant.OLLAMA_CHAT_MODEL_CONNECTION,
             base_url="http://localhost:11434",
             request_timeout=120.0
         )
@@ -392,7 +392,7 @@ class MyAgent(Agent):
     @staticmethod
     def my_chat_model() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OllamaChatModelSetup,
+            clazz=Constant.OLLAMA_CHAT_MODEL_CONNECTION,
             connection="ollama_connection",
             model="qwen3:8b",
             temperature=0.7,
@@ -410,7 +410,7 @@ class MyAgent(Agent):
 public class MyAgent extends Agent {
     @ChatModelConnection
     public static ResourceDescriptor ollamaConnection() {
-        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelConnection.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(Constant.OLLAMA_CHAT_MODEL_CONNECTION)
                 .addInitialArgument("endpoint", "http://localhost:11434")
                 .addInitialArgument("requestTimeout", 120)
                 .build();
@@ -418,7 +418,7 @@ public class MyAgent extends Agent {
 
     @ChatModelSetup
     public static ResourceDescriptor ollamaChatModel() {
-        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(Constant.OLLAMA_CHAT_MODEL_SETUP)
                 .addInitialArgument("connection", "ollamaConnection")
                 .addInitialArgument("model", "qwen3:8b")
                 .build();
@@ -495,7 +495,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIChatModelConnection,
+            clazz=Constant.OPENAI_CHAT_MODEL_CONNECTION,
             api_key="your-api-key-here",  # Or set OPENAI_API_KEY env var
             api_base_url="https://api.openai.com/v1",
             max_retries=3,
@@ -506,7 +506,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_chat_model() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIChatModelSetup,
+            clazz=Constant.OPENAI_CHAT_MODEL_SETUP,
             connection="openai_connection",
             model="gpt-4",
             temperature=0.7,
@@ -569,7 +569,7 @@ class MyAgent(Agent):
     @staticmethod
     def tongyi_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=TongyiChatModelConnection,
+            clazz=Constant.TONGYI_CHAT_MODEL_CONNECTION,
             api_key="your-api-key-here",  # Or set DASHSCOPE_API_KEY env var
             request_timeout=60.0
         )
@@ -578,7 +578,7 @@ class MyAgent(Agent):
     @staticmethod
     def tongyi_chat_model() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=TongyiChatModelSetup,
+            clazz=Constant.TONGYI_CHAT_MODEL_SETUP,
             connection="tongyi_connection",
             model="qwen-plus",
             temperature=0.7,

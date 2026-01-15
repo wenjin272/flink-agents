@@ -47,10 +47,11 @@ agents_env = AgentsExecutionEnvironment.get_execution_environment(env)
 # Add Ollama chat model connection and notify shipping manager tool to be used
 # by the Agent.
 agents_env.add_resource(
-    "ollama_server",
-    ResourceDescriptor(clazz=OllamaChatModelConnection, request_timeout=120),
+  "ollama_server",
+  ResourceType.CHAT_MODEL_CONNECTION,
+  ResourceDescriptor(clazz=Constant.OLLAMA_CHAT_MODEL_CONNECTION, request_timeout=120),
 ).add_resource(
-    "notify_shipping_manager", Tool.from_callable(notify_shipping_manager)
+  "notify_shipping_manager", ResourceType.TOOL, Tool.from_callable(notify_shipping_manager)
 )
 ```
 {{< /tab >}}
@@ -88,14 +89,14 @@ Create the ReAct Agent instance, configure the chat model, prompt and the output
 {{< tab "Python" >}}
 ```python
 review_analysis_react_agent = ReActAgent(
-    chat_model=ResourceDescriptor(
-        clazz=OllamaChatModelSetup,
-        connection="ollama_server",
-        model="qwen3:8b",
-        tools=["notify_shipping_manager"],
-    ),
-    prompt=review_analysis_react_prompt,
-    output_schema=ProductReviewAnalysisRes,
+  chat_model=ResourceDescriptor(
+      clazz=Constant.OLLAMA_CHAT_MODEL_SETUP,
+      connection="ollama_server",
+      model="qwen3:8b",
+      tools=["notify_shipping_manager"],
+  ),
+  prompt=review_analysis_react_prompt,
+  output_schema=ProductReviewAnalysisRes,
 )
 ```
 {{< /tab >}}
@@ -105,17 +106,17 @@ review_analysis_react_agent = ReActAgent(
 // Create ReAct agent.
 ReActAgent reviewAnalysisReactAgent = getReActAgent();
 
-private static ReActAgent getReActAgent() {
-    return new ReActAgent(
-            ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
-                    .addInitialArgument("connection", "ollamaChatModelConnection")
-                    .addInitialArgument("model", "qwen3:8b")
-                    .addInitialArgument(
-                            "tools", Collections.singletonList("notifyShippingManager"))
-                    .build(),
-            reviewAnalysisReactPrompt(),
-            CustomTypesAndResources.ProductReviewAnalysisRes.class);
-}
+ private static ReActAgent getReActAgent() {
+     return new ReActAgent(
+             ResourceDescriptor.Builder.newBuilder(Constant.OLLAMA_CHAT_MODEL_SETUP)
+                     .addInitialArgument("connection", "ollamaChatModelConnection")
+                     .addInitialArgument("model", "qwen3:8b")
+                     .addInitialArgument(
+                             "tools", Collections.singletonList("notifyShippingManager"))
+                     .build(),
+             reviewAnalysisReactPrompt(),
+             CustomTypesAndResources.ProductReviewAnalysisRes.class);
+ }
 ```
 {{< /tab >}}
 

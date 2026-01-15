@@ -147,7 +147,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIEmbeddingModelConnection,
+            clazz=Constant.OPENAI_EMBEDDING_MODEL_CONNECTION,
             api_key="your-api-key-here"
         )
 
@@ -155,7 +155,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_embedding() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIEmbeddingModelSetup,
+            clazz=Constant.OPENAI_EMBEDDING_MODEL_SETUP,
             connection="openai_connection",
             model="your-embedding-model-here"
         )
@@ -165,7 +165,7 @@ class MyAgent(Agent):
     @staticmethod
     def chroma_store() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=ChromaVectorStore,
+            clazz=Constant.CHROMA_VECTOR_STORE,
             embedding_model="openai_embedding",
             collection="my_chroma_store"
         )
@@ -199,22 +199,22 @@ public class MyAgent extends Agent {
 
     @EmbeddingModelConnection
     public static ResourceDescriptor embeddingConnection() {
-        return ResourceDescriptor.Builder.newBuilder(OpenAIEmbeddingModelConnection.class.getName())
-                .addInitialArgument("api_key", "your-api-key-here")
+        return ResourceDescriptor.Builder.newBuilder(Constant.OLLAMA_EMBEDDING_MODEL_CONNECTION)
+                .addInitialArgument("host", "http://localhost:11434")
                 .build();
     }
 
     @EmbeddingModelSetup
     public static ResourceDescriptor embeddingModel() {
-        return ResourceDescriptor.Builder.newBuilder(OpenAIEmbeddingModelSetup.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(Constant.OLLAMA_EMBEDDING_MODEL_SETUP)
                 .addInitialArgument("connection", "embeddingConnection")
-                .addInitialArgument("model", "text-embedding-3-small")
+                .addInitialArgument("model", "nomic-embed-text")
                 .build();
     }
 
     @VectorStore
     public static ResourceDescriptor vectorStore() {
-        return ResourceDescriptor.Builder.newBuilder(ElasticsearchVectorStore.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(Constant.ELASTICSEARCH_VECTOR_STORE)
                 .addInitialArgument("embedding_model", "embeddingModel")
                 .addInitialArgument("host", "http://localhost:9200")
                 .addInitialArgument("index", "my_documents")
@@ -293,7 +293,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIEmbeddingModelConnection,
+            clazz=Constant.OPENAI_EMBEDDING_MODEL_CONNECTION,
             api_key="your-api-key-here"
         )
 
@@ -301,7 +301,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_embedding() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIEmbeddingModelSetup,
+            clazz=Constant.OPENAI_EMBEDDING_MODEL_SETUP,
             connection="openai_connection",
           model="your-embedding-model-here"
         )
@@ -311,7 +311,7 @@ class MyAgent(Agent):
     @staticmethod
     def chroma_store() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=ChromaVectorStore,
+            clazz=Constant.CHROMA_VECTOR_STORE,
             embedding_model="openai_embedding",
             persist_directory="/path/to/chroma/data",  # For persistent storage
             collection="my_documents",
@@ -338,7 +338,7 @@ ChromaDB supports multiple deployment modes:
 @staticmethod
 def chroma_store() -> ResourceDescriptor:
     return ResourceDescriptor(
-        clazz=ChromaVectorStore,
+        clazz=Constant.CHROMA_VECTOR_STORE,
         embedding_model="your_embedding_model",
         collection="my_documents"
         # No connection configuration needed for in-memory mode
@@ -351,7 +351,7 @@ def chroma_store() -> ResourceDescriptor:
 @staticmethod
 def chroma_store() -> ResourceDescriptor:
     return ResourceDescriptor(
-        clazz=ChromaVectorStore,
+        clazz=Constant.CHROMA_VECTOR_STORE,
         embedding_model="your_embedding_model",
         persist_directory="/path/to/chroma/data",
         collection="my_documents"
@@ -364,7 +364,7 @@ def chroma_store() -> ResourceDescriptor:
 @staticmethod
 def chroma_store() -> ResourceDescriptor:
     return ResourceDescriptor(
-        clazz=ChromaVectorStore,
+        clazz=Constant.CHROMA_VECTOR_STORE,
         embedding_model="your_embedding_model",
         host="your-chroma-server.com",
         port=8000,
@@ -378,7 +378,7 @@ def chroma_store() -> ResourceDescriptor:
 @staticmethod
 def chroma_store() -> ResourceDescriptor:
     return ResourceDescriptor(
-        clazz=ChromaVectorStore,
+        clazz=Constant.CHROMA_VECTOR_STORE,
         embedding_model="your_embedding_model",
         api_key="your-chroma-cloud-api-key",
         collection="my_documents"
@@ -428,7 +428,7 @@ Here's how to define an Elasticsearch vector store in your Java agent:
 ```java
 @VectorStore
 public static ResourceDescriptor vectorStore() {
-    return ResourceDescriptor.Builder.newBuilder(ElasticsearchVectorStore.class.getName())
+    return ResourceDescriptor.Builder.newBuilder(Constant.ELASTICSEARCH_VECTOR_STORE)
             .addInitialArgument("embedding_model", "embeddingModel")
             .addInitialArgument("host", "http://localhost:9200")
             .addInitialArgument("index", "my_documents")

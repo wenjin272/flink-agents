@@ -69,7 +69,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIEmbeddingModelConnection,
+            clazz=Constant.OPENAI_EMBEDDING_MODEL_CONNECTION,
             api_key="your-api-key-here",
             base_url="https://api.openai.com/v1",
             request_timeout=30.0
@@ -79,7 +79,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_embedding() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIEmbeddingModelSetup,
+            clazz=Constant.OPENAI_EMBEDDING_MODEL_SETUP,
             connection="openai_connection",
             model="your-embedding-model-here"
         )
@@ -136,7 +136,7 @@ class MyAgent(Agent):
     @staticmethod
     def ollama_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OllamaEmbeddingModelConnection,
+            clazz=Constant.OLLAMA_EMBEDDING_MODEL_CONNECTION,
             base_url="http://localhost:11434",
             request_timeout=30.0
         )
@@ -145,7 +145,7 @@ class MyAgent(Agent):
     @staticmethod
     def ollama_embedding() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OllamaEmbeddingModelSetup,
+            clazz=Constant.OLLAMA_EMBEDDING_MODEL_SETUP,
             connection="ollama_connection",
             model="nomic-embed-text",
             truncate=True,
@@ -185,7 +185,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIEmbeddingModelConnection,
+            clazz=Constant.OPENAI_EMBEDDING_MODEL_CONNECTION,
             api_key="your-api-key-here",
             base_url="https://api.openai.com/v1",
             request_timeout=30.0,
@@ -196,7 +196,7 @@ class MyAgent(Agent):
     @staticmethod
     def openai_embedding() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=OpenAIEmbeddingModelSetup,
+            clazz=Constant.OPENAI_CHAT_MODEL_SETUP,
             connection="openai_connection",
             model="your-embedding-model-here",
             encoding_format="float"
