@@ -30,15 +30,17 @@ import java.util.function.Supplier;
  */
 public class JavaRunnerContextImpl extends RunnerContextImpl {
 
-    private final ContinuationActionExecutor continuationExecutor;
+    private ContinuationActionExecutor continuationExecutor;
 
     public JavaRunnerContextImpl(
             FlinkAgentsMetricGroupImpl agentMetricGroup,
             Runnable mailboxThreadChecker,
             AgentPlan agentPlan,
-            String jobIdentifier,
-            ContinuationActionExecutor continuationExecutor) {
+            String jobIdentifier) {
         super(agentMetricGroup, mailboxThreadChecker, agentPlan, jobIdentifier);
+    }
+
+    public void setContinuationExecutor(ContinuationActionExecutor continuationExecutor) {
         this.continuationExecutor = continuationExecutor;
     }
 

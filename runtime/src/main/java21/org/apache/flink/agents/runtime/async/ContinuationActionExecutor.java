@@ -24,6 +24,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Executor for Java actions that supports asynchronous execution using JDK 21+ Continuation API.
@@ -31,6 +33,8 @@ import java.util.function.Supplier;
  * <p>This version uses {@code jdk.internal.vm.Continuation} to implement true async execution.
  */
 public class ContinuationActionExecutor {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ContinuationActionExecutor.class);
 
     private static final ContinuationScope SCOPE = new ContinuationScope("FlinkAgentsAction");
 
@@ -71,11 +75,13 @@ public class ContinuationActionExecutor {
                 return false;
             }
             // Async task done, clear the pending future and resume
+            LOG.debug("Async task done...");
             pendingFuture = null;
         }
 
         if (currentContinuation == null) {
             // First invocation: create new Continuation
+            LOG.debug("Create new continuation.");
             currentContinuation = new Continuation(SCOPE, action);
         }
 
@@ -85,10 +91,12 @@ public class ContinuationActionExecutor {
         if (currentContinuation.isDone()) {
             // Continuation completed
             currentContinuation = null;
+            LOG.debug("Current continuation is done.");
             return true;
         } else {
             // Continuation yielded, waiting for async task
             // pendingFuture should have been set by executeAsync
+            LOG.debug("Current continuation still running.");
             return false;
         }
     }

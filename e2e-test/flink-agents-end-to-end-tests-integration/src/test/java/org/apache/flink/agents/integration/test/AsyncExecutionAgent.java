@@ -26,6 +26,8 @@ import org.apache.flink.agents.api.context.DurableCallable;
 import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Agent definition for testing async execution functionality.
@@ -34,6 +36,8 @@ import org.apache.flink.api.java.functions.KeySelector;
  * operations without blocking the mailbox thread.
  */
 public class AsyncExecutionAgent {
+
+    private static final Logger LOG = LoggerFactory.getLogger(AsyncExecutionAgent.class);
 
     /** Simple request data class. */
     public static class AsyncRequest {
@@ -275,12 +279,14 @@ public class AsyncExecutionAgent {
                                 @Override
                                 public String call() {
                                     long asyncStartTime = System.currentTimeMillis();
+                                    LOG.info("{} Async call start {}", request.id, asyncStartTime);
                                     try {
                                         Thread.sleep(request.sleepTimeMs);
                                     } catch (InterruptedException e) {
                                         Thread.currentThread().interrupt();
                                     }
                                     long asyncEndTime = System.currentTimeMillis();
+                                    LOG.info("{} Async call end {}", request.id, asyncEndTime);
                                     return String.format(
                                             "key=%d,start=%d,end=%d",
                                             request.id, asyncStartTime, asyncEndTime);

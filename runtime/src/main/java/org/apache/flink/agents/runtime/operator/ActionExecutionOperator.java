@@ -200,6 +200,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     private final transient Map<ActionTask, RunnerContextImpl.DurableExecutionContext>
             actionTaskDurableContexts;
 
+    private final transient Map<ActionTask, ContinuationActionExecutor> continuationActionExecutors;
+
     // Each job can only have one identifier and this identifier must be consistent across restarts.
     // We cannot use job id as the identifier here because user may change job id by
     // creating a savepoint, stop the job and then resume from savepoint.
@@ -226,6 +228,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         this.checkpointIdToSeqNums = new HashMap<>();
         this.actionTaskMemoryContexts = new HashMap<>();
         this.actionTaskDurableContexts = new HashMap<>();
+        this.continuationActionExecutors = new HashMap<>();
         OperatorUtils.setChainStrategy(this, ChainingStrategy.ALWAYS);
     }
 
@@ -505,6 +508,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             // finished.
             actionTaskMemoryContexts.remove(actionTask);
             actionTaskDurableContexts.remove(actionTask);
+            continuationActionExecutors.remove(actionTask);
             maybePersistTaskResult(
                     key,
                     sequenceNumber,
@@ -545,6 +549,12 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                     actionTask.getRunnerContext().getDurableExecutionContext();
             if (durableContext != null) {
                 actionTaskDurableContexts.put(generatedActionTask, durableContext);
+            }
+            if (actionTask.getRunnerContext() instanceof JavaRunnerContextImpl) {
+                continuationActionExecutors.put(
+                        generatedActionTask,
+                        ((JavaRunnerContextImpl) actionTask.getRunnerContext())
+                                .getContinuationExecutor());
             }
 
             actionTasksKState.add(generatedActionTask);
@@ -839,10 +849,6 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     }
 
     private void createAndSetRunnerContext(ActionTask actionTask, Object key) {
-        if (actionTask.getRunnerContext() != null) {
-            return;
-        }
-
         RunnerContextImpl runnerContext;
         if (actionTask.action.getExec() instanceof JavaFunction) {
             runnerContext = createOrGetRunnerContext(true);
@@ -867,6 +873,19 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
         runnerContext.switchActionContext(
                 actionTask.action.getName(), memoryContext, String.valueOf(key.hashCode()));
+
+        if (runnerContext instanceof JavaRunnerContextImpl) {
+            ContinuationActionExecutor continuationActionExecutor;
+            if (continuationActionExecutors.containsKey(actionTask)) {
+                // action task for async execution action, should retrieve intermediate results from
+                // map.
+                continuationActionExecutor = continuationActionExecutors.get(actionTask);
+            } else {
+                continuationActionExecutor = new ContinuationActionExecutor(asyncExecutor);
+            }
+            ((JavaRunnerContextImpl) runnerContext)
+                    .setContinuationExecutor(continuationActionExecutor);
+        }
         actionTask.setRunnerContext(runnerContext);
     }
 
@@ -1042,8 +1061,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                                 this.metricGroup,
                                 this::checkMailboxThread,
                                 this.agentPlan,
-                                this.jobIdentifier,
-                                new ContinuationActionExecutor(asyncExecutor));
+                                this.jobIdentifier);
             }
             return runnerContext;
         } else {
