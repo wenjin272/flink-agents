@@ -73,7 +73,7 @@ class ReviewAnalysisAgent(Agent):
     def review_analysis_model() -> ResourceDescriptor:
         """ChatModel which focus on review analysis."""
         return ResourceDescriptor(
-            clazz=OllamaChatModelSetup,
+            clazz=Constant.OLLAMA_CHAT_MODEL_SETUP,
             connection="ollama_server",
             model="qwen3:8b",
             prompt="review_analysis_prompt",
@@ -139,7 +139,7 @@ public class ReviewAnalysisAgent extends Agent {
 
     @ChatModelSetup
     public static ResourceDescriptor reviewAnalysisModel() {
-        return ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
+        return ResourceDescriptor.Builder.newBuilder(Constant.OLLAMA_CHAT_MODEL_SETUP)
                 .addInitialArgument("connection", "ollamaChatModelConnection")
                 .addInitialArgument("model", "qwen3:8b")
                 .addInitialArgument("prompt", "reviewAnalysisPrompt")
