@@ -16,30 +16,32 @@
 # limitations under the License.
 #################################################################################
 """Test cases for BaseChatModelConnection token metrics functionality."""
-from typing import Any, List, Sequence
+
+from typing import Any, Dict, Sequence
 from unittest.mock import MagicMock
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.chat_models.chat_model import BaseChatModelConnection
+from flink_agents.api.chat_models.chat_model import (
+    BaseChatModelSetup,
+)
 from flink_agents.api.metric_group import Counter, MetricGroup
 from flink_agents.api.resource import ResourceType
-from flink_agents.api.tools.tool import Tool
 
 
-class TestChatModelConnection(BaseChatModelConnection):
+class TestChatModelSetup(BaseChatModelSetup):
     """Test implementation of BaseChatModelConnection for testing purposes."""
+
+    @property
+    def model_kwargs(self) -> Dict[str, Any]:
+        """Return model kwargs."""
+        return {}
 
     @classmethod
     def resource_type(cls) -> ResourceType:
         """Return resource type of class."""
-        return ResourceType.CHAT_MODEL_CONNECTION
+        return ResourceType.CHAT_MODEL
 
-    def chat(
-        self,
-        messages: Sequence[ChatMessage],
-        tools: List[Tool] | None = None,
-        **kwargs: Any,
-    ) -> ChatMessage:
+    def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
         """Simple test implementation."""
         return ChatMessage(role=MessageRole.ASSISTANT, content="Test response")
 
@@ -93,19 +95,19 @@ class _MockMetricGroup(MetricGroup):
         return MagicMock()
 
 
-class TestBaseChatModelConnectionTokenMetrics:
+class TestBaseChatModelTokenMetrics:
     """Test cases for BaseChatModelConnection token metrics functionality."""
 
     def test_record_token_metrics_with_metric_group(self) -> None:
         """Test token metrics are recorded when metric group is set."""
-        connection = TestChatModelConnection()
+        chat_model = TestChatModelSetup(connection="mock")
         mock_metric_group = _MockMetricGroup()
 
         # Set the metric group
-        connection.set_metric_group(mock_metric_group)
+        chat_model.set_metric_group(mock_metric_group)
 
         # Record token metrics
-        connection.test_record_token_metrics("gpt-4", 100, 50)
+        chat_model.test_record_token_metrics("gpt-4", 100, 50)
 
         # Verify the metrics were recorded
         model_group = mock_metric_group.get_sub_group("gpt-4")
@@ -114,26 +116,26 @@ class TestBaseChatModelConnectionTokenMetrics:
 
     def test_record_token_metrics_without_metric_group(self) -> None:
         """Test token metrics are not recorded when metric group is null."""
-        connection = TestChatModelConnection()
+        chat_model = TestChatModelSetup(connection="mock")
 
         # Do not set metric group (should be None by default)
         # Record token metrics - should not throw
-        connection.test_record_token_metrics("gpt-4", 100, 50)
+        chat_model.test_record_token_metrics("gpt-4", 100, 50)
         # No exception should be raised
 
     def test_token_metrics_hierarchy(self) -> None:
         """Test token metrics hierarchy: actionMetricGroup -> modelName -> counters."""
-        connection = TestChatModelConnection()
+        chat_model = TestChatModelSetup(connection="mock")
         mock_metric_group = _MockMetricGroup()
 
         # Set the metric group
-        connection.set_metric_group(mock_metric_group)
+        chat_model.set_metric_group(mock_metric_group)
 
         # Record for gpt-4
-        connection.test_record_token_metrics("gpt-4", 100, 50)
+        chat_model.test_record_token_metrics("gpt-4", 100, 50)
 
         # Record for gpt-3.5-turbo
-        connection.test_record_token_metrics("gpt-3.5-turbo", 200, 100)
+        chat_model.test_record_token_metrics("gpt-3.5-turbo", 200, 100)
 
         # Verify each model has its own counters
         gpt4_group = mock_metric_group.get_sub_group("gpt-4")
@@ -146,15 +148,15 @@ class TestBaseChatModelConnectionTokenMetrics:
 
     def test_token_metrics_accumulation(self) -> None:
         """Test that token metrics accumulate across multiple calls."""
-        connection = TestChatModelConnection()
+        chat_model = TestChatModelSetup(connection="mock")
         mock_metric_group = _MockMetricGroup()
 
         # Set the metric group
-        connection.set_metric_group(mock_metric_group)
+        chat_model.set_metric_group(mock_metric_group)
 
         # Record multiple times for the same model
-        connection.test_record_token_metrics("gpt-4", 100, 50)
-        connection.test_record_token_metrics("gpt-4", 150, 75)
+        chat_model.test_record_token_metrics("gpt-4", 100, 50)
+        chat_model.test_record_token_metrics("gpt-4", 150, 75)
 
         # Verify the metrics accumulated
         model_group = mock_metric_group.get_sub_group("gpt-4")
@@ -163,20 +165,19 @@ class TestBaseChatModelConnectionTokenMetrics:
 
     def test_resource_type(self) -> None:
         """Test resource type is CHAT_MODEL_CONNECTION."""
-        connection = TestChatModelConnection()
-        assert connection.resource_type() == ResourceType.CHAT_MODEL_CONNECTION
+        chat_model = TestChatModelSetup(connection="mock")
+        assert chat_model.resource_type() == ResourceType.CHAT_MODEL
 
     def test_bound_metric_group_property(self) -> None:
         """Test bound_metric_group property."""
-        connection = TestChatModelConnection()
+        chat_model = TestChatModelSetup(connection="mock")
 
         # Initially should be None
-        assert connection.metric_group is None
+        assert chat_model.metric_group is None
 
         # Set metric group
         mock_metric_group = _MockMetricGroup()
-        connection.set_metric_group(mock_metric_group)
+        chat_model.set_metric_group(mock_metric_group)
 
         # Now should return the set metric group
-        assert connection.metric_group is mock_metric_group
-
+        assert chat_model.metric_group is mock_metric_group

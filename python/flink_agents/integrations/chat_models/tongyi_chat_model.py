@@ -36,7 +36,8 @@ DEFAULT_MODEL = "qwen-plus"
 
 
 def to_dashscope_tool(
-    metadata: ToolMetadata, skip_length_check: bool = False # noqa:FBT001
+    metadata: ToolMetadata,
+    skip_length_check: bool = False,  # noqa:FBT001
 ) -> Dict[str, Any]:
     """To DashScope tool."""
     if not skip_length_check and len(metadata.description) > 1024:
@@ -128,11 +129,13 @@ class TongyiChatModelConnection(BaseChatModelConnection):
             msg = f"DashScope call failed: {response.message}"
             raise RuntimeError(msg)
 
+        extra_args: Dict[str, Any] = {}
+
         # Record token metrics if model name and usage are available
         if model_name and response.usage:
-            self._record_token_metrics(
-                model_name, response.usage.input_tokens, response.usage.output_tokens
-            )
+            extra_args["model_name"] = model_name
+            extra_args["promptTokens"] = response.usage.input_tokens
+            extra_args["completionTokens"] = response.usage.output_tokens
 
         choice = response.output["choices"][0]
         response_message: Dict[str, Any] = choice["message"]
@@ -156,7 +159,6 @@ class TongyiChatModelConnection(BaseChatModelConnection):
             tool_calls.append(tool_call_dict)
 
         content = response_message.get("content") or ""
-        extra_args: Dict[str, Any] = {}
 
         reasoning_content = response_message.get("reasoning_content") or ""
         if extract_reasoning and reasoning_content:
