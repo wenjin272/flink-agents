@@ -17,6 +17,8 @@
  */
 package org.apache.flink.agents.plan.actions;
 
+import org.apache.flink.agents.api.agents.AgentExecutionOptions;
+import org.apache.flink.agents.api.context.DurableCallable;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.event.ToolRequestEvent;
 import org.apache.flink.agents.api.event.ToolResponseEvent;
@@ -44,6 +46,8 @@ public class ToolCallAction {
 
     @SuppressWarnings("unchecked")
     public static void processToolRequest(ToolRequestEvent event, RunnerContext ctx) {
+        boolean toolCallAsync = ctx.getConfig().get(AgentExecutionOptions.TOOL_CALL_ASYNC);
+
         Map<String, Boolean> success = new HashMap<>();
         Map<String, String> error = new HashMap<>();
         Map<String, ToolResponse> responses = new HashMap<>();
@@ -70,7 +74,30 @@ public class ToolCallAction {
 
             if (tool != null) {
                 try {
-                    ToolResponse response = tool.call(new ToolParameters(arguments));
+                    ToolResponse response;
+                    if (toolCallAsync) {
+                        final Tool toolRef = tool;
+                        response =
+                                ctx.durableExecuteAsync(
+                                        new DurableCallable<>() {
+                                            @Override
+                                            public String getId() {
+                                                return "tool-call-async";
+                                            }
+
+                                            @Override
+                                            public Class<ToolResponse> getResultClass() {
+                                                return ToolResponse.class;
+                                            }
+
+                                            @Override
+                                            public ToolResponse call() throws Exception {
+                                                return toolRef.call(new ToolParameters(arguments));
+                                            }
+                                        });
+                    } else {
+                        response = tool.call(new ToolParameters(arguments));
+                    }
                     success.put(id, true);
                     responses.put(id, response);
                 } catch (Exception e) {
