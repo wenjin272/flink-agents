@@ -97,7 +97,8 @@ public class PythonActionExecutor {
                                 runnerContext,
                                 agentPlanJson,
                                 pythonAsyncThreadPool,
-                                javaResourceAdapter);
+                                javaResourceAdapter,
+                                jobIdentifier);
     }
 
     /**
@@ -116,10 +117,7 @@ public class PythonActionExecutor {
         function.setInterpreter(interpreter);
 
         interpreter.invoke(
-                FLINK_RUNNER_CONTEXT_SWITCH_ACTION_CONTEXT,
-                pythonRunnerContext,
-                jobIdentifier,
-                hashOfKey);
+                FLINK_RUNNER_CONTEXT_SWITCH_ACTION_CONTEXT, pythonRunnerContext, hashOfKey);
 
         Object pythonEventObject = interpreter.invoke(CONVERT_TO_PYTHON_OBJECT, event.getEvent());
 
