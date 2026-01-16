@@ -104,10 +104,10 @@ def summarize(
         create_time_list = []
         for index in indices:
             if items[index].compacted:
-                create_time_list.append(items[index].create_time.start)
-                create_time_list.append(items[index].create_time.end)
+                create_time_list.append(items[index].created_time.start)
+                create_time_list.append(items[index].created_time.end)
             else:
-                create_time_list.append(items[index].create_time)
+                create_time_list.append(items[index].created_time)
 
         start = min(create_time_list).isoformat()
         end = max(create_time_list).isoformat()
