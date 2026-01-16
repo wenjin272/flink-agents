@@ -135,9 +135,9 @@ class OllamaChatModelConnection(BaseChatModelConnection):
             and response.prompt_eval_count is not None
             and response.eval_count is not None
         ):
-            self._record_token_metrics(
-                model_name, response.prompt_eval_count, response.eval_count
-            )
+            extra_args["model_name"] = model_name
+            extra_args["promptTokens"] = response.prompt_eval_count
+            extra_args["completionTokens"] = response.eval_count
 
         return ChatMessage(
             role=MessageRole(response.message.role),

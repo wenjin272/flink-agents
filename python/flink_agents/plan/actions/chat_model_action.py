@@ -183,6 +183,8 @@ def chat(
     for attempt in range(num_retries + 1):
         try:
             response = chat_model.chat(messages)
+            if response.extra_args.get("model_name") and response.extra_args.get("promptTokens") and response.extra_args.get("completionTokens"):
+                chat_model._record_token_metrics(response.extra_args["model_name"], response.extra_args["promptTokens"], response.extra_args["completionTokens"])
             if output_schema is not None and len(response.tool_calls) == 0:
                 response = _generate_structured_output(response, output_schema)
             break

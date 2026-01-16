@@ -18,7 +18,7 @@
 import json
 import os
 import uuid
-from typing import TYPE_CHECKING, List, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Sequence, Tuple
 
 import openai
 from openai.types.chat import (
@@ -167,7 +167,8 @@ def convert_to_openai_message(message: ChatMessage) -> ChatCompletionMessagePara
         }
         if message.tool_calls:
             openai_tool_calls = [
-                _convert_to_openai_tool_call(tool_call) for tool_call in message.tool_calls
+                _convert_to_openai_tool_call(tool_call)
+                for tool_call in message.tool_calls
             ]
             assistant_message["tool_calls"] = openai_tool_calls
 
@@ -192,7 +193,9 @@ def convert_to_openai_message(message: ChatMessage) -> ChatCompletionMessagePara
         raise ValueError(msg)
 
 
-def convert_from_openai_message(message: ChatCompletionMessage) -> ChatMessage:
+def convert_from_openai_message(
+    message: ChatCompletionMessage, extra_args: Dict[str, Any]
+) -> ChatMessage:
     """Convert an OpenAI message to a chat message."""
     tool_calls = []
     if message.tool_calls:
@@ -207,7 +210,7 @@ def convert_from_openai_message(message: ChatCompletionMessage) -> ChatMessage:
                     "name": tool_call.function.name,
                     "arguments": json.loads(tool_call.function.arguments),
                 },
-                "original_id": tool_call.id
+                "original_id": tool_call.id,
             }
             for tool_call in message.tool_calls
         ]
@@ -215,4 +218,5 @@ def convert_from_openai_message(message: ChatCompletionMessage) -> ChatMessage:
         role=MessageRole(message.role),
         content=message.content or "",
         tool_calls=tool_calls,
+        extra_args=extra_args,
     )
