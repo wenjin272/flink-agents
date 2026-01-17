@@ -26,6 +26,7 @@ import org.apache.flink.agents.api.agents.OutputSchema;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.chat.model.BaseChatModelSetup;
+import org.apache.flink.agents.api.chat.model.python.PythonChatModelSetup;
 import org.apache.flink.agents.api.context.DurableCallable;
 import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.RunnerContext;
@@ -198,6 +199,9 @@ public class ChatModelAction {
                 (BaseChatModelSetup) ctx.getResource(model, ResourceType.CHAT_MODEL);
 
         boolean chatAsync = ctx.getConfig().get(AgentExecutionOptions.CHAT_ASYNC);
+        // TODO: python chat model doesn't support async execution yet, see
+        // https://github.com/apache/flink-agents/issues/448 for details.
+        chatAsync = chatAsync && !(chatModel instanceof PythonChatModelSetup);
 
         Agent.ErrorHandlingStrategy strategy =
                 ctx.getConfig().get(AgentExecutionOptions.ERROR_HANDLING_STRATEGY);
