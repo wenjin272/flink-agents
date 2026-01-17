@@ -75,29 +75,28 @@ public class ToolCallAction {
             if (tool != null) {
                 try {
                     ToolResponse response;
-                    if (toolCallAsync) {
-                        final Tool toolRef = tool;
-                        response =
-                                ctx.durableExecuteAsync(
-                                        new DurableCallable<>() {
-                                            @Override
-                                            public String getId() {
-                                                return "tool-call-async";
-                                            }
+                    final Tool toolRef = tool;
+                    DurableCallable<ToolResponse> callable =
+                            new DurableCallable<>() {
+                                @Override
+                                public String getId() {
+                                    return "tool-call";
+                                }
 
-                                            @Override
-                                            public Class<ToolResponse> getResultClass() {
-                                                return ToolResponse.class;
-                                            }
+                                @Override
+                                public Class<ToolResponse> getResultClass() {
+                                    return ToolResponse.class;
+                                }
 
-                                            @Override
-                                            public ToolResponse call() throws Exception {
-                                                return toolRef.call(new ToolParameters(arguments));
-                                            }
-                                        });
-                    } else {
-                        response = tool.call(new ToolParameters(arguments));
-                    }
+                                @Override
+                                public ToolResponse call() throws Exception {
+                                    return toolRef.call(new ToolParameters(arguments));
+                                }
+                            };
+                    response =
+                            toolCallAsync
+                                    ? ctx.durableExecuteAsync(callable)
+                                    : ctx.durableExecute(callable);
                     success.put(id, true);
                     responses.put(id, response);
                 } catch (Exception e) {
