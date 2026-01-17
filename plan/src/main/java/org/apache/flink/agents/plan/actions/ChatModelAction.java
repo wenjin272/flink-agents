@@ -215,30 +215,30 @@ public class ChatModelAction {
 
         ChatMessage response = null;
 
+        DurableCallable<ChatMessage> callable =
+                new DurableCallable<>() {
+                    @Override
+                    public String getId() {
+                        return "chat";
+                    }
+
+                    @Override
+                    public Class<ChatMessage> getResultClass() {
+                        return ChatMessage.class;
+                    }
+
+                    @Override
+                    public ChatMessage call() throws Exception {
+                        return chatModel.chat(messages, Map.of());
+                    }
+                };
+
         for (int attempt = 0; attempt < numRetries + 1; attempt++) {
             try {
-                if (chatAsync) {
-                    response =
-                            ctx.durableExecuteAsync(
-                                    new DurableCallable<>() {
-                                        @Override
-                                        public String getId() {
-                                            return "chat-async";
-                                        }
-
-                                        @Override
-                                        public Class<ChatMessage> getResultClass() {
-                                            return ChatMessage.class;
-                                        }
-
-                                        @Override
-                                        public ChatMessage call() throws Exception {
-                                            return chatModel.chat(messages, Map.of());
-                                        }
-                                    });
-                } else {
-                    response = chatModel.chat(messages, Map.of());
-                }
+                response =
+                        chatAsync
+                                ? ctx.durableExecuteAsync(callable)
+                                : ctx.durableExecute(callable);
                 // only generate structured output for final response.
                 if (outputSchema != null && response.getToolCalls().isEmpty()) {
                     response = generateStructuredOutput(response, outputSchema);

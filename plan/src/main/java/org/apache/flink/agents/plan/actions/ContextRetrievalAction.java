@@ -69,29 +69,26 @@ public class ContextRetrievalAction {
                             contextRetrievalRequestEvent.getQuery(),
                             contextRetrievalRequestEvent.getMaxResults());
 
-            VectorStoreQueryResult result;
-            if (ragAsync) {
-                result =
-                        ctx.durableExecuteAsync(
-                                new DurableCallable<VectorStoreQueryResult>() {
-                                    @Override
-                                    public String getId() {
-                                        return "rag-async";
-                                    }
+            DurableCallable<VectorStoreQueryResult> callable =
+                    new DurableCallable<VectorStoreQueryResult>() {
+                        @Override
+                        public String getId() {
+                            return "rag-async";
+                        }
 
-                                    @Override
-                                    public Class<VectorStoreQueryResult> getResultClass() {
-                                        return VectorStoreQueryResult.class;
-                                    }
+                        @Override
+                        public Class<VectorStoreQueryResult> getResultClass() {
+                            return VectorStoreQueryResult.class;
+                        }
 
-                                    @Override
-                                    public VectorStoreQueryResult call() throws Exception {
-                                        return vectorStore.query(vectorStoreQuery);
-                                    }
-                                });
-            } else {
-                result = vectorStore.query(vectorStoreQuery);
-            }
+                        @Override
+                        public VectorStoreQueryResult call() throws Exception {
+                            return vectorStore.query(vectorStoreQuery);
+                        }
+                    };
+
+            VectorStoreQueryResult result =
+                    ragAsync ? ctx.durableExecuteAsync(callable) : ctx.durableExecute(callable);
 
             ctx.sendEvent(
                     new ContextRetrievalResponseEvent(
