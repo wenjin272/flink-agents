@@ -181,4 +181,4 @@ ReActAgent reviewAnalysisReactAgent = new ReActAgent(
 
 ## MCP Tool
 
-See [MCP]({{< ref "docs/development/mcp" >}}) for details
+See [MCP]({{< ref "docs/development/mcp" >}}) for details.

@@ -40,9 +40,7 @@ Local prompts are templates defined directly in your code. They support variable
 
 MCP (Model Context Protocol) prompts are managed by external MCP servers. They enable dynamic prompt retrieval, centralized prompt management, and integration with external prompt repositories.
 
-{{< hint warning >}}
-MCP Prompt is only supported in python currently.
-{{< /hint >}}
+See [MCP]({{< ref "docs/development/mcp" >}}) for details.
 ## Local Prompt
 
 ### Creating from Text
@@ -328,7 +326,3 @@ public class ReviewAnalysisAgent extends Agent {
 {{< /tabs >}}
 
 Prompts use `{variable_name}` syntax for template variables. Variables are filled from `ChatMessage.extra_args`. The prompt is automatically applied when the chat model is invoked.
-
-## MCP Prompt
-
-See [MCP]({{< ref "docs/development/mcp" >}}) for details

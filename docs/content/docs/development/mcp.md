@@ -30,9 +30,9 @@ MCP (Model Context Protocol) is a standardized protocol for integrating AI appli
 **JDK Requirement (Java API Only):** If you are using the **Java API** to develop Flink Agents jobs with MCP, you need **JDK 17 or higher**. This requirement does not apply to **Python API** users - the Python SDK has its own MCP implementation and works with JDK 11+.
 {{< /hint >}}
 
-## Declare MCP in Agent
+## Declare MCP Server in Agent
 
-Developer can declare a mcp by decorator/annotation when creating an Agent.
+Developer can declare a mcp server by decorator/annotation when creating an Agent.
 
 {{< tabs "Use MCP Tools in Agent" >}}
 
@@ -108,10 +108,10 @@ public static org.apache.flink.agents.integrations.mcp.MCPServer authenticatedMc
                     .build();
 
     // Or using Basic Authentication
-    .addInitialArgument("auth", new BasicAuth("username", "password"))
+    // .addInitialArgument("auth", new BasicAuth("username", "password"))
 
     // Or using API Key Authentication
-    .addInitialArgument("auth", new ApiKeyAuth("X-API-Key", "your-api-key"))
+    // .addInitialArgument("auth", new ApiKeyAuth("X-API-Key", "your-api-key"))
 }
 ```
 {{< /tab >}}
@@ -127,52 +127,6 @@ public static org.apache.flink.agents.integrations.mcp.MCPServer authenticatedMc
 
 
 MCP prompts and tools are managed by external MCP servers and automatically discovered when you define an MCP server connection in your agent.
-
-### Define a MCP Server
-
-Create an MCP server that exposes tools and prompts using the `FastMCP` library:
-
-```python
-# mcp_server.py
-mcp = FastMCP("ReviewServer")
-
-@mcp.prompt()
-def review_analysis_prompt(product_id: str, review: str) -> str:
-    """Prompt for analyzing product reviews."""
-    return f"""
-    Analyze the following product review and provide a satisfaction score (1-5).
-
-    Product ID: {product_id}
-    Review: {review}
-
-    Output format: {{"score": 1-5, "reasons": ["reason1", "reason2"]}}
-    """
-
-@mcp.tool()
-async def notify_shipping_manager(id: str, review: str) -> None:
-    """Notify the shipping manager when product received a negative review due to
-    shipping damage.
-
-    Parameters
-    ----------
-    id : str
-        The id of the product that received a negative review due to shipping damage
-    review: str
-        The negative review content
-    """
-    ...
-
-mcp.run("streamable-http")
-```
-
-**Key points:**
-- Use `@mcp.tool()` decorator to define tools
-- Use `@mcp.prompt()` decorator to define prompts
-- The function name becomes the identifier
-
-### Use in Agent
-
-Connect to the MCP server and use its prompts and tools in your agent:
 
 {{< tabs "Use MCP Prompts and Tools in Agent" >}}
 
@@ -194,8 +148,10 @@ class ReviewAnalysisAgent(Agent):
             clazz=OllamaChatModelSetup,
             connection="ollama_server",
             model="qwen3:8b",
-            prompt="review_analysis_prompt",   # Reference MCP prompt by name
-            tools=["notify_shipping_manager"],  # Reference MCP tool by name
+            # Reference MCP prompt by name like local prompt
+            prompt="review_analysis_prompt",
+            # Reference MCP tool by name like function tool
+            tools=["notify_shipping_manager"],
         )
 ```
 {{< /tab >}}
@@ -217,8 +173,10 @@ public class ReviewAnalysisAgent extends Agent {
         return ResourceDescriptor.Builder.newBuilder(OllamaChatModelSetup.class.getName())
                 .addInitialArgument("connection", "ollamaChatModelConnection")
                 .addInitialArgument("model", "qwen3:8b")
-                .addInitialArgument("prompt", "review_analysis_prompt") // Reference MCP tool by name
-                .addInitialArgument("tools", Collections.singletonList("notifyShippingManager")) // Reference MCP tool by name
+                // Reference MCP prompt by name like local prompt
+                .addInitialArgument("prompt", "review_analysis_prompt") 
+                // Reference MCP tool by name like function tool
+                .addInitialArgument("tools", Collections.singletonList("notifyShippingManager"))
                 .build();
     }
 }
@@ -228,6 +186,5 @@ public class ReviewAnalysisAgent extends Agent {
 {{< /tabs >}}
 
 **Key points:**
-- Reference MCP prompts by their function name (e.g., `"review_analysis_prompt"` in Python, `"reviewAnalysisPrompt"` in Java)
-- Reference MCP tools by their function name (e.g., `"notify_shipping_manager"` in Python, `"notifyShippingManager"` in Java)
-- All tools and prompts from the MCP server are automatically registered
+- All tools and prompts from the MCP server are automatically registered.
+- Reference MCP prompts and tools by their names, like reference [local prompt]({{< ref "docs/development/prompts/#using-prompts-in-agents" >}}) and [function tool]({{< ref "docs/development/tool_use/#define-tool-as-static-method-in-agent-class" >}}) .
