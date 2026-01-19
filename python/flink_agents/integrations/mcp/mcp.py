@@ -38,7 +38,7 @@ from typing_extensions import override
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.prompts.prompt import Prompt
-from flink_agents.api.resource import ResourceType, SerializableResource
+from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.tools.tool import Tool, ToolMetadata, ToolType
 from flink_agents.integrations.mcp.utils import extract_mcp_content_item
 
@@ -49,7 +49,7 @@ class MCPTool(Tool):
     This represents a single tool from an MCP server.
     """
 
-    mcp_server: "MCPServer" = Field(default=None, exclude=True)
+    mcp_server: "MCPServer" = Field(default=None)
 
     @classmethod
     @override
@@ -86,7 +86,7 @@ class MCPPrompt(Prompt):
     title: str | None
     description: str | None = None
     prompt_arguments: list[PromptArgument] = Field(default_factory=list)
-    mcp_server: "MCPServer" = Field(default=None, exclude=True)
+    mcp_server: "MCPServer" = Field(default=None)
 
     def _check_arguments(self, **kwargs: str) -> Dict[str, str]:
         if self.mcp_server is None:
@@ -133,7 +133,7 @@ class MCPPrompt(Prompt):
             finally:
                 self.mcp_server = None
 
-class MCPServer(SerializableResource, ABC):
+class MCPServer(Resource, ABC):
     """Resource representing an MCP server and exposing its tools/prompts.
 
     This is a logical container for MCP tools and prompts; it is not directly invokable.
