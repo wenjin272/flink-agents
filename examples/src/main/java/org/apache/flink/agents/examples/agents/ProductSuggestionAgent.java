@@ -60,7 +60,7 @@ public class ProductSuggestionAgent extends Agent {
         return ResourceDescriptor.Builder.newBuilder(OLLAMA_CHAT_MODEL_SETUP)
                 .addInitialArgument("connection", "ollamaChatModelConnection")
                 .addInitialArgument("model", "qwen3:8b")
-                .addInitialArgument("extract_reasoning", "true")
+                .addInitialArgument("extract_reasoning", true)
                 .addInitialArgument("prompt", "productSuggestionPrompt")
                 .build();
     }
