@@ -151,6 +151,65 @@ After building:
 - The Python package is installed and ready to use
 - The distribution JAR is located at: `dist/target/flink-agents-dist-*.jar`
 
+## Maven Dependencies (For Java)
+
+For developing Flink Agents applications in Java, add the following dependencies to your `pom.xml`:
+
+**Required**
+- **`flink-agents-api`** : Flink Agents API
+- **`flink-streaming-java`** and/or **`flink-table-api-java`** : Flink DataStream and/or Table API
+
+**Optional**
+- **`flink-agents-ide-support`** : Runtime execution dependencies (required for local execution/testing).
+  - Unlike running in a Flink cluster, when running in IDE, because the runtime dependencies are absent, user need additional dependencies.
+    To simplify the complexity for adding multiple dependencies in pom, flink-agents provide the above artifact.
+    This way, users only need to add this single dependency in their pom.xml.
+
+{{< hint info >}}
+All the above dependencies should be in provided scope, to avoid potential conflict with the Flink cluster.
+
+For execution in IDE, enable the feature `add dependencies with provided scope to classpath` in your IDE.
+{{< /hint >}}
+
+**Example `pom.xml`**
+
+```xml
+<properties>
+    <flink.version>2.2</flink.version>
+    <flink-agents.version>0.2-SNAPSHOT</flink-agents.version>
+</properties>
+
+<dependencies>
+    <!-- Flink Agents Core API -->
+    <dependency>
+        <groupId>org.apache.flink</groupId>
+        <artifactId>flink-agents-api</artifactId>
+        <version>${flink-agents.version}</version>
+        <scope>provide</scope>
+    </dependency>
+    <!-- Flink Core API -->
+    <dependency>
+        <groupId>org.apache.flink</groupId>
+        <artifactId>flink-streaming-java</artifactId>
+        <version>${flink.version}</version>
+        <scope>provided</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.apache.flink</groupId>
+        <artifactId>flink-table-api-java</artifactId>
+        <version>${flink.version}</version>
+        <scope>provided</scope>
+    </dependency>
+
+    <!-- Dependencies required for running agents in IDE -->
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-agents-ide-support</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+</dependencies>
+```
 
 ## Deploy to Flink Cluster
 
