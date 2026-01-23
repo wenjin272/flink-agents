@@ -63,6 +63,7 @@ under the License.
         <module>e2e-test</module>
         <module>integrations</module>
         <module>dist</module>
+        <module>ide-support</module>
     </modules>
 
     <dependencyManagement>
