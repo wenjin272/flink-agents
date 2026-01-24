@@ -49,10 +49,10 @@ from flink_agents.api.decorators import (
 from flink_agents.api.events.event import Event, InputEvent, OutputEvent
 from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.memory.long_term_memory import (
+    CompactionConfig,
     LongTermMemoryBackend,
     LongTermMemoryOptions,
     MemorySetItem,
-    SummarizationStrategy,
 )
 from flink_agents.api.resource import (
     Constant,
@@ -176,7 +176,7 @@ class LongTermMemoryAgent(Agent):
             name="test_ltm",
             item_type=str,
             capacity=5,
-            compaction_strategy=SummarizationStrategy(model="ollama_qwen3"),
+            compaction_config=CompactionConfig(model="ollama_qwen3"),
         )
         await ctx.durable_execute_async(memory_set.add, items=input_data.review)
         timestamp_after_add = datetime.now(timezone.utc).isoformat()
