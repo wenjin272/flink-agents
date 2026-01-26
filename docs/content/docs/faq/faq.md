@@ -58,3 +58,41 @@ Cross-language resources, such as using Java resources from Python or vice versa
 This limitation exists because cross-language communication requires the Flink runtime environment to effectively bridge Java and Python processes. In local development mode, this bridge is unavailable.
 
 To use cross-language resources, please test the functionality by deploying to a Flink standalone cluster.
+
+## Q3: Should I choose Java or Python?
+
+When choosing between Flink Agents' Java API and Python API, besides the team's experience and preferences, there's another thing needs to be considered. Flink Agents provides built-in integration supports for many echosystem providers. Some of these supports are in only one language. While you can still use them when building agents in another language, leveraging Flink Agents' cross-language supports, this comes with a limitation of not supporting async execution, which may bring performance concerns. 
+
+The following matrix shows the native integration support status of providers over languages. For those marked as ❌, cross-langauge is needed thus async execution is not supported.
+
+**Chat Models**
+
+| provider | Python | Java |
+|---|---|---|
+| [OpenAI]({{< ref "docs/development/chat_models#openai" >}}) | ✅ | ✅ |
+| [Anthropic]({{< ref "docs/development/chat_models#anthropic" >}}) | ✅ | ❌ |
+| [Ollama]({{< ref "docs/development/chat_models#ollama" >}}) | ✅ | ✅ |
+| [Tongyi (DashScope)]({{< ref "docs/development/chat_models#tongyi-dashscope" >}}) | ✅ | ❌ |
+| [Azure AI]({{< ref "docs/development/chat_models#azure-ai" >}}) | ❌ | ✅ |
+
+**Embedding Models**
+
+| provider | Python | Java |
+|---|---|---|
+| [OpenAI]({{< ref "docs/development/embedding_models#openai" >}}) | ✅ | ❌ |
+| [Ollama]({{< ref "docs/development/embedding_models#ollama" >}}) | ✅ | ✅ |
+
+**Vector Stores**
+
+| provider | Python | Java |
+|---|---|---|
+| [Chroma]({{< ref "docs/development/vector_stores#chroma" >}}) | ✅ | ❌ |
+| [Elasticsearch]({{< ref "docs/development/vector_stores#elasticsearch" >}}) | ❌ | ✅ |
+
+**MCP Server**
+
+| provider | Python | Java 17+ | Java 11-16 |
+|---|---|---|---|
+| [MCP Server]({{< ref "docs/development/mcp" >}}) | ✅ | ✅ | ❌ |
+
+Java native MCP support requires **JDK 17+**. See [MCP]({{< ref "docs/development/mcp" >}}) for details.
