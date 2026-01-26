@@ -30,9 +30,9 @@ This page covers semantic search using vector stores. Additional query modes (ke
 
 ## Overview
 
-### Use Case
 Vector stores enable efficient storage, indexing, and retrieval of high-dimensional embedding vectors alongside their associated documents. They provide the foundation for semantic search capabilities in AI applications by allowing fast similarity searches across large document collections.
 
+### Use Case
 In Flink Agents, vector stores are essential for:
 - **Document Retrieval**: Finding relevant documents based on semantic similarity
 - **Knowledge Base Search**: Querying large collections of information using natural language
@@ -41,7 +41,7 @@ In Flink Agents, vector stores are essential for:
 
 ### Concepts
 * **Document**: Document is the abstraction that represents a piece of text and associated metadata.
-* **Collection**: Collection is the abstraction that represents a set of documents. It is corresponded to different concept for different vector store specification, like index in Elasticsearch and collection in Chroma.
+* **Collection**: Collection is the abstraction that represents a set of documents. It corresponds to different concept for different vector store specification, like index in Elasticsearch and collection in Chroma.
 
 ## How to use
 
@@ -150,7 +150,7 @@ VectorStoreQueryResult result = vectorStore.query(query);
 
 {{< /tabs >}}
 
-### Manage Collections
+### Manage collections
 
 User can dynamic create, get or delete collections in agent execution:
 * `get_or_create_collection`: Get a collection by name, create if not exists. User can provide additional metadatas.
