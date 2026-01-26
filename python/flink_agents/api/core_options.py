@@ -90,6 +90,10 @@ class AgentConfigOptions(metaclass=AgentConfigOptionsMeta):
         default=None,
     )
 
+
+class AgentExecutionOptions:
+    """Execution options for Flink Agents."""
+
     ERROR_HANDLING_STRATEGY = ConfigOption(
         key="error-handling-strategy",
         config_type=ErrorHandlingStrategy,
@@ -101,10 +105,6 @@ class AgentConfigOptions(metaclass=AgentConfigOptionsMeta):
         config_type=int,
         default=3,
     )
-
-
-class AgentExecutionOptions(metaclass=AgentConfigOptionsMeta):
-    """Execution options for Flink Agents."""
 
     CHAT_ASYNC = ConfigOption(
         key="chat.async",
