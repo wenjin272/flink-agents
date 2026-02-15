@@ -1,10 +1,10 @@
 # IDE
 .vscode
-.idea/
-python/.idea/
+.idea
+python/.idea
 *.iml
-.qwen/
-.qoder/
+.qwen
+.qoder
 
 # OS
 .DS_Store
