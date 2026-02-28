@@ -40,7 +40,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: 3.12
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
@@ -49,7 +49,7 @@ jobs:
         run: ./tools/lint.sh -c
 
   java_tests:
-    name: ut-java [${{ matrix.os }}] [java-${{ matrix.java-version}}]
+    name: ut-java [${{ matrix.os }}] [java-${{ matrix.java-version}}] [python-3.12]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -66,7 +66,7 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
@@ -85,13 +85,13 @@ jobs:
           tools/ut.sh -j
 
   python_tests:
-    name: ut-python [${{ matrix.os }}] [python-${{ matrix.python-version}}]
+    name: ut-python [${{ matrix.os }}] [java-17] [python-${{ matrix.python-version}}]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ 'macos-latest', 'ubuntu-latest' ]
-        python-version: [ '3.10', '3.11' ]
+        python-version: [ '3.10', '3.11', '3.12' ]
     steps:
       - uses: actions/checkout@v4
       - name: Install java
@@ -113,14 +113,24 @@ jobs:
         run: tools/ut.sh -p
 
   python_it_tests:
-    name: it-python [${{ matrix.os }}] [python-${{ matrix.python-version}}] [flink-${{ matrix.flink-version}}]
+    name: it-python [${{ matrix.os }}] [java-17] [python-${{ matrix.python-version}}] [flink-${{ matrix.flink-version}}]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ 'ubuntu-latest' ]
-        python-version: [ '3.11' ]
-        flink-version: [ "1.20", "2.0", "2.1", "2.2" ]
+        include:
+          - os: 'ubuntu-latest'
+            python-version: '3.11'
+            flink-version: "1.20"
+          - os: 'ubuntu-latest'
+            python-version: '3.11'
+            flink-version: "2.0"
+          - os: 'ubuntu-latest'
+            python-version: '3.12'
+            flink-version: "2.1"
+          - os: 'ubuntu-latest'
+            python-version: '3.12'
+            flink-version: "2.2"
     steps:
       - uses: actions/checkout@v4
       - name: Install java
@@ -144,7 +154,7 @@ jobs:
         run: tools/ut.sh -p -e -f ${{ matrix.flink-version }}
 
   java_it_tests:
-    name: it-java [${{ matrix.os }}] [java-${{ matrix.java-version}}]  [flink-${{ matrix.flink-version}}]
+    name: it-java [${{ matrix.os }}] [java-${{ matrix.java-version}}] [flink-${{ matrix.flink-version}}]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -200,7 +210,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ 'ubuntu-latest' ]
-        python-version: [ '3.11' ]
+        python-version: [ '3.12' ]
         java-version: [ '21' ]
     steps:
       - uses: actions/checkout@v4

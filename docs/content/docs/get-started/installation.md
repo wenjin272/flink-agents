@@ -56,11 +56,15 @@ cp $FLINK_HOME/opt/flink-python-${FLINK_VERSION}.jar $FLINK_HOME/lib/
 **Note:** For more detailed Flink installation instructions, refer to the [Flink local installation guide](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/try-flink/local_installation/).
 {{< /hint >}}
 
+{{< hint info >}}
+**Note**: If you want to use python 3.12, you need install Flink above 2.1 (including 2.1).
+{{< /hint >}}
+
 ## Install Flink Agents
 
 ### Prerequisites
 
-* Python 3.10 or 3.11
+* Python 3.10, 3.11 or 3.12
 * For building from source, you also need:
   - Unix-like environment (Linux, Mac OS X, Cygwin, or WSL)
   - Git
