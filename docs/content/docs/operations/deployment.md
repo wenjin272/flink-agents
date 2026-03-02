@@ -112,8 +112,12 @@ The output data is a list of dictionaries `List[Dict[str, Any]]` where each dict
 ### Prerequisites
 
 - **Operating System**: Unix-like environment (Linux, macOS, Cygwin, or WSL)  
-- **Python**: Version 3.10 or 3.11  
+- **Python**: Version 3.10, 3.11 or 3.12
 - **Flink**: A running Flink cluster with version above 1.20.3 (including 1.20.3) and the Flink Agents dependency installed
+
+{{< hint info >}}
+**Note**: Python 3.12 requires Flink above 2.1 (including 2.1).
+{{< /hint >}}
 
 ### Prepare Flink Agents
 

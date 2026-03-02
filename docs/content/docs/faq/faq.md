@@ -29,7 +29,11 @@ This page describes the solutions to some common questions for Flink Agents user
 
 To ensure stability and compatibility when running Flink Agents jobs, please be aware of the following Python environment guidelines:
 
-- **Recommended Python versions**: It is advised to use officially supported Python versions such as Python 3.10 or 3.11. These versions have been thoroughly tested and offer the best compatibility with Flink Agents.
+- **Recommended Python versions**: It is advised to use officially supported Python versions such as Python 3.10, 3.11 or 3.12. These versions have been thoroughly tested and offer the best compatibility with Flink Agents.
+
+  {{< hint info >}}
+  **Note**: Python 3.12 must work with Flink above 2.1 (including 2.1).
+  {{< /hint >}}
 
 - **Installation recommendations**:
     - **For Linux users**: We recommend installing Python via your system package manager (e.g., using `apt`: `sudo apt install python3`).

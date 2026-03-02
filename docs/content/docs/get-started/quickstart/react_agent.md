@@ -209,7 +209,7 @@ reviewAnalysisResStream.print();
 * Unix-like environment (we use Linux, Mac OS X, Cygwin, WSL)
 * Git
 * Java 11+
-* Python 3.10 or 3.11
+* Python 3.10, 3.11 or 3.12
 
 ### Preparation
 
