@@ -17,7 +17,8 @@
 #################################################################################
 import importlib
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 from importlib_resources import files
 from pyflink.common import TypeInformation
@@ -31,6 +32,7 @@ from flink_agents.api.resource import (
     ResourceType,
     SerializableResource,
 )
+from flink_agents.api.skills.skill_manager import AgentSkillManager
 from flink_agents.api.version_compatibility import flink_version_manager
 
 
@@ -250,3 +252,129 @@ class AgentsExecutionEnvironment(ABC):
 
         self._resources[resource_type][name] = instance
         return self
+
+    def add_skills_from_paths(
+        self,
+        *paths: Path | str,
+        source: Optional[str] = None,
+    ) -> "AgentsExecutionEnvironment":
+        """Add skills from filesystem paths.
+
+        Each path should point to a directory containing skill subdirectories,
+        where each subdirectory has a SKILL.md file.
+
+        Parameters
+        ----------
+        *paths : Path | str
+            Paths to directories containing skill subdirectories.
+        source : Optional[str]
+            Custom source identifier for the skills.
+
+        Returns:
+        -------
+        AgentsExecutionEnvironment
+            The environment to register the skills.
+
+        Example:
+        -------
+        >>> env = AgentsExecutionEnvironment.get_execution_environment()
+        >>> env.add_skills_from_paths("/path/to/skills", "/another/path")
+        """
+        manager = self._get_or_create_skill_manager()
+        for path in paths:
+            manager.add_skills_from_path(path, source=source)
+        return self
+
+    def add_skills_from_resources(
+        self,
+        package_path: str,
+        source: Optional[str] = None,
+    ) -> "AgentsExecutionEnvironment":
+        """Add skills from Python package resources.
+
+        This is useful for distributing skills within Python packages,
+        similar to JAR resources in Java.
+
+        Parameters
+        ----------
+        package_path : str
+            Python package path containing skills (e.g., "my_package.skills").
+        source : Optional[str]
+            Custom source identifier for the skills.
+
+        Returns:
+        -------
+        AgentsExecutionEnvironment
+            The environment to register the skills.
+
+        Example:
+        -------
+        >>> env = AgentsExecutionEnvironment.get_execution_environment()
+        >>> env.add_skills_from_resources("my_package.skills")
+        """
+        manager = self._get_or_create_skill_manager()
+        manager.add_skills_from_resources(package_path, source=source)
+        return self
+
+    def add_skills_from_urls(
+        self,
+        *urls: str,
+        source: Optional[str] = None,
+    ) -> "AgentsExecutionEnvironment":
+        """Add skills from remote URLs.
+
+        Each URL should point to either:
+        - A zip file containing skill directories
+        - A directory listing endpoint
+
+        Parameters
+        ----------
+        *urls : str
+            URLs to load skills from.
+        source : Optional[str]
+            Custom source identifier for the skills.
+
+        Returns:
+        -------
+        AgentsExecutionEnvironment
+            The environment to register the skills.
+
+        Example:
+        -------
+        >>> env = AgentsExecutionEnvironment.get_execution_environment()
+        >>> env.add_skills_from_urls("https://example.com/skills.zip")
+        """
+        manager = self._get_or_create_skill_manager()
+        for url in urls:
+            manager.add_skills_from_url(url, source=source)
+        return self
+
+    def get_skill_manager(self) -> AgentSkillManager:
+        """Get the skill manager for this environment.
+
+        Returns:
+        -------
+        AgentSkillManager
+            The skill manager.
+
+        Raises:
+        ------
+        ValueError
+            If no skills have been registered.
+        """
+        if not hasattr(self, "_skill_manager") or self._skill_manager is None:
+            msg = "No skills have been registered. Use add_skills_from_* methods first."
+            raise ValueError(msg)
+        return self._skill_manager
+
+    def _get_or_create_skill_manager(self) -> AgentSkillManager:
+        """Get or create the skill manager.
+
+        Returns:
+        -------
+        AgentSkillManager
+            The skill manager.
+        """
+        if not hasattr(self, "_skill_manager") or self._skill_manager is None:
+            self._skill_manager = AgentSkillManager()
+        return self._skill_manager

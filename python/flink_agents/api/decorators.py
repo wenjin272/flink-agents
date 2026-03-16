@@ -189,6 +189,36 @@ def vector_store(func: Callable) -> Callable:
     func._is_vector_store = True
     return func
 
+
+def skills(*skill_names: str) -> Callable:
+    """Decorator for marking a function declaring skills to be used by an agent.
+
+    This decorator can be used to specify which skills an agent should have
+    access to. The skill_names should be a list of skill names (not skill IDs).
+
+    Parameters
+    ----------
+    *skill_names : str
+        Variable number of skill names to associate with the agent.
+
+    Returns:
+    -------
+    Callable
+        Decorator function that marks the target function with skill names.
+
+    Example:
+    -------
+    >>> @skills("pdf-processing", "data-analysis")
+    ... def my_agent_config():
+    ...     pass
+    """
+    def decorator(func: Callable) -> Callable:
+        func._is_skills = True
+        func._skill_names = list(skill_names)
+        return func
+    return decorator
+
+
 def java_resource(cls: Type) -> Type:
     """Decorator to mark a class as Java resource."""
     cls._is_java_resource = True
