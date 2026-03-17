@@ -99,7 +99,7 @@ Content for skill two.
     def test_get_skill(self, temp_skills_dir: Path) -> None:
         """Test getting a specific skill."""
         repo = FileSystemSkillRepository(temp_skills_dir)
-        skill = repo.get_skill("skill-one")
+        skill = repo.load_content("skill-one")
 
         assert skill is not None
         assert skill.name == "skill-one"
@@ -110,7 +110,7 @@ Content for skill two.
     def test_get_skill_with_resources(self, temp_skills_dir: Path) -> None:
         """Test getting a skill with resources."""
         repo = FileSystemSkillRepository(temp_skills_dir)
-        skill = repo.get_skill("skill-one")
+        skill = repo.load_content("skill-one")
 
         assert skill is not None
         resources = skill.get_resource_paths()
@@ -122,7 +122,7 @@ Content for skill two.
     def test_get_nonexistent_skill(self, temp_skills_dir: Path) -> None:
         """Test getting a nonexistent skill."""
         repo = FileSystemSkillRepository(temp_skills_dir)
-        skill = repo.get_skill("nonexistent")
+        skill = repo.load_content("nonexistent")
         assert skill is None
 
     def test_skill_exists(self, temp_skills_dir: Path) -> None:
@@ -170,7 +170,7 @@ Content for skill two.
         assert result is True
         assert repo.skill_exists("new-skill")
 
-        loaded = repo.get_skill("new-skill")
+        loaded = repo.load_content("new-skill")
         assert loaded is not None
         assert loaded.name == "new-skill"
         assert loaded.get_resource("script.py") is not None
@@ -199,9 +199,9 @@ Content for skill two.
     def test_custom_source(self, temp_skills_dir: Path) -> None:
         """Test custom source identifier."""
         repo = FileSystemSkillRepository(temp_skills_dir, source="my-source")
-        skill = repo.get_skill("skill-one")
+        skill = repo.load_content("skill-one")
         assert skill is not None
-        assert skill.source == "my-source"
+        assert skill.group == "my-source"
 
 
 class TestSkillRepositoryInfo:

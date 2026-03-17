@@ -75,7 +75,7 @@ class FileSystemSkillRepository(SkillRepository):
     -------
     >>> from pathlib import Path
     >>> repo = FileSystemSkillRepository(Path("/path/to/skills"))
-    >>> skill = repo.get_skill("my-skill")
+    >>> skill = repo.load_content("my-skill")
     """
 
     SKILL_MD_FILE = "SKILL.md"
@@ -83,10 +83,6 @@ class FileSystemSkillRepository(SkillRepository):
     def __init__(
         self,
         base_dir: Path | str,
-        writeable: bool = True,
-        source: str | None = None,
-        skip_dirs: Set[str] | None = None,
-        skip_patterns: Set[str] | None = None,
     ) -> None:
         """Create a FileSystemSkillRepository.
 
@@ -94,14 +90,6 @@ class FileSystemSkillRepository(SkillRepository):
         ----------
         base_dir : Path | str
             The base directory containing skill subdirectories.
-        writeable : bool
-            Whether the repository supports write operations.
-        source : Optional[str]
-            Custom source identifier for skills.
-        skip_dirs : Optional[Set[str]]
-            Directory names to skip when loading resources.
-        skip_patterns : Optional[Set[str]]
-            File patterns to skip when loading resources.
 
         Raises:
         ------
@@ -122,13 +110,6 @@ class FileSystemSkillRepository(SkillRepository):
         if not self._base_dir.is_dir():
             raise ValueError(f"Base directory is not a directory: {self._base_dir}")
 
-        self._writeable = writeable
-        self._source = source
-        self._skip_dirs = skip_dirs if skip_dirs is not None else DEFAULT_SKIP_DIRS
-        self._skip_patterns = (
-            skip_patterns if skip_patterns is not None else DEFAULT_SKIP_PATTERNS
-        )
-
     @property
     def base_dir(self) -> Path:
         """Get the base directory.
@@ -139,8 +120,59 @@ class FileSystemSkillRepository(SkillRepository):
             The base directory path.
         """
         return self._base_dir
-
+    
     def get_skill(self, name: str) -> AgentSkill | None:
+        """Get a skill by name.
+
+        Parameters
+        ----------
+        name : str
+            The skill name.
+
+        Returns:
+        -------
+        Optional[AgentSkill]
+            The skill, or None if not found.
+        """
+        skill_dir = self._base_dir / name
+        skill_md_path = skill_dir / self.SKILL_MD_FILE
+
+        if not skill_md_path.exists():
+            return None
+
+        return self._load_skill(skill_dir)
+    
+    def get_skills(self) -> List[AgentSkill]:
+        """Get all skills in this repository.
+
+        Returns:
+        -------
+        List[AgentSkill]
+            List of all skills.
+        """
+        skills = []
+        for skill_name in self.get_all_skill_names():
+            skill = self.get_skill(skill_name)
+            if skill is not None:
+                skills.append(skill)
+        return skills
+
+    def get_all_skill_names(self) -> List[str]:
+        """Get all skill names in this repository.
+
+        Returns:
+        -------
+        List[str]
+            List of skill names.
+        """
+        skill_names = []
+        for entry in self._base_dir.iterdir():
+            if entry.is_dir() and (entry / self.SKILL_MD_FILE).exists():
+                skill_names.append(entry.name)
+        return sorted(skill_names)
+
+
+    def load_content(self, name: str) -> AgentSkill | None:
         """Get a skill by name.
 
         Parameters
@@ -185,127 +217,10 @@ class FileSystemSkillRepository(SkillRepository):
         """
         skills = []
         for skill_name in self.get_all_skill_names():
-            skill = self.get_skill(skill_name)
+            skill = self.load_content(skill_name)
             if skill is not None:
                 skills.append(skill)
         return skills
-
-    def skill_exists(self, name: str) -> bool:
-        """Check if a skill exists in this repository.
-
-        Parameters
-        ----------
-        name : str
-            The skill name.
-
-        Returns:
-        -------
-        bool
-            True if the skill exists.
-        """
-        skill_dir = self._base_dir / name
-        return skill_dir.is_dir() and (skill_dir / self.SKILL_MD_FILE).exists()
-
-    def get_repository_info(self) -> SkillRepositoryInfo:
-        """Get information about this repository.
-
-        Returns:
-        -------
-        SkillRepositoryInfo
-            Repository information.
-        """
-        return SkillRepositoryInfo(
-            repo_type="filesystem",
-            location=str(self._base_dir),
-            writeable=self._writeable,
-        )
-
-    def get_source(self) -> str:
-        """Get the source identifier for skills from this repository.
-
-        Returns:
-        -------
-        str
-            Source identifier.
-        """
-        if self._source is not None:
-            return self._source
-
-        # Build default source from path
-        parent = self._base_dir.parent.name
-        dir_name = self._base_dir.name
-
-        if parent:
-            return f"filesystem-{parent}_{dir_name}"
-        return f"filesystem-{dir_name}"
-
-    def save(self, skills: List[AgentSkill], force: bool = False) -> bool:
-        """Save skills to this repository.
-
-        Parameters
-        ----------
-        skills : List[AgentSkill]
-            Skills to save.
-        force : bool
-            Whether to overwrite existing skills.
-
-        Returns:
-        -------
-        bool
-            True if successful, False otherwise.
-        """
-        if not self._writeable:
-            return False
-
-        if not skills:
-            return False
-
-        for skill in skills:
-            skill_dir = self._base_dir / skill.name
-
-            # Check if skill already exists
-            if skill_dir.exists() and not force:
-                continue
-
-            # Create skill directory
-            skill_dir.mkdir(parents=True, exist_ok=True)
-
-            # Write SKILL.md
-            skill_md_content = SkillParser.generate_skill_md(skill)
-            (skill_dir / self.SKILL_MD_FILE).write_text(skill_md_content)
-
-            # Write resources
-            for resource_path, content in skill.resources.items():
-                resource_file = skill_dir / resource_path
-                resource_file.parent.mkdir(parents=True, exist_ok=True)
-                resource_file.write_text(content)
-
-        return True
-
-    def delete(self, skill_name: str) -> bool:
-        """Delete a skill from this repository.
-
-        Parameters
-        ----------
-        skill_name : str
-            Name of the skill to delete.
-
-        Returns:
-        -------
-        bool
-            True if successful, False otherwise.
-        """
-        if not self._writeable:
-            return False
-
-        import shutil
-
-        skill_dir = self._base_dir / skill_name
-        if not skill_dir.exists():
-            return False
-
-        shutil.rmtree(skill_dir)
-        return True
 
     def _load_skill(self, skill_dir: Path) -> AgentSkill | None:
         """Load a skill from a directory.
@@ -329,13 +244,9 @@ class FileSystemSkillRepository(SkillRepository):
             # Read SKILL.md
             skill_md_content = skill_md_path.read_text()
 
-            # Load resources
-            resources = self._load_resources(skill_dir)
-
             # Parse and create skill
-            skill = SkillParser.parse_skill(
-                skill_md_content, resources, source=self.get_source()
-            )
+            skill = SkillParser.parse_skill(skill_md_content, self)
+            skill._repo = self
 
             # Validate skill name matches directory name
             if skill.name != skill_dir.name:

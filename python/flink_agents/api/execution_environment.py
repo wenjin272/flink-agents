@@ -310,10 +310,10 @@ class AgentsExecutionEnvironment(ABC):
         Example:
         -------
         >>> env = AgentsExecutionEnvironment.get_execution_environment()
-        >>> env.add_skills_from_resources("my_package.skills")
+        >>> env.add_skills_from_resource("my_package.skills")
         """
         manager = self._get_or_create_skill_manager()
-        manager.add_skills_from_resources(package_path, source=source)
+        manager.add_skills_from_resource(package_path, source=source)
         return self
 
     def add_skills_from_urls(

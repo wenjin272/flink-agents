@@ -22,9 +22,6 @@ for loading skills from different sources (filesystem, classpath, URL).
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List
-
-from flink_agents.api.skills.agent_skill import AgentSkill
 
 
 @dataclass
@@ -66,8 +63,8 @@ class SkillRepository(ABC):
     """
 
     @abstractmethod
-    def get_skill(self, name: str) -> AgentSkill | None:
-        """Get a skill by name.
+    def load_content(self, name: str) -> str:
+        """Load a skill by name.
 
         Parameters
         ----------
@@ -79,110 +76,8 @@ class SkillRepository(ABC):
         Optional[AgentSkill]
             The skill, or None if not found.
         """
-
+        
     @abstractmethod
-    def get_all_skill_names(self) -> List[str]:
-        """Get all skill names in this repository.
+    def load_resources(self, name: str) -> str:
+        """Load resources of the specified skill."""
 
-        Returns:
-        -------
-        List[str]
-            List of skill names.
-        """
-
-    @abstractmethod
-    def get_all_skills(self) -> List[AgentSkill]:
-        """Get all skills in this repository.
-
-        Returns:
-        -------
-        List[AgentSkill]
-            List of all skills.
-        """
-
-    @abstractmethod
-    def skill_exists(self, name: str) -> bool:
-        """Check if a skill exists in this repository.
-
-        Parameters
-        ----------
-        name : str
-            The skill name.
-
-        Returns:
-        -------
-        bool
-            True if the skill exists.
-        """
-
-    @abstractmethod
-    def get_repository_info(self) -> SkillRepositoryInfo:
-        """Get information about this repository.
-
-        Returns:
-        -------
-        SkillRepositoryInfo
-            Repository information.
-        """
-
-    @abstractmethod
-    def get_source(self) -> str:
-        """Get the source identifier for skills from this repository.
-
-        Returns:
-        -------
-        str
-            Source identifier.
-        """
-
-    def save(self, skills: List[AgentSkill], force: bool = False) -> bool:
-        """Save skills to this repository.
-
-        Parameters
-        ----------
-        skills : List[AgentSkill]
-            Skills to save.
-        force : bool
-            Whether to overwrite existing skills.
-
-        Returns:
-        -------
-        bool
-            True if successful, False otherwise.
-
-        Raises:
-        ------
-        NotImplementedError
-            If the repository does not support write operations.
-        """
-        raise NotImplementedError("This repository does not support write operations")
-
-    def delete(self, skill_name: str) -> bool:
-        """Delete a skill from this repository.
-
-        Parameters
-        ----------
-        skill_name : str
-            Name of the skill to delete.
-
-        Returns:
-        -------
-        bool
-            True if successful, False otherwise.
-
-        Raises:
-        ------
-        NotImplementedError
-            If the repository does not support write operations.
-        """
-        raise NotImplementedError("This repository does not support write operations")
-
-    def is_writeable(self) -> bool:
-        """Check if this repository supports write operations.
-
-        Returns:
-        -------
-        bool
-            True if writeable.
-        """
-        return self.get_repository_info().writeable
