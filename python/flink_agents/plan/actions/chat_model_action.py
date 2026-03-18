@@ -40,6 +40,7 @@ from flink_agents.api.memory_object import MemoryObject
 from flink_agents.api.resource import ResourceType
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.plan.actions.action import Action
+from flink_agents.plan.actions.utils import support_async
 from flink_agents.plan.function import PythonFunction
 
 if TYPE_CHECKING:
@@ -179,11 +180,13 @@ async def chat(
     )
 
     chat_async = ctx.config.get(AgentExecutionOptions.CHAT_ASYNC)
-    # java chat model doesn't support async execution,
-    # see https://github.com/apache/flink-agents/issues/448 for details.
-    chat_async = chat_async and not isinstance(chat_model, JavaChatModelSetup)
 
-    error_handling_strategy = ctx.config.get(AgentExecutionOptions.ERROR_HANDLING_STRATEGY)
+    if isinstance(chat_model, JavaChatModelSetup) and not support_async():
+        chat_async = False
+
+    error_handling_strategy = ctx.config.get(
+        AgentExecutionOptions.ERROR_HANDLING_STRATEGY
+    )
     num_retries = 0
     if error_handling_strategy == ErrorHandlingStrategy.RETRY:
         num_retries = max(0, ctx.config.get(AgentExecutionOptions.MAX_RETRIES))
@@ -196,8 +199,16 @@ async def chat(
             else:
                 response = ctx.durable_execute(chat_model.chat, messages)
 
-            if response.extra_args.get("model_name") and response.extra_args.get("promptTokens") and response.extra_args.get("completionTokens"):
-                chat_model._record_token_metrics(response.extra_args["model_name"], response.extra_args["promptTokens"], response.extra_args["completionTokens"])
+            if (
+                response.extra_args.get("model_name")
+                and response.extra_args.get("promptTokens")
+                and response.extra_args.get("completionTokens")
+            ):
+                chat_model._record_token_metrics(
+                    response.extra_args["model_name"],
+                    response.extra_args["promptTokens"],
+                    response.extra_args["completionTokens"],
+                )
             if output_schema is not None and len(response.tool_calls) == 0:
                 response = _generate_structured_output(response, output_schema)
             break

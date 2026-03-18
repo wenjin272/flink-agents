@@ -33,6 +33,8 @@ import org.apache.flink.agents.plan.JavaFunction;
 
 import java.util.List;
 
+import static org.apache.flink.agents.plan.actions.Utils.supportAsync;
+
 /** Built-in action for processing context retrieval requests. */
 public class ContextRetrievalAction {
 
@@ -60,9 +62,9 @@ public class ContextRetrievalAction {
                                     contextRetrievalRequestEvent.getVectorStore(),
                                     ResourceType.VECTOR_STORE);
 
-            // TODO: python vector store doesn't support async execution yet, see
-            // https://github.com/apache/flink-agents/issues/448 for details.
-            ragAsync = ragAsync && !(vectorStore instanceof PythonVectorStore);
+            if ((vectorStore instanceof PythonVectorStore) && !supportAsync()) {
+                ragAsync = false;
+            }
 
             final VectorStoreQuery vectorStoreQuery =
                     new VectorStoreQuery(

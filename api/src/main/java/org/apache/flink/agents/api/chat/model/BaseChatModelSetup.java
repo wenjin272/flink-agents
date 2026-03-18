@@ -49,6 +49,18 @@ public abstract class BaseChatModelSetup extends Resource {
         this.tools = descriptor.getArgument("tools");
     }
 
+    /**
+     * Trigger construction for resource objects.
+     *
+     * <p>Currently, in cross-language invocation scenarios, constructing resource object within an
+     * async thread may encounter issues. We resolved this issue by moving the construction of the
+     * resources object out of the method to be async executed and invoking it in the main thread.
+     */
+    @Override
+    public void open() throws Exception {
+        this.getResource.apply(this.connection, ResourceType.CHAT_MODEL_CONNECTION);
+    }
+
     public abstract Map<String, Object> getParameters();
 
     public ChatMessage chat(List<ChatMessage> messages) {

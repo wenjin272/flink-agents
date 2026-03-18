@@ -124,6 +124,17 @@ class JavaChatModelSetupImpl(JavaChatModelSetup):
         return {}
 
     @override
+    def open(self) -> None:
+        """Trigger construction for resource objects.
+
+        Currently, in cross-language invocation scenarios, constructing resource
+        object within an async thread may encounter issues. We resolved this issue
+        by moving the construction of the resources object out of the method to be
+        async executed and invoking it in the main thread.
+        """
+        self._j_resource.open()
+
+    @override
     def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
         """Execute chat conversation by delegating to Java implementation.
 

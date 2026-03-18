@@ -68,6 +68,17 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
         return {}
 
     @override
+    def open(self) -> None:
+        """Trigger construction for java resource objects.
+
+        Currently, in cross-language invocation scenarios, constructing resource
+        object within an async thread may encounter issues. We resolved this issue
+        by moving the construction of the resources object out of the method to be
+        async executed and invoking it in the main thread.
+        """
+        self._j_resource.open()
+
+    @override
     def add(
             self,
             documents: Document | List[Document],

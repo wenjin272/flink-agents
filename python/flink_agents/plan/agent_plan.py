@@ -218,6 +218,7 @@ class AgentPlan(BaseModel):
             resource = resource_provider.provide(
                 get_resource=self.get_resource, config=self.config
             )
+            resource.open()
             self.__resources[type][name] = resource
         return self.__resources[type][name]
 

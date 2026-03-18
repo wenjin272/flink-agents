@@ -44,6 +44,18 @@ public abstract class BaseEmbeddingModelSetup extends Resource {
         this.model = descriptor.getArgument("model");
     }
 
+    /**
+     * Trigger construction for resource objects.
+     *
+     * <p>Currently, in cross-language invocation scenarios, constructing resource object within an
+     * async thread may encounter issues. We resolved this issue by moving the construction of the
+     * resources object out of the method to be async executed and invoking it in the main thread.
+     */
+    @Override
+    public void open() {
+        this.getConnection();
+    }
+
     public abstract Map<String, Object> getParameters();
 
     @Override

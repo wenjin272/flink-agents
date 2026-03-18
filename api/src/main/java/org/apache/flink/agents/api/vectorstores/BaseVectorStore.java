@@ -46,6 +46,18 @@ public abstract class BaseVectorStore extends Resource {
         this.embeddingModel = descriptor.getArgument("embedding_model");
     }
 
+    /**
+     * Trigger construction for resource objects.
+     *
+     * <p>Currently, in cross-language invocation scenarios, constructing resource object within an
+     * async thread may encounter issues. We resolved this issue by moving the construction of the
+     * resources object out of the method to be async executed and invoking it in the main thread.
+     */
+    @Override
+    public void open() {
+        this.getResource.apply(this.embeddingModel, ResourceType.EMBEDDING_MODEL);
+    }
+
     @Override
     public ResourceType getResourceType() {
         return ResourceType.VECTOR_STORE;

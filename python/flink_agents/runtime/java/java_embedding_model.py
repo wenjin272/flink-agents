@@ -17,6 +17,8 @@
 #################################################################################
 from typing import Any, Dict, Sequence
 
+from typing_extensions import override
+
 from flink_agents.api.embedding_models.java_embedding_model import (
     JavaEmbeddingModelConnection,
     JavaEmbeddingModelSetup,
@@ -95,6 +97,17 @@ class JavaEmbeddingModelSetupImpl(JavaEmbeddingModelSetup):
             Empty dictionary as parameters are managed by Java side
         """
         return {}
+
+    @override
+    def open(self) -> None:
+        """Trigger construction for java resource objects.
+
+        Currently, in cross-language invocation scenarios, constructing resource
+        object within an async thread may encounter issues. We resolved this issue
+        by moving the construction of the resources object out of the method to be
+        async executed and invoking it in the main thread.
+        """
+        self._j_resource.open()
 
     def embed(self, text: str | Sequence[str], **kwargs: Any) -> list[float] | list[list[float]]:
         """Generate embedding vector for a single text query.
