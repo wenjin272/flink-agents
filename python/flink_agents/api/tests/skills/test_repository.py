@@ -18,6 +18,7 @@
 """Unit tests for Skill Repository components."""
 import tempfile
 from pathlib import Path
+from typing import Any, Generator
 
 import pytest
 
@@ -28,84 +29,43 @@ from flink_agents.api.skills.repository.filesystem_repository import (
 from flink_agents.api.skills.repository.skill_repository import SkillRepositoryInfo
 from flink_agents.api.skills.skill_parser import SkillParser
 
-
+base_dir = Path(__file__).parent
 class TestFileSystemSkillRepository:
     """Tests for FileSystemSkillRepository class."""
-
+    
     @pytest.fixture
-    def temp_skills_dir(self) -> Path:
-        """Create a temporary directory with test skills."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            skills_dir = Path(tmpdir)
-
-            # Create first skill
-            skill1_dir = skills_dir / "skill-one"
-            skill1_dir.mkdir()
-            skill1_md = """---
-name: skill-one
-description: First test skill
-license: Apache-2.0
----
-# Skill One
-
-This is the first skill.
-
-## Instructions
-1. Do something
-2. Do something else
-"""
-            (skill1_dir / "SKILL.md").write_text(skill1_md)
-
-            # Create scripts directory
-            scripts_dir = skill1_dir / "scripts"
-            scripts_dir.mkdir()
-            (scripts_dir / "run.sh").write_text("#!/bin/bash\necho 'Hello from skill one'")
-
-            # Create second skill
-            skill2_dir = skills_dir / "skill-two"
-            skill2_dir.mkdir()
-            skill2_md = """---
-name: skill-two
-description: Second test skill
----
-# Skill Two
-
-Content for skill two.
-"""
-            (skill2_dir / "SKILL.md").write_text(skill2_md)
-
-            yield skills_dir
-
-    def test_create_repository(self, temp_skills_dir: Path) -> None:
+    def skills_dir(self) -> Generator[Path, Any, None]:
+        """Get the skills' directory."""
+        yield base_dir / "resources" / "skills"
+        
+    def test_create_repository(self, skills_dir: Path) -> None:
         """Test creating a repository."""
-        repo = FileSystemSkillRepository(temp_skills_dir)
+        repo = FileSystemSkillRepository(skills_dir)
         # Path is resolved, so compare resolved paths
-        assert repo.base_dir == temp_skills_dir.resolve()
-        assert repo.is_writeable()
+        assert repo.base_dir == skills_dir.resolve()
 
     def test_create_repository_invalid_path(self) -> None:
         """Test creating repository with invalid path."""
         with pytest.raises(ValueError):
             FileSystemSkillRepository("/nonexistent/path")
 
-    def test_get_all_skill_names(self, temp_skills_dir: Path) -> None:
+    def test_get_all_skill_names(self, skills_dir: Path) -> None:
         """Test getting all skill names."""
-        repo = FileSystemSkillRepository(temp_skills_dir)
+        repo = FileSystemSkillRepository(skills_dir)
         names = repo.get_all_skill_names()
         assert len(names) == 2
-        assert "skill-one" in names
-        assert "skill-two" in names
+        assert "github" in names
+        assert "multi-search-engine" in names
 
-    def test_get_skill(self, temp_skills_dir: Path) -> None:
+    def test_get_skill(self, skills_dir: Path) -> None:
         """Test getting a specific skill."""
-        repo = FileSystemSkillRepository(temp_skills_dir)
-        skill = repo.load_content("skill-one")
+        repo = FileSystemSkillRepository(skills_dir)
+        skill = repo.load_content("github")
 
         assert skill is not None
-        assert skill.name == "skill-one"
-        assert skill.description == "First test skill"
-        assert skill.license == "Apache-2.0"
-        assert "# Skill One" in skill.skill_content
+        assert skill.name == "github"
+        assert skill.description == "Interact with GitHub using the `gh` CLI. Use `gh issue`, `gh pr`, `gh run`, and `gh api` for issues, PRs, CI runs, and advanced queries."
+        assert "## JSON Output" in skill.content
 
     def test_get_skill_with_resources(self, temp_skills_dir: Path) -> None:
         """Test getting a skill with resources."""

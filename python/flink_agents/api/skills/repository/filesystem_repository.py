@@ -77,7 +77,10 @@ class FileSystemSkillRepository(SkillRepository):
     >>> repo = FileSystemSkillRepository(Path("/path/to/skills"))
     >>> skill = repo.load_content("my-skill")
     """
-
+    
+    def load_resources(self, name: str) -> str:
+        pass
+    
     SKILL_MD_FILE = "SKILL.md"
 
     def __init__(
@@ -245,7 +248,7 @@ class FileSystemSkillRepository(SkillRepository):
             skill_md_content = skill_md_path.read_text()
 
             # Parse and create skill
-            skill = SkillParser.parse_skill(skill_md_content, self)
+            skill = SkillParser.parse_skill(skill_md_content)
             skill._repo = self
 
             # Validate skill name matches directory name
