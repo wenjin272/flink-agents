@@ -65,5 +65,5 @@ class AgentSkill(BaseModel):
             The resource content, or None if not found.
         """
         if resource_path not in self._resources:
-            self._resources[resource_path] = self._repo.load_resources(self.name)
+            self._resources[resource_path] = self._repo.get_resource(self.name, resource_path)
         return self._resources[resource_path]

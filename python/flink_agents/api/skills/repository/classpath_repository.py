@@ -54,7 +54,7 @@ class ClasspathSkillRepository(SkillRepository):
     Example:
     -------
     >>> repo = ClasspathSkillRepository("my_package.skills")
-    >>> skill = repo.load_content("my-skill")
+    >>> skill = repo.get_skill("my-skill")
     """
 
     SKILL_MD_FILE = "SKILL.md"
@@ -101,7 +101,7 @@ class ClasspathSkillRepository(SkillRepository):
         """
         return self._package_path
 
-    def load_content(self, name: str) -> AgentSkill | None:
+    def get_skill(self, name: str) -> AgentSkill | None:
         """Get a skill by name.
 
         Parameters
@@ -165,7 +165,7 @@ class ClasspathSkillRepository(SkillRepository):
         """
         skills = []
         for skill_name in self.get_all_skill_names():
-            skill = self.load_content(skill_name)
+            skill = self.get_skill(skill_name)
             if skill is not None:
                 skills.append(skill)
         return skills

@@ -56,7 +56,7 @@ class UrlSkillRepository(SkillRepository):
     Example:
     -------
     >>> repo = UrlSkillRepository("https://example.com/skills/my-skill.zip")
-    >>> skill = repo.load_content("my-skill")
+    >>> skill = repo.get_skill("my-skill")
     """
 
     SKILL_MD_FILE = "SKILL.md"
@@ -233,7 +233,7 @@ class UrlSkillRepository(SkillRepository):
         # Check all subdirectories for skills
         return extract_path
 
-    def load_content(self, name: str) -> AgentSkill | None:
+    def get_skill(self, name: str) -> AgentSkill | None:
         """Get a skill by name.
 
         Parameters
@@ -247,7 +247,7 @@ class UrlSkillRepository(SkillRepository):
             The skill, or None if not found.
         """
         self._ensure_loaded()
-        return self._cached_repo.load_content(name)
+        return self._cached_repo.get_skill(name)
 
     def get_all_skill_names(self) -> List[str]:
         """Get all skill names in this repository.

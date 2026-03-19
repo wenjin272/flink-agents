@@ -22,6 +22,9 @@ for loading skills from different sources (filesystem, classpath, URL).
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import List, Dict
+
+from flink_agents.api.skills.agent_skill import AgentSkill
 
 
 @dataclass
@@ -63,7 +66,7 @@ class SkillRepository(ABC):
     """
 
     @abstractmethod
-    def load_content(self, name: str) -> str:
+    def get_skill(self, name: str) -> str:
         """Load a skill by name.
 
         Parameters
@@ -76,8 +79,28 @@ class SkillRepository(ABC):
         Optional[AgentSkill]
             The skill, or None if not found.
         """
+    
+    @abstractmethod
+    def get_all_skill_names(self) -> List[str]:
+        """Get all skill names in this repository.
+
+        Returns:
+        -------
+        List[str]
+            List of skill names.
+        """
+    
+    @abstractmethod
+    def get_skills(self) -> List[AgentSkill]:
+        """Get all skills in this repository.
+
+        Returns:
+        -------
+        List[AgentSkill]
+            List of all skills.
+        """
         
     @abstractmethod
-    def load_resources(self, name: str) -> str:
-        """Load resources of the specified skill."""
+    def get_resources(self, name: str) -> Dict[str, str]:
+        """Get resources of the specified skill."""
 

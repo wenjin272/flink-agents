@@ -22,7 +22,9 @@ a local file system directory structure.
 """
 import os
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Dict
+
+from typing_extensions import override
 
 from flink_agents.api.skills.agent_skill import AgentSkill
 from flink_agents.api.skills.repository.skill_repository import (
@@ -75,11 +77,8 @@ class FileSystemSkillRepository(SkillRepository):
     -------
     >>> from pathlib import Path
     >>> repo = FileSystemSkillRepository(Path("/path/to/skills"))
-    >>> skill = repo.load_content("my-skill")
+    >>> skill = repo.get_skill("my-skill")
     """
-    
-    def load_resources(self, name: str) -> str:
-        pass
     
     SKILL_MD_FILE = "SKILL.md"
 
@@ -124,6 +123,7 @@ class FileSystemSkillRepository(SkillRepository):
         """
         return self._base_dir
     
+    @override
     def get_skill(self, name: str) -> AgentSkill | None:
         """Get a skill by name.
 
@@ -173,57 +173,9 @@ class FileSystemSkillRepository(SkillRepository):
             if entry.is_dir() and (entry / self.SKILL_MD_FILE).exists():
                 skill_names.append(entry.name)
         return sorted(skill_names)
-
-
-    def load_content(self, name: str) -> AgentSkill | None:
-        """Get a skill by name.
-
-        Parameters
-        ----------
-        name : str
-            The skill name.
-
-        Returns:
-        -------
-        Optional[AgentSkill]
-            The skill, or None if not found.
-        """
-        skill_dir = self._base_dir / name
-        skill_md_path = skill_dir / self.SKILL_MD_FILE
-
-        if not skill_md_path.exists():
-            return None
-
-        return self._load_skill(skill_dir)
-
-    def get_all_skill_names(self) -> List[str]:
-        """Get all skill names in this repository.
-
-        Returns:
-        -------
-        List[str]
-            List of skill names.
-        """
-        skill_names = []
-        for entry in self._base_dir.iterdir():
-            if entry.is_dir() and (entry / self.SKILL_MD_FILE).exists():
-                skill_names.append(entry.name)
-        return sorted(skill_names)
-
-    def get_all_skills(self) -> List[AgentSkill]:
-        """Get all skills in this repository.
-
-        Returns:
-        -------
-        List[AgentSkill]
-            List of all skills.
-        """
-        skills = []
-        for skill_name in self.get_all_skill_names():
-            skill = self.load_content(skill_name)
-            if skill is not None:
-                skills.append(skill)
-        return skills
+    
+    def get_resources(self, name: str) -> Dict[str, str]:
+        self._load_resources()
 
     def _load_skill(self, skill_dir: Path) -> AgentSkill | None:
         """Load a skill from a directory.
