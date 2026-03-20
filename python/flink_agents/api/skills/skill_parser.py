@@ -125,12 +125,18 @@ class SkillParser:
         description = metadata.get("description")
 
         if not name:
-            raise ValueError("The SKILL.md must have a YAML frontmatter including 'name' field.")
+            raise ValueError(
+                "The SKILL.md must have a YAML frontmatter including 'name' field."
+            )
         if not description:
-            raise ValueError("The SKILL.md must have a YAML frontmatter including 'description' field.")
-        
+            raise ValueError(
+                "The SKILL.md must have a YAML frontmatter including 'description' field."
+            )
+
         if not parsed.content:
-            raise ValueError("The SKILL.md must have a markdown content after YAML frontmatter.")
+            raise ValueError(
+                "The SKILL.md must have a markdown content after YAML frontmatter."
+            )
 
         return AgentSkill(
             name=name.strip(),

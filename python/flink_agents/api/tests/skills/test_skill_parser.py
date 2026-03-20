@@ -94,15 +94,15 @@ Content
         assert parsed.metadata["description"] == "A description with: colons"
 
     def test_parse_skill(self) -> None:
-        with open(base_dir / "resources" / "multi-search-engine" / "skills" /"SKILL.md") as f:
+        with open(base_dir / "resources" / "skills" / "github" /"SKILL.md") as f:
             markdown = f.read()
         parsed = MarkdownSkillParser.parse(markdown)
-        assert parsed.metadata["name"] == "multi-search-engine"
+        assert parsed.metadata["name"] == "github"
         assert (
             parsed.metadata["description"]
-            == "Multi search engine integration with 17 engines (8 CN + 9 Global). "
-            "Supports advanced search operators, time filters, site search, "
-            "privacy engines, and WolframAlpha knowledge queries. No API keys required."
+            == "Interact with GitHub using the `gh` CLI. Use `gh issue`, "
+               "`gh pr`, `gh run`, and `gh api` for issues, PRs, CI runs, "
+               "and advanced queries."
         )
 
 

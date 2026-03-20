@@ -1,45 +1,69 @@
-#    Licensed to the Apache Software Foundation (ASF) under one
-#   or more contributor license agreements.  See the NOTICE file
-#   distributed with this work for additional information
-#   regarding copyright ownership.  The ASF licenses this file
-#   to you under the Apache License, Version 2.0 (the
-#   "License"); you may not use this file except in compliance
-#   with the License.  You may obtain a copy of the License at
+#################################################################################
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
 #
-#       http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#  limitations under the License.
-#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
 
 class Prompt:
+    """System prompt templates for skill discovery and activation.
+
+    This class provides prompt templates used to generate system prompts
+    for LLM integration with skills.
+
+    Attributes:
+    ----------
+    SKILL_DISCOVERY_PROMPT : str
+        Template for skill discovery, listing available skills.
+    SKILL_ACTIVE_PROMPT : str
+        Template for active skill, showing skill content and resources.
+    """
+
     # System prompt template for skills discovery
     SKILL_DISCOVERY_PROMPT = """## Available Skills
 
-    The following skills are available. Use `load_skill` tool to load a skill's full content when you need it.
+<usage>
+Skills provide specialized capabilities and domain knowledge. Use them when they match your current task.
 
-    {skill_list}
+How to use skills:
+- Load skill: load_skill(name="<skill-name>", path="SKILL.md")
+- The skill will be activated and its documentation loaded with detailed instructions
+- Additional resources (scripts, assets, references) can be loaded using the same tool with different paths
 
-    ## How to Use Skills
+Path Information:
+When you load a skill, the response will include:
+- Exact paths to all skill resources
+- Code examples for accessing skill files
+- Usage instructions specific to that skill
 
-    1. First, review the skill descriptions above to find relevant skills
-    2. Use `load_skill` tool with the skill name to load the full skill content
-    3. Follow the skill's instructions to complete the task
-    """
-    
+Template fields explanation:
+- <name>: The skill's display name
+- <description>: When and how to use this skill
+</usage>
+
+<available_skills>
+"""
+
     # System prompt template for active skill
-    SKILL_ACTIVE_PROMPT = """## Active Skill: {skill_name}
+    AVAILABLE_SKILL_TEMPLATE = """
+<skill>
+<name>{name}</name>
+<description>{description}</description>
+</skill>
+"""
 
-    {skill_content}
-
-    ## Available Resources
-
-    {resource_list}
-
-    ## How to Use Resources
-
-    Use `load_skill_resource` tool with the resource path to load specific resource content.
-    """
+    AVAILABLE_SKILLS_TAG_END = """
+</available_skills>
+"""

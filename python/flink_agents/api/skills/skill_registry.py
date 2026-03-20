@@ -21,6 +21,7 @@ This module provides the SkillRegistry class which is responsible for:
 - Storing and retrieving skills
 - Tracking skill metadata and activation state
 """
+
 import threading
 from typing import Dict, Set
 
@@ -30,13 +31,10 @@ from flink_agents.api.skills.agent_skill import AgentSkill, RegisteredSkill
 class SkillRegistry:
     """Registry for managing skill registration and activation state.
 
-    This class provides basic storage and retrieval operations for skills.
+    This class provides basic storage and retrieval operations for skills,
+    including storing and retrieving skills, tracking skill metadata and
+    activation state.
 
-    Responsibilities:
-    - Store and retrieve skills
-    - Track skill metadata and activation state
-
-    Design principle:
     This is a pure storage layer. All parameters are assumed to be non-null
     unless explicitly documented. Parameter validation should be performed
     at the SkillManager layer.
@@ -58,14 +56,10 @@ class SkillRegistry:
 
         If the skill is already registered, it will be replaced.
 
-        Parameters
-        ----------
-        skill_id : str
-            The unique skill identifier.
-        skill : AgentSkill
-            The skill implementation.
-        registered : RegisteredSkill
-            The registered skill wrapper containing metadata.
+        Args:
+            skill_id: The unique skill identifier.
+            skill: The skill implementation.
+            registered: The registered skill wrapper containing metadata.
         """
         with self._lock:
             self._skills[skill_id] = skill
@@ -74,12 +68,9 @@ class SkillRegistry:
     def set_skill_active(self, skill_id: str, active: bool) -> None:
         """Set the activation state of a skill.
 
-        Parameters
-        ----------
-        skill_id : str
-            The skill ID.
-        active : bool
-            Whether to activate the skill.
+        Args:
+            skill_id: The skill ID.
+            active: Whether to activate the skill.
         """
         with self._lock:
             registered = self._registered_skills.get(skill_id)
@@ -89,10 +80,8 @@ class SkillRegistry:
     def set_all_skills_active(self, active: bool) -> None:
         """Set the activation state of all skills.
 
-        Parameters
-        ----------
-        active : bool
-            Whether to activate all skills.
+        Args:
+            active: Whether to activate all skills.
         """
         with self._lock:
             for registered in self._registered_skills.values():
@@ -101,14 +90,10 @@ class SkillRegistry:
     def get_skill(self, skill_id: str) -> AgentSkill | None:
         """Get a skill by ID.
 
-        Parameters
-        ----------
-        skill_id : str
-            The skill ID.
+        Args:
+            skill_id: The skill ID.
 
         Returns:
-        -------
-        AgentSkill | None
             The skill instance, or None if not found.
         """
         with self._lock:
@@ -117,14 +102,10 @@ class SkillRegistry:
     def get_registered_skill(self, skill_id: str) -> RegisteredSkill | None:
         """Get a registered skill by ID.
 
-        Parameters
-        ----------
-        skill_id : str
-            The skill ID.
+        Args:
+            skill_id: The skill ID.
 
         Returns:
-        -------
-        RegisteredSkill | None
             The registered skill, or None if not found.
         """
         with self._lock:
@@ -134,8 +115,6 @@ class SkillRegistry:
         """Get all skill IDs.
 
         Returns:
-        -------
-        Set[str]
             Set of skill IDs (never None, may be empty).
         """
         with self._lock:
@@ -144,14 +123,10 @@ class SkillRegistry:
     def exists(self, skill_id: str) -> bool:
         """Check if a skill exists.
 
-        Parameters
-        ----------
-        skill_id : str
-            The skill ID.
+        Args:
+            skill_id: The skill ID.
 
         Returns:
-        -------
-        bool
             True if the skill exists, False otherwise.
         """
         with self._lock:
@@ -161,8 +136,6 @@ class SkillRegistry:
         """Get all registered skills.
 
         Returns:
-        -------
-        Dict[str, RegisteredSkill]
             Map of skill IDs to registered skills (never None, may be empty).
         """
         with self._lock:
@@ -172,8 +145,6 @@ class SkillRegistry:
         """Get all skills.
 
         Returns:
-        -------
-        Dict[str, AgentSkill]
             Map of skill IDs to skills (never None, may be empty).
         """
         with self._lock:
@@ -182,14 +153,10 @@ class SkillRegistry:
     def remove_skill(self, skill_id: str) -> bool:
         """Remove a skill completely.
 
-        Parameters
-        ----------
-        skill_id : str
-            The skill ID.
+        Args:
+            skill_id: The skill ID.
 
         Returns:
-        -------
-        bool
             True if the skill was removed, False if it didn't exist.
         """
         with self._lock:
@@ -209,8 +176,6 @@ class SkillRegistry:
         """Get all currently active skills.
 
         Returns:
-        -------
-        Dict[str, AgentSkill]
             Map of skill IDs to active skills.
         """
         with self._lock:
@@ -224,8 +189,6 @@ class SkillRegistry:
         """Get IDs of all currently active skills.
 
         Returns:
-        -------
-        Set[str]
             Set of active skill IDs.
         """
         with self._lock:
@@ -239,8 +202,6 @@ class SkillRegistry:
         """Get the number of registered skills.
 
         Returns:
-        -------
-        int
             The number of skills.
         """
         with self._lock:
@@ -250,8 +211,6 @@ class SkillRegistry:
         """Check if the registry is empty.
 
         Returns:
-        -------
-        bool
             True if no skills are registered.
         """
         with self._lock:

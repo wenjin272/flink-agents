@@ -15,11 +15,11 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 ################################################################################
-from typing import Dict
+from collections.abc import dict_keys
+from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
-from flink_agents.api.skills.repository.skill_repository import SkillRepository
 
 class AgentSkill(BaseModel):
     """Represents an agent skill that can be loaded and used by agents.
@@ -46,15 +46,14 @@ class AgentSkill(BaseModel):
         Supporting resources referenced by the skill. Keys are relative paths
         from the skill root, values are file contents.
     """
+
     name: str = Field(..., min_length=1, max_length=64)
     description: str = Field(..., min_length=1, max_length=1024)
+    content: str = Field(..., min_length=1)
     license: str | None = Field(default=None)
     compatibility: str | None = Field(default=None, max_length=500)
     metadata: Dict[str, str] | None = Field(default=None)
-    content: str = Field(..., min_length=1)
-    
-    _repo: SkillRepository | None = None
-    _resources: Dict[str, str] | None = None
+    resources: Dict[str, str] | None = None
 
     def get_resource(self, resource_path: str) -> str | None:
         """Get resource content by path.
@@ -64,6 +63,9 @@ class AgentSkill(BaseModel):
         Returns:
             The resource content, or None if not found.
         """
-        if resource_path not in self._resources:
-            self._resources[resource_path] = self._repo.get_resource(self.name, resource_path)
-        return self._resources[resource_path]
+        return self.resources.get(resource_path)
+
+    def get_resource_paths(self) -> List[str]:
+        if self.resources is None:
+            return []
+        return list(self.resources.keys())

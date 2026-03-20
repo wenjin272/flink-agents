@@ -15,11 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 ################################################################################
-"""File System Skill Repository implementation.
-
-This module provides FileSystemSkillRepository which loads skills from
-a local file system directory structure.
-"""
+import logging
 import os
 from pathlib import Path
 from typing import List, Set, Dict
@@ -29,7 +25,6 @@ from typing_extensions import override
 from flink_agents.api.skills.agent_skill import AgentSkill
 from flink_agents.api.skills.repository.skill_repository import (
     SkillRepository,
-    SkillRepositoryInfo,
 )
 from flink_agents.api.skills.skill_parser import SkillParser
 
@@ -72,31 +67,25 @@ class FileSystemSkillRepository(SkillRepository):
     │   └── scripts/          # Optional: Script files
     └── skill-name-2/
         └── SKILL.md
-
-    Example:
-    -------
-    >>> from pathlib import Path
-    >>> repo = FileSystemSkillRepository(Path("/path/to/skills"))
-    >>> skill = repo.get_skill("my-skill")
     """
-    
+
     SKILL_MD_FILE = "SKILL.md"
 
     def __init__(
         self,
         base_dir: Path | str,
+        skip_dirs: Set[str] | None = None,
+        skip_patterns: Set[str] | None = None,
     ) -> None:
         """Create a FileSystemSkillRepository.
 
-        Parameters
-        ----------
-        base_dir : Path | str
-            The base directory containing skill subdirectories.
+        Args:
+            base_dir: The base directory containing skill subdirectories.
+            skip_dirs: Optional set of directory names to skip.
+            skip_patterns: Optional set of file patterns to skip.
 
         Raises:
-        ------
-        ValueError
-            If base_dir is None, doesn't exist, or is not a directory.
+            ValueError: If base_dir is None, doesn't exist, or is not a directory.
         """
         if base_dir is None:
             raise ValueError("Base directory cannot be None")
@@ -112,29 +101,28 @@ class FileSystemSkillRepository(SkillRepository):
         if not self._base_dir.is_dir():
             raise ValueError(f"Base directory is not a directory: {self._base_dir}")
 
+        self._skip_dirs = skip_dirs if skip_dirs is not None else DEFAULT_SKIP_DIRS
+        self._skip_patterns = (
+            skip_patterns if skip_patterns is not None else DEFAULT_SKIP_PATTERNS
+        )
+
     @property
     def base_dir(self) -> Path:
         """Get the base directory.
 
         Returns:
-        -------
-        Path
             The base directory path.
         """
         return self._base_dir
-    
+
     @override
     def get_skill(self, name: str) -> AgentSkill | None:
         """Get a skill by name.
 
-        Parameters
-        ----------
-        name : str
-            The skill name.
+        Args:
+            name: The skill name.
 
         Returns:
-        -------
-        Optional[AgentSkill]
             The skill, or None if not found.
         """
         skill_dir = self._base_dir / name
@@ -144,13 +132,16 @@ class FileSystemSkillRepository(SkillRepository):
             return None
 
         return self._load_skill(skill_dir)
-    
+
+    @override
+    def get_resources(self, name: str) -> Dict[str, str]:
+        skill_dir = self._base_dir / name
+        return self._load_resources(skill_dir)
+
     def get_skills(self) -> List[AgentSkill]:
         """Get all skills in this repository.
 
         Returns:
-        -------
-        List[AgentSkill]
             List of all skills.
         """
         skills = []
@@ -164,8 +155,6 @@ class FileSystemSkillRepository(SkillRepository):
         """Get all skill names in this repository.
 
         Returns:
-        -------
-        List[str]
             List of skill names.
         """
         skill_names = []
@@ -173,21 +162,14 @@ class FileSystemSkillRepository(SkillRepository):
             if entry.is_dir() and (entry / self.SKILL_MD_FILE).exists():
                 skill_names.append(entry.name)
         return sorted(skill_names)
-    
-    def get_resources(self, name: str) -> Dict[str, str]:
-        self._load_resources()
 
     def _load_skill(self, skill_dir: Path) -> AgentSkill | None:
         """Load a skill from a directory.
 
-        Parameters
-        ----------
-        skill_dir : Path
-            Path to the skill directory.
+        Args:
+            skill_dir: Path to the skill directory.
 
         Returns:
-        -------
-        Optional[AgentSkill]
             The loaded skill, or None if loading failed.
         """
         skill_md_path = skill_dir / self.SKILL_MD_FILE
@@ -210,20 +192,17 @@ class FileSystemSkillRepository(SkillRepository):
 
             return skill
 
-        except Exception:
-            return None
+        except Exception as e:
+            err_msg = f"Failed to load skill from {skill_dir}"
+            raise ValueError(err_msg) from e
 
     def _load_resources(self, skill_dir: Path) -> dict[str, str]:
         """Load all resources from a skill directory.
 
-        Parameters
-        ----------
-        skill_dir : Path
-            Path to the skill directory.
+        Args:
+            skill_dir: Path to the skill directory.
 
         Returns:
-        -------
-        Dict[str, str]
             Map of relative path to content.
         """
         resources = {}
@@ -233,9 +212,7 @@ class FileSystemSkillRepository(SkillRepository):
 
             # Skip hidden directories and configured skip directories
             dirs[:] = [
-                d
-                for d in dirs
-                if not d.startswith(".") and d not in self._skip_dirs
+                d for d in dirs if not d.startswith(".") and d not in self._skip_dirs
             ]
 
             for file_name in files:
@@ -255,10 +232,11 @@ class FileSystemSkillRepository(SkillRepository):
                     content = file_path.read_text()
                     resources[relative_path] = content
                 except UnicodeDecodeError:
-                    # Skip binary files
-                    pass
+                    content = file_path.read_bytes()
+                    resources[relative_path] = f"base64: {content}"
                 except Exception:
-                    # Skip files that can't be read
-                    pass
+                    logging.warning(
+                        f"Failed to read resource file {file_path}", exc_info=True
+                    )
 
         return resources

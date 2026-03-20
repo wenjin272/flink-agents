@@ -18,78 +18,43 @@
 """Unit tests for AgentSkillManager and skill tools."""
 import tempfile
 from pathlib import Path
+from typing import Any, Generator
 
 import pytest
 
-from flink_agents.api.skills import (
-    AgentSkill,
-    AgentSkillManager,
-    LoadSkillArgs,
-    LoadSkillResult,
-    LoadSkillTool,
-    create_skill_tools,
-)
-from flink_agents.api.skills.repository.filesystem_repository import (
-    FileSystemSkillRepository,
-)
+from flink_agents.api.skills.skill_manager import AgentSkillManager
 
-
+base_dir = Path(__file__).parent
 class TestAgentSkillManager:
     """Tests for AgentSkillManager class."""
 
     @pytest.fixture
-    def temp_skills_dir(self) -> Path:
+    def skills_dir(self) -> Generator[Path, Any, None]:
         """Create a temporary directory with test skills."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            skills_dir = Path(tmpdir)
+        yield base_dir / "resources" / "skills"
 
-            skill1_dir = skills_dir / "skill-one"
-            skill1_dir.mkdir()
-            skill1_md = """---
-name: skill-one
-description: First test skill for testing
----
-# Skill One
-Instructions for skill one.
-"""
-            (skill1_dir / "SKILL.md").write_text(skill1_md)
-            scripts_dir = skill1_dir / "scripts"
-            scripts_dir.mkdir()
-            (scripts_dir / "run.sh").write_text("#!/bin/bash\necho hello")
-
-            skill2_dir = skills_dir / "skill-two"
-            skill2_dir.mkdir()
-            skill2_md = """---
-name: skill-two
-description: Second test skill for testing
----
-# Skill Two
-Instructions for skill two.
-"""
-            (skill2_dir / "SKILL.md").write_text(skill2_md)
-
-            yield skills_dir
-
-    def test_create_manager(self) -> None:
-        """Test creating a manager."""
-        manager = AgentSkillManager()
-        assert manager.is_empty()
-        assert manager.size() == 0
-
-    def test_add_skills_from_path(self, temp_skills_dir: Path) -> None:
+    def test_add_skills_from_path(self, skills_dir: Path) -> None:
         """Test adding skills from path."""
-        manager = AgentSkillManager()
-        loaded = manager.add_skills_from_path(temp_skills_dir)
+        manager = AgentSkillManager(paths=[skills_dir])
+        skill = manager.get_skill("github").agent_skill
+        assert skill.name == "github"
+        assert skill.description == ("Interact with GitHub using the `gh` CLI. "
+                                     "Use `gh issue`, `gh pr`, `gh run`, and `gh api` "
+                                     "for issues, PRs, CI runs, and advanced queries.")
+        
+    def test_generate_discovery_prompt(self, skills_dir: Path) -> None:
+        """Test generating discovery prompt."""
+        manager = AgentSkillManager(paths=[skills_dir])
 
-        assert len(loaded) == 2
-        assert "skill-one" in loaded
-        assert "skill-two" in loaded
-        assert manager.size() == 2
+        prompt = manager.generate_discovery_prompt("github", "nano-banana-pro")
+        with open(base_dir / "resources" / "skill_discovery_prompt.txt") as f:
+            content = f.read()
+            assert prompt == content
 
-    def test_get_skill(self, temp_skills_dir: Path) -> None:
+    def test_get_skill(self, skills_dir: Path) -> None:
         """Test getting a skill."""
         manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
+        manager.add_skills_from_path(skills_dir)
 
         skill = manager.get_skill("skill-one")
         assert skill is not None
@@ -100,10 +65,10 @@ Instructions for skill two.
         assert skill2 is not None
         assert skill2.name == "skill-two"
 
-    def test_get_all_skills(self, temp_skills_dir: Path) -> None:
+    def test_get_all_skills(self, skills_dir: Path) -> None:
         """Test getting all skills."""
         manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
+        manager.add_skills_from_path(skills_dir)
 
         all_skills = manager.get_all_skills()
         assert len(all_skills) == 2
@@ -112,10 +77,10 @@ Instructions for skill two.
         assert "skill-one" in names
         assert "skill-two" in names
 
-    def test_activate_skill(self, temp_skills_dir: Path) -> None:
+    def test_activate_skill(self, skills_dir: Path) -> None:
         """Test activating a skill."""
         manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
+        manager.add_skills_from_path(skills_dir)
 
         assert manager.is_skill_active("skill-one") is False
 
@@ -126,20 +91,20 @@ Instructions for skill two.
         active_skills = manager.get_active_skills()
         assert len(active_skills) == 1
 
-    def test_deactivate_skill(self, temp_skills_dir: Path) -> None:
+    def test_deactivate_skill(self, skills_dir: Path) -> None:
         """Test deactivating a skill."""
         manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
+        manager.add_skills_from_path(skills_dir)
 
         manager.activate_skill("skill-one")
         result = manager.deactivate_skill("skill-one")
         assert result is True
         assert manager.is_skill_active("skill-one") is False
 
-    def test_deactivate_all_skills(self, temp_skills_dir: Path) -> None:
+    def test_deactivate_all_skills(self, skills_dir: Path) -> None:
         """Test deactivating all skills."""
         manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
+        manager.add_skills_from_path(skills_dir)
 
         manager.activate_skill("skill-one")
         manager.activate_skill("skill-two")
@@ -147,10 +112,10 @@ Instructions for skill two.
         manager.deactivate_all_skills()
         assert len(manager.get_active_skills()) == 0
 
-    def test_remove_skill(self, temp_skills_dir: Path) -> None:
+    def test_remove_skill(self, skills_dir: Path) -> None:
         """Test removing a skill."""
         manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
+        manager.add_skills_from_path(skills_dir)
 
         # Get the actual skill first to find its skill_id
         skill = manager.get_skill_by_name("skill-one")
@@ -161,39 +126,28 @@ Instructions for skill two.
         assert manager.get_skill_by_name("skill-one") is None
         assert manager.size() == 1
 
-    def test_clear(self, temp_skills_dir: Path) -> None:
+    def test_clear(self, skills_dir: Path) -> None:
         """Test clearing all skills."""
         manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
+        manager.add_skills_from_path(skills_dir)
 
         manager.clear()
         assert manager.is_empty()
 
-    def test_generate_discovery_prompt(self, temp_skills_dir: Path) -> None:
-        """Test generating discovery prompt."""
-        manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
-
-        prompt = manager.generate_discovery_prompt()
-        assert "Available Skills" in prompt
-        assert "skill-one" in prompt
-        assert "First test skill for testing" in prompt
-        assert "load_skill" in prompt
-
-    def test_generate_active_skill_prompt(self, temp_skills_dir: Path) -> None:
+    def test_generate_active_skill_prompt(self, skills_dir: Path) -> None:
         """Test generating active skill prompt."""
         manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
+        manager.add_skills_from_path(skills_dir)
 
         prompt = manager.generate_active_skill_prompt("skill-one")
         assert prompt is not None
         assert "Active Skill: skill-one" in prompt
         assert "Instructions for skill one" in prompt
 
-    def test_load_skill_resource(self, temp_skills_dir: Path) -> None:
+    def test_load_skill_resource(self, skills_dir: Path) -> None:
         """Test loading a skill resource."""
         manager = AgentSkillManager()
-        manager.add_skills_from_path(temp_skills_dir)
+        manager.add_skills_from_path(skills_dir)
 
         content = manager.load_skill_resource("skill-one", "scripts/run.sh")
         assert content is not None

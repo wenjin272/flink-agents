@@ -1,0 +1,34 @@
+## Available Skills
+
+<usage>
+Skills provide specialized capabilities and domain knowledge. Use them when they match your current task.
+
+How to use skills:
+- Load skill: load_skill(name="<skill-name>", path="SKILL.md")
+- The skill will be activated and its documentation loaded with detailed instructions
+- Additional resources (scripts, assets, references) can be loaded using the same tool with different paths
+
+Path Information:
+When you load a skill, the response will include:
+- Exact paths to all skill resources
+- Code examples for accessing skill files
+- Usage instructions specific to that skill
+
+Template fields explanation:
+- <name>: The skill's display name
+- <description>: When and how to use this skill
+</usage>
+
+<available_skills>
+
+<skill>
+<name>github</name>
+<description>Interact with GitHub using the `gh` CLI. Use `gh issue`, `gh pr`, `gh run`, and `gh api` for issues, PRs, CI runs, and advanced queries.</description>
+</skill>
+
+<skill>
+<name>nano-banana-pro</name>
+<description>Generate/edit images with Nano Banana Pro (Gemini 3 Pro Image). Use for image create/modify requests incl. edits. Supports text-to-image + image-to-image; 1K/2K/4K; use --input-image.</description>
+</skill>
+
+</available_skills>

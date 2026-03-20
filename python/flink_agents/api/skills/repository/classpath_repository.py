@@ -20,6 +20,7 @@
 This module provides ClasspathSkillRepository which loads skills from
 Python package resources (similar to JAR resources in Java).
 """
+
 from typing import List
 
 from importlib_resources import files
@@ -52,9 +53,8 @@ class ClasspathSkillRepository(SkillRepository):
     └── __init__.py
 
     Example:
-    -------
-    >>> repo = ClasspathSkillRepository("my_package.skills")
-    >>> skill = repo.get_skill("my-skill")
+        >>> repo = ClasspathSkillRepository("my_package.skills")
+        >>> skill = repo.get_skill("my-skill")
     """
 
     SKILL_MD_FILE = "SKILL.md"
@@ -66,17 +66,12 @@ class ClasspathSkillRepository(SkillRepository):
     ) -> None:
         """Create a ClasspathSkillRepository.
 
-        Parameters
-        ----------
-        package_path : str
-            The Python package path containing skills (e.g., "my_package.skills").
-        source : Optional[str]
-            Custom source identifier for skills.
+        Args:
+            package_path: The Python package path containing skills (e.g., "my_package.skills").
+            source: Custom source identifier for skills.
 
         Raises:
-        ------
-        ValueError
-            If package_path is None or empty, or if the package doesn't exist.
+            ValueError: If package_path is None or empty, or if the package doesn't exist.
         """
         if not package_path:
             raise ValueError("Package path cannot be None or empty")
@@ -95,8 +90,6 @@ class ClasspathSkillRepository(SkillRepository):
         """Get the package path.
 
         Returns:
-        -------
-        str
             The package path.
         """
         return self._package_path
@@ -104,14 +97,10 @@ class ClasspathSkillRepository(SkillRepository):
     def get_skill(self, name: str) -> AgentSkill | None:
         """Get a skill by name.
 
-        Parameters
-        ----------
-        name : str
-            The skill name.
+        Args:
+            name: The skill name.
 
         Returns:
-        -------
-        Optional[AgentSkill]
             The skill, or None if not found.
         """
         skill_md_path = f"{name}/{self.SKILL_MD_FILE}"
@@ -138,8 +127,6 @@ class ClasspathSkillRepository(SkillRepository):
         """Get all skill names in this repository.
 
         Returns:
-        -------
-        List[str]
             List of skill names.
         """
         skill_names = []
@@ -159,8 +146,6 @@ class ClasspathSkillRepository(SkillRepository):
         """Get all skills in this repository.
 
         Returns:
-        -------
-        List[AgentSkill]
             List of all skills.
         """
         skills = []
@@ -173,14 +158,10 @@ class ClasspathSkillRepository(SkillRepository):
     def skill_exists(self, name: str) -> bool:
         """Check if a skill exists in this repository.
 
-        Parameters
-        ----------
-        name : str
-            The skill name.
+        Args:
+            name: The skill name.
 
         Returns:
-        -------
-        bool
             True if the skill exists.
         """
         try:
@@ -194,8 +175,6 @@ class ClasspathSkillRepository(SkillRepository):
         """Get information about this repository.
 
         Returns:
-        -------
-        SkillRepositoryInfo
             Repository information.
         """
         return SkillRepositoryInfo(
@@ -208,8 +187,6 @@ class ClasspathSkillRepository(SkillRepository):
         """Get the source identifier for skills from this repository.
 
         Returns:
-        -------
-        str
             Source identifier.
         """
         if self._source is not None:
@@ -219,14 +196,10 @@ class ClasspathSkillRepository(SkillRepository):
     def _load_resources(self, skill_name: str) -> dict[str, str]:
         """Load all resources for a skill.
 
-        Parameters
-        ----------
-        skill_name : str
-            The skill name.
+        Args:
+            skill_name: The skill name.
 
         Returns:
-        -------
-        Dict[str, str]
             Map of relative path to content.
         """
         resources = {}
@@ -242,16 +215,11 @@ class ClasspathSkillRepository(SkillRepository):
     def _walk_and_load(self, dir_path, relative_prefix: str) -> dict[str, str]:
         """Walk directory and load all files.
 
-        Parameters
-        ----------
-        dir_path : Traversable
-            Directory to walk.
-        relative_prefix : str
-            Relative path prefix.
+        Args:
+            dir_path: Directory to walk.
+            relative_prefix: Relative path prefix.
 
         Returns:
-        -------
-        Dict[str, str]
             Map of relative path to content.
         """
         resources = {}

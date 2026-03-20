@@ -20,6 +20,7 @@
 This module provides UrlSkillRepository which loads skills from
 remote URLs (OSS, S3, HTTP servers).
 """
+
 import tempfile
 import zipfile
 from pathlib import Path
@@ -40,10 +41,8 @@ class UrlSkillRepository(SkillRepository):
     """URL-based implementation of SkillRepository.
 
     This repository downloads skills from remote URLs (OSS, S3, HTTP servers).
-    The URL can point to:
-    - A single SKILL.md file
-    - A zip archive containing skill directories
-    - A directory listing endpoint
+    The URL can point to a single SKILL.md file, a zip archive containing
+    skill directories, or a directory listing endpoint.
 
     Currently supports:
     - HTTP/HTTPS URLs
@@ -54,9 +53,8 @@ class UrlSkillRepository(SkillRepository):
     - GitHub repositories
 
     Example:
-    -------
-    >>> repo = UrlSkillRepository("https://example.com/skills/my-skill.zip")
-    >>> skill = repo.get_skill("my-skill")
+        >>> repo = UrlSkillRepository("https://example.com/skills/my-skill.zip")
+        >>> skill = repo.get_skill("my-skill")
     """
 
     SKILL_MD_FILE = "SKILL.md"
@@ -69,19 +67,13 @@ class UrlSkillRepository(SkillRepository):
     ) -> None:
         """Create a UrlSkillRepository.
 
-        Parameters
-        ----------
-        url : str
-            The URL to load skills from.
-        cache_dir : Optional[Path]
-            Directory to cache downloaded skills. If None, a temp directory is used.
-        source : Optional[str]
-            Custom source identifier for skills.
+        Args:
+            url: The URL to load skills from.
+            cache_dir: Directory to cache downloaded skills. If None, a temp directory is used.
+            source: Custom source identifier for skills.
 
         Raises:
-        ------
-        ValueError
-            If url is None or empty.
+            ValueError: If url is None or empty.
         """
         if not url:
             raise ValueError("URL cannot be None or empty")
@@ -98,8 +90,6 @@ class UrlSkillRepository(SkillRepository):
         """Get the URL.
 
         Returns:
-        -------
-        str
             The URL.
         """
         return self._url
@@ -141,14 +131,10 @@ class UrlSkillRepository(SkillRepository):
     def _download(self, cache_path: Path) -> Path:
         """Download content from URL.
 
-        Parameters
-        ----------
-        cache_path : Path
-            Path to cache directory.
+        Args:
+            cache_path: Path to cache directory.
 
         Returns:
-        -------
-        Path
             Path to downloaded content.
         """
         import urllib.request
@@ -182,14 +168,10 @@ class UrlSkillRepository(SkillRepository):
     def _is_zip_content(self, path: Path) -> bool:
         """Check if file is a zip archive.
 
-        Parameters
-        ----------
-        path : Path
-            Path to check.
+        Args:
+            path: Path to check.
 
         Returns:
-        -------
-        bool
             True if file is a zip archive.
         """
         if not path.is_file():
@@ -203,16 +185,11 @@ class UrlSkillRepository(SkillRepository):
     def _extract_zip(self, zip_path: Path, cache_path: Path) -> Path:
         """Extract zip file.
 
-        Parameters
-        ----------
-        zip_path : Path
-            Path to zip file.
-        cache_path : Path
-            Path to cache directory.
+        Args:
+            zip_path: Path to zip file.
+            cache_path: Path to cache directory.
 
         Returns:
-        -------
-        Path
             Path to extracted directory.
         """
         extract_path = cache_path / "extracted"
@@ -236,14 +213,10 @@ class UrlSkillRepository(SkillRepository):
     def get_skill(self, name: str) -> AgentSkill | None:
         """Get a skill by name.
 
-        Parameters
-        ----------
-        name : str
-            The skill name.
+        Args:
+            name: The skill name.
 
         Returns:
-        -------
-        Optional[AgentSkill]
             The skill, or None if not found.
         """
         self._ensure_loaded()
@@ -253,8 +226,6 @@ class UrlSkillRepository(SkillRepository):
         """Get all skill names in this repository.
 
         Returns:
-        -------
-        List[str]
             List of skill names.
         """
         self._ensure_loaded()
@@ -264,8 +235,6 @@ class UrlSkillRepository(SkillRepository):
         """Get all skills in this repository.
 
         Returns:
-        -------
-        List[AgentSkill]
             List of all skills.
         """
         self._ensure_loaded()
@@ -274,14 +243,10 @@ class UrlSkillRepository(SkillRepository):
     def skill_exists(self, name: str) -> bool:
         """Check if a skill exists in this repository.
 
-        Parameters
-        ----------
-        name : str
-            The skill name.
+        Args:
+            name: The skill name.
 
         Returns:
-        -------
-        bool
             True if the skill exists.
         """
         self._ensure_loaded()
@@ -291,8 +256,6 @@ class UrlSkillRepository(SkillRepository):
         """Get information about this repository.
 
         Returns:
-        -------
-        SkillRepositoryInfo
             Repository information.
         """
         return SkillRepositoryInfo(
@@ -305,8 +268,6 @@ class UrlSkillRepository(SkillRepository):
         """Get the source identifier for skills from this repository.
 
         Returns:
-        -------
-        str
             Source identifier.
         """
         if self._source is not None:

@@ -20,6 +20,7 @@
 This module provides the abstract SkillRepository interface and its implementations
 for loading skills from different sources (filesystem, classpath, URL).
 """
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict
@@ -69,38 +70,29 @@ class SkillRepository(ABC):
     def get_skill(self, name: str) -> str:
         """Load a skill by name.
 
-        Parameters
-        ----------
-        name : str
-            The skill name (must match the directory name and frontmatter name).
+        Args:
+            name: The skill name (must match the directory name and frontmatter name).
 
         Returns:
-        -------
-        Optional[AgentSkill]
             The skill, or None if not found.
         """
-    
+
     @abstractmethod
     def get_all_skill_names(self) -> List[str]:
         """Get all skill names in this repository.
 
         Returns:
-        -------
-        List[str]
             List of skill names.
         """
-    
+
     @abstractmethod
     def get_skills(self) -> List[AgentSkill]:
         """Get all skills in this repository.
 
         Returns:
-        -------
-        List[AgentSkill]
             List of all skills.
         """
-        
+
     @abstractmethod
     def get_resources(self, name: str) -> Dict[str, str]:
         """Get resources of the specified skill."""
-
