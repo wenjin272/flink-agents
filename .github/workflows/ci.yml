@@ -43,7 +43,7 @@ jobs:
           python-version: 3.12
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          curl -LsSf https://astral.sh/uv/0.11.0/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Check code style
         run: ./tools/lint.sh -c
@@ -59,7 +59,7 @@ jobs:
           python-version: '3.12'
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          curl -LsSf https://astral.sh/uv/0.11.0/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Run build-backend tests
         working-directory: python
@@ -90,7 +90,7 @@ jobs:
           python-version: '3.12'
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          curl -LsSf https://astral.sh/uv/0.11.0/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Install Python dependencies for MCP tests
         run: |
@@ -126,7 +126,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          curl -LsSf https://astral.sh/uv/0.11.0/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Run Python Tests
         env:  
@@ -165,7 +165,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          curl -LsSf https://astral.sh/uv/0.11.0/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Install flink-agents
         run: bash tools/build.sh
@@ -257,7 +257,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          curl -LsSf https://astral.sh/uv/0.11.0/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Build flink-agents
         run: bash tools/build.sh
