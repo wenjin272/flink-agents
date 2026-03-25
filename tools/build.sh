@@ -89,7 +89,7 @@ if $build_python; then
   # build python
   cd python
   rm -rf dist/  # Clean old build artifacts before building
-  pip install uv
+  pip install uv==0.11.0
   uv lock
   uv sync --extra dev
   uv run python -m build
