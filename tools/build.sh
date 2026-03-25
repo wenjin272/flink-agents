@@ -92,6 +92,7 @@ if $build_python; then
   pip install uv
   uv lock
   uv sync --extra dev
+  uv run python -m ensurepip --default-pip
   uv run python -m build
   uv pip install dist/*.whl
 
