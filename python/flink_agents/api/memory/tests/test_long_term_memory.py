@@ -23,7 +23,7 @@ from flink_agents.api.memory.long_term_memory import (
 )
 
 
-def test_memory_set_serialization() -> None:  # noqa:D103
+def test_memory_set_serialization() -> None:
     memory_set = MemorySet(
         name="chat_history",
         item_type=ChatMessage,

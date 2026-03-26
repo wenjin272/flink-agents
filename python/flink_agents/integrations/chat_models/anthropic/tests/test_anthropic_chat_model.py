@@ -32,7 +32,7 @@ api_key = os.environ.get("TEST_API_KEY")
 
 
 @pytest.mark.skipif(api_key is None, reason="TEST_API_KEY is not set")
-def test_anthropic_chat_model() -> None:  # noqa: D103
+def test_anthropic_chat_model() -> None:
     connection = AnthropicChatModelConnection(
         name="anthropic_server", api_key=api_key
     )
@@ -70,7 +70,7 @@ def add(a: int, b: int) -> int:
 
 
 @pytest.mark.skipif(api_key is None, reason="TEST_API_KEY is not set")
-def test_anthropic_chat_with_tools() -> None:  # noqa : D103
+def test_anthropic_chat_with_tools() -> None:
     connection = AnthropicChatModelConnection(
         name="anthropic_server", api_key=api_key
     )

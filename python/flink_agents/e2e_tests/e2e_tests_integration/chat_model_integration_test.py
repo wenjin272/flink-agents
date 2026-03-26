@@ -76,7 +76,7 @@ client = pull_model(OLLAMA_MODEL)
         ),
     ],
 )
-def test_chat_model_integration(model_provider: str) -> None:  # noqa: D103
+def test_chat_model_integration(model_provider: str) -> None:
     os.environ["MODEL_PROVIDER"] = model_provider
     env = AgentsExecutionEnvironment.get_execution_environment()
     input_list = []

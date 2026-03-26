@@ -188,7 +188,7 @@ class MyAgent(Agent):
         ctx.send_event(OutputEvent(output=input.content))
 
 
-def test_built_in_actions() -> None:  # noqa: D103
+def test_built_in_actions() -> None:
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
