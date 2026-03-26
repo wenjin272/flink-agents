@@ -46,14 +46,14 @@ class MockEmbeddingModel(Resource):  # noqa: D101
     name: str
 
     @classmethod
-    def resource_type(cls) -> ResourceType:  # noqa: D102
+    def resource_type(cls) -> ResourceType:
         return ResourceType.EMBEDDING_MODEL
 
     @property
-    def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
+    def model_kwargs(self) -> Dict[str, Any]:
         return {}
 
-    def embed(self, text: str, **kwargs: Any) -> list[float]:  # noqa: D102
+    def embed(self, text: str, **kwargs: Any) -> list[float]:
         if "ChromaDB" in text:
             return [0.2, 0.3, 0.4, 0.5, 0.6]
         else:

@@ -33,7 +33,7 @@ api_base_url = os.environ.get("TEST_API_BASE_URL")
 
 
 @pytest.mark.skipif(api_key is None, reason="TEST_API_KEY is not set")
-def test_openai_chat_model() -> None:  # noqa: D103
+def test_openai_chat_model() -> None:
     connection = OpenAIChatModelConnection(
         name="openai", api_key=api_key, api_base_url=api_base_url
     )
@@ -71,7 +71,7 @@ def add(a: int, b: int) -> int:
 
 
 @pytest.mark.skipif(api_key is None, reason="TEST_API_KEY is not set")
-def test_openai_chat_with_tools() -> None:  # noqa : D103
+def test_openai_chat_with_tools() -> None:
     connection = OpenAIChatModelConnection(
         name="openai", api_key=api_key, api_base_url=api_base_url
     )

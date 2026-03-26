@@ -50,13 +50,13 @@ from flink_agents.plan.function import PythonFunction
 class AgentForTest(Agent):  # noqa D101
     @action(InputEvent)
     @staticmethod
-    def increment(event: Event, ctx: RunnerContext) -> None:  # noqa D102
+    def increment(event: Event, ctx: RunnerContext) -> None:
         value = event.input
         value += 1
         ctx.send_event(OutputEvent(output=value))
 
 
-def test_from_agent():  # noqa D102
+def test_from_agent():
     agent = AgentForTest()
     agent_plan = AgentPlan.from_agent(agent, AgentConfiguration())
     event_type = f"{InputEvent.__module__}.{InputEvent.__name__}"
@@ -74,11 +74,11 @@ def test_from_agent():  # noqa D102
 class InvalidAgent(Agent):  # noqa D101
     @action(InputEvent)
     @staticmethod
-    def invalid_signature_action(event: Event) -> None:  # noqa D102
+    def invalid_signature_action(event: Event) -> None:
         pass
 
 
-def test_to_agent_invalid_signature() -> None:  # noqa D103
+def test_to_agent_invalid_signature() -> None:
     agent = InvalidAgent()
     with pytest.raises(TypeError):
         AgentPlan.from_agent(agent, AgentConfiguration())
@@ -93,11 +93,11 @@ class MockChatModelImpl(BaseChatModelSetup):  # noqa: D101
     desc: str
 
     @property
-    def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
+    def model_kwargs(self) -> Dict[str, Any]:
         return {}
 
     @classmethod
-    def resource_type(cls) -> ResourceType:  # noqa: D102
+    def resource_type(cls) -> ResourceType:
         return ResourceType.CHAT_MODEL
 
     def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
@@ -119,7 +119,7 @@ class MockEmbeddingModelConnection(BaseEmbeddingModelConnection):  # noqa: D101
 
 class MockEmbeddingModelSetup(BaseEmbeddingModelSetup):  # noqa: D101
     @property
-    def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
+    def model_kwargs(self) -> Dict[str, Any]:
         return {"model": self.model}
 
 
@@ -129,7 +129,7 @@ class MockVectorStore(BaseVectorStore):  # noqa: D101
     collection_name: str
 
     @property
-    def store_kwargs(self) -> Dict[str, Any]:  # noqa: D102
+    def store_kwargs(self) -> Dict[str, Any]:
         return {"collection_name": self.collection_name}
 
     def size(self, collection_name: str | None = None) -> int:
@@ -181,7 +181,7 @@ class MockVectorStore(BaseVectorStore):  # noqa: D101
 class MyAgent(Agent):  # noqa: D101
     @chat_model_setup
     @staticmethod
-    def mock() -> ResourceDescriptor:  # noqa: D102
+    def mock() -> ResourceDescriptor:
         return ResourceDescriptor(
             clazz=f"{MockChatModelImpl.__module__}.{MockChatModelImpl.__name__}",
             host="8.8.8.8",
@@ -191,14 +191,14 @@ class MyAgent(Agent):  # noqa: D101
 
     @embedding_model_connection
     @staticmethod
-    def mock_embedding_conn() -> ResourceDescriptor:  # noqa: D102
+    def mock_embedding_conn() -> ResourceDescriptor:
         return ResourceDescriptor(
             clazz=f"{MockEmbeddingModelConnection.__module__}.{MockEmbeddingModelConnection.__name__}", api_key="mock-api-key"
         )
 
     @embedding_model_setup
     @staticmethod
-    def mock_embedding() -> ResourceDescriptor:  # noqa: D102
+    def mock_embedding() -> ResourceDescriptor:
         return ResourceDescriptor(
             clazz=f"{MockEmbeddingModelSetup.__module__}.{MockEmbeddingModelSetup.__name__}",
             model="test-model",
@@ -207,7 +207,7 @@ class MyAgent(Agent):  # noqa: D101
 
     @vector_store
     @staticmethod
-    def mock_vector_store() -> ResourceDescriptor:  # noqa: D102
+    def mock_vector_store() -> ResourceDescriptor:
         return ResourceDescriptor(
             clazz=f"{MockVectorStore.__module__}.{MockVectorStore.__name__}",
             embedding_model="mock_embedding",
@@ -218,17 +218,17 @@ class MyAgent(Agent):  # noqa: D101
 
     @action(InputEvent)
     @staticmethod
-    def first_action(event: InputEvent, ctx: RunnerContext) -> None:  # noqa: D102
+    def first_action(event: InputEvent, ctx: RunnerContext) -> None:
         pass
 
     @action(InputEvent, MyEvent)
     @staticmethod
-    def second_action(event: InputEvent, ctx: RunnerContext) -> None:  # noqa: D102
+    def second_action(event: InputEvent, ctx: RunnerContext) -> None:
         pass
 
 
 @pytest.fixture(scope="module")
-def agent_plan() -> AgentPlan:  # noqa: D103
+def agent_plan() -> AgentPlan:
     return AgentPlan.from_agent(
         MyAgent(), AgentConfiguration({"mock.key": "mock.value"})
     )
@@ -237,7 +237,7 @@ def agent_plan() -> AgentPlan:  # noqa: D103
 current_dir = Path(__file__).parent
 
 
-def test_agent_plan_serialize(agent_plan: AgentPlan) -> None:  # noqa: D103
+def test_agent_plan_serialize(agent_plan: AgentPlan) -> None:
     json_value = agent_plan.model_dump_json(serialize_as_any=True, indent=4)
     with Path.open(Path(f"{current_dir}/resources/agent_plan.json")) as f:
         expected_json = f.read()
@@ -246,14 +246,14 @@ def test_agent_plan_serialize(agent_plan: AgentPlan) -> None:  # noqa: D103
     assert actual == expected
 
 
-def test_agent_plan_deserialize(agent_plan: AgentPlan) -> None:  # noqa: D103
+def test_agent_plan_deserialize(agent_plan: AgentPlan) -> None:
     with Path.open(Path(f"{current_dir}/resources/agent_plan.json")) as f:
         expected_json = f.read()
     deserialized_agent_plan = AgentPlan.model_validate_json(expected_json)
     assert deserialized_agent_plan == agent_plan
 
 
-def test_get_resource() -> None:  # noqa: D103
+def test_get_resource() -> None:
     agent_plan = AgentPlan.from_agent(MyAgent(), AgentConfiguration())
     mock = agent_plan.get_resource("mock", ResourceType.CHAT_MODEL)
     assert (
@@ -262,7 +262,7 @@ def test_get_resource() -> None:  # noqa: D103
     )
 
 
-def test_add_action_and_resource_to_agent() -> None:  # noqa: D103
+def test_add_action_and_resource_to_agent() -> None:
     my_agent = Agent()
     my_agent.add_action(
         name="first_action", events=[InputEvent], func=MyAgent.first_action

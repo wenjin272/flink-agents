@@ -95,7 +95,7 @@ class ItemData(BaseModel):
     memory_info: dict | None = None
 
 
-class Record(BaseModel):  # noqa: D101
+class Record(BaseModel):
     id: int
     count: int
     timestamp_before_add: str
@@ -104,7 +104,7 @@ class Record(BaseModel):  # noqa: D101
     items: List[MemorySetItem] | None = None
 
 
-class MyEvent(Event):  # noqa D101
+class MyEvent(Event):
     value: Any
 
 
@@ -141,14 +141,14 @@ class LongTermMemoryAgent(Agent):
 
     @embedding_model_connection
     @staticmethod
-    def ollama_embedding_connection() -> ResourceDescriptor:  # noqa D102
+    def ollama_embedding_connection() -> ResourceDescriptor:
         return ResourceDescriptor(
             clazz=ResourceName.EmbeddingModel.OLLAMA_CONNECTION, request_timeout=240.0
         )
 
     @embedding_model_setup
     @staticmethod
-    def ollama_nomic_embed_text() -> ResourceDescriptor:  # noqa D102
+    def ollama_nomic_embed_text() -> ResourceDescriptor:
         return ResourceDescriptor(
             clazz=ResourceName.EmbeddingModel.OLLAMA_SETUP,
             connection="ollama_embedding_connection",
@@ -212,7 +212,7 @@ class LongTermMemoryAgent(Agent):
         ctx.send_event(OutputEvent(output=record))
 
 
-def test_long_term_memory_async_execution_in_action(tmp_path: Path) -> None:  # noqa: D103
+def test_long_term_memory_async_execution_in_action(tmp_path: Path) -> None:
     env = StreamExecutionEnvironment.get_execution_environment()
     env.set_runtime_mode(RuntimeExecutionMode.STREAMING)
     env.set_parallelism(1)
@@ -265,7 +265,7 @@ def test_long_term_memory_async_execution_in_action(tmp_path: Path) -> None:  # 
     check_result(result_dir=result_dir)
 
 
-def check_result(*, result_dir: Path) -> None:  # noqa: D103
+def check_result(*, result_dir: Path) -> None:
     actual_result = []
     for file in result_dir.iterdir():
         if file.is_dir():

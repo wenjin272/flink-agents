@@ -38,7 +38,7 @@ class SlowMockChatModel(BaseChatModelSetup):
     """Mock ChatModel with slow connection."""
 
     @property
-    def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
+    def model_kwargs(self) -> Dict[str, Any]:
         return {}
 
     @override
@@ -65,7 +65,7 @@ class AsyncTestAgent(Agent):
 
     @chat_model_setup
     @staticmethod
-    def slow_chat_model() -> ResourceDescriptor:  # noqa: D102
+    def slow_chat_model() -> ResourceDescriptor:
         return ResourceDescriptor(
             clazz=f"{SlowMockChatModel.__module__}.{SlowMockChatModel.__name__}",
             connection="placement",
@@ -81,7 +81,7 @@ class AsyncTestAgent(Agent):
 
     @action(InputEvent)
     @staticmethod
-    def process_input(event: InputEvent, ctx: RunnerContext) -> None:  # noqa: D102
+    def process_input(event: InputEvent, ctx: RunnerContext) -> None:
         input = event.input
         ctx.send_event(
             ChatRequestEvent(
@@ -96,7 +96,7 @@ class AsyncTestAgent(Agent):
 
     @action(ChatResponseEvent)
     @staticmethod
-    def process_chat_response(event: ChatResponseEvent, ctx: RunnerContext) -> None:  # noqa: D102
+    def process_chat_response(event: ChatResponseEvent, ctx: RunnerContext) -> None:
         input = event.response
         ctx.send_event(OutputEvent(output=input.content))
 

@@ -63,19 +63,19 @@ class MockEmbeddingModel(Resource):  # noqa: D101
     ef: EmbeddingFunction = embedding_functions.DefaultEmbeddingFunction()
 
     @classmethod
-    def resource_type(cls) -> ResourceType:  # noqa: D102
+    def resource_type(cls) -> ResourceType:
         return ResourceType.EMBEDDING_MODEL
 
     @property
-    def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
+    def model_kwargs(self) -> Dict[str, Any]:
         return {}
 
-    def embed(self, text: str, **kwargs: Any) -> Any:  # noqa: D102
+    def embed(self, text: str, **kwargs: Any) -> Any:
         return self.ef([text])[0]
 
 
 @pytest.fixture(scope="module")
-def long_term_memory() -> VectorStoreLongTermMemory:  # noqa: D103
+def long_term_memory() -> VectorStoreLongTermMemory:
     embedding_model_connection = OllamaEmbeddingModelConnection()
 
     chat_model_connection = OllamaChatModelConnection(request_timeout=240)
@@ -130,7 +130,7 @@ def long_term_memory() -> VectorStoreLongTermMemory:  # noqa: D103
     )
 
 
-def prepare_memory_set(  # noqa: D103
+def prepare_memory_set(
     long_term_memory: VectorStoreLongTermMemory,
     compaction_config: CompactionConfig = CompactionConfig(model="llm"),  # noqa:B008
 ) -> (MemorySet, List[ChatMessage]):
@@ -150,7 +150,7 @@ def prepare_memory_set(  # noqa: D103
     return memory_set, msgs
 
 
-def test_get_memory_set(  # noqa:D103
+def test_get_memory_set(
     long_term_memory: VectorStoreLongTermMemory,
 ) -> None:
     memory_set, _ = prepare_memory_set(long_term_memory)
@@ -160,7 +160,7 @@ def test_get_memory_set(  # noqa:D103
     long_term_memory.delete_memory_set(name="chat_history")
 
 
-def test_add_and_get(  # noqa:D103
+def test_add_and_get(
     long_term_memory: VectorStoreLongTermMemory,
 ) -> None:
     memory_set, msgs = prepare_memory_set(long_term_memory)
@@ -173,7 +173,7 @@ def test_add_and_get(  # noqa:D103
     long_term_memory.delete_memory_set(name="chat_history")
 
 
-def test_search(  # noqa:D103
+def test_search(
     long_term_memory: VectorStoreLongTermMemory,
 ) -> None:
     memory_set, msgs = prepare_memory_set(long_term_memory)
@@ -189,7 +189,7 @@ def test_search(  # noqa:D103
 
 
 @pytest.mark.skip("Depend on ollama server")
-def test_compact(  # noqa:D103
+def test_compact(
     long_term_memory: VectorStoreLongTermMemory,
 ) -> None:
     memory_set: MemorySet = long_term_memory.get_or_create_memory_set(
