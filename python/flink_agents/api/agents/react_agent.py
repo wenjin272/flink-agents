@@ -25,7 +25,11 @@ from pyflink.common.typeinfo import RowTypeInfo
 
 from flink_agents.api.agents.agent import STRUCTURED_OUTPUT, Agent
 from flink_agents.api.agents.types import OutputSchema
-from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.chat_message import (
+    ChatMessage,
+    MessageRole,
+    find_first_system_message,
+)
 from flink_agents.api.decorators import action
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.event import InputEvent, OutputEvent
@@ -185,7 +189,8 @@ class ReActAgent(Agent):
 
         if schema_prompt:
             instruct = schema_prompt.format_messages()
-            usr_msgs = instruct + usr_msgs
+            index = find_first_system_message(usr_msgs)
+            usr_msgs = usr_msgs[: index + 1] + instruct + usr_msgs[index + 1 :]
 
         output_schema = ctx.get_action_config_value(key="output_schema")
 
