@@ -17,15 +17,27 @@
 #################################################################################
 import re
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, List, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Sequence, Tuple, cast
 
 from pydantic import Field
 from typing_extensions import override
 
-from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.chat_message import (
+    ChatMessage,
+    MessageRole,
+    find_first_system_message,
+)
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.skills.skill_manager import SKILL_MANAGER
+from flink_agents.api.skills.skill_tools import (
+    EXEC_SHELL_COMMAND_TOOL,
+    LOAD_SKILL_TOOL,
+)
 from flink_agents.api.tools.tool import Tool
+
+if TYPE_CHECKING:
+    from flink_agents.api.skills.skill_manager import BaseAgentSkillManager
 
 
 class BaseChatModelConnection(Resource, ABC):
@@ -49,12 +61,16 @@ class BaseChatModelConnection(Resource, ABC):
         """Return resource type of class."""
         return ResourceType.CHAT_MODEL_CONNECTION
 
-    DEFAULT_REASONING_PATTERNS: ClassVar[Tuple[re.Pattern[str],...]] = (
+    DEFAULT_REASONING_PATTERNS: ClassVar[Tuple[re.Pattern[str], ...]] = (
         re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE),
         re.compile(r"<analysis>(.*?)</analysis>", re.DOTALL | re.IGNORECASE),
         re.compile(r"<reasoning>(.*?)</reasoning>", re.DOTALL | re.IGNORECASE),
-        re.compile(r"```(?:think|reasoning|thought)\s*\n(.*?)\n```", re.DOTALL | re.IGNORECASE),
-        re.compile(r"(?:^|\n)Reasoning:\s*(.*?)(?:\n{2,}|$)", re.DOTALL | re.IGNORECASE),
+        re.compile(
+            r"```(?:think|reasoning|thought)\s*\n(.*?)\n```", re.DOTALL | re.IGNORECASE
+        ),
+        re.compile(
+            r"(?:^|\n)Reasoning:\s*(.*?)(?:\n{2,}|$)", re.DOTALL | re.IGNORECASE
+        ),
     )
 
     @staticmethod
@@ -136,6 +152,7 @@ class BaseChatModelSetup(Resource):
     connection: str = Field(description="Name of the referenced connection.")
     prompt: Prompt | str | None = None
     tools: List[str] | None = None
+    skills: List[str] | None = None
 
     @property
     @abstractmethod
@@ -192,9 +209,32 @@ class BaseChatModelSetup(Resource):
 
             # append meaningful messages
             for msg in messages:
-                if (msg.content is not None and msg.content != "") or msg.role == MessageRole.ASSISTANT:
+                if (
+                    msg.content is not None and msg.content != ""
+                ) or msg.role == MessageRole.ASSISTANT:
                     prompt_messages.append(msg)
             messages = prompt_messages
+
+        if self.skills is not None:
+            skill_manager: BaseAgentSkillManager = cast(
+                "BaseAgentSkillManager",
+                self.get_resource(SKILL_MANAGER, ResourceType.SKILL),
+            )
+            # inject skill discovery prompt
+            skill_discovery_prompt = skill_manager.generate_discovery_prompt(
+                *self.skills
+            )
+            index = find_first_system_message(messages)
+            messages = (
+                messages[: index + 1]
+                + [ChatMessage(role=MessageRole.SYSTEM, content=skill_discovery_prompt)]
+                + messages[index + 1 :]
+            )
+            # inject skill needed tools
+            if self.tools is None:
+                self.tools = []
+            self.tools.extend([LOAD_SKILL_TOOL, EXEC_SHELL_COMMAND_TOOL])
+
         # Bind tools
         tools = None
         if self.tools is not None:

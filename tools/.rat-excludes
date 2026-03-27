@@ -17,3 +17,5 @@ PULL_REQUEST_TEMPLATE.md
 .ruff_cache/*
 .*\.egg-info/*
 licenses/*
+generate_image.py
+SKILL.md

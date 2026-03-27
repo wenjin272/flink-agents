@@ -20,7 +20,14 @@ from typing import TYPE_CHECKING, Any, Dict, List, cast
 from pydantic import BaseModel, field_serializer, model_validator
 
 from flink_agents.api.agents.agent import Agent
-from flink_agents.api.resource import Resource, ResourceDescriptor, ResourceType
+from flink_agents.api.resource import (
+    Resource,
+    ResourceDescriptor,
+    ResourceName,
+    ResourceType,
+)
+from flink_agents.api.skills.skill_manager import SKILL_MANAGER
+from flink_agents.api.skills.skill_tools import ExecuteShellCommandTool, LoadSkillTool
 from flink_agents.plan.actions.action import Action
 from flink_agents.plan.actions.chat_model_action import CHAT_MODEL_ACTION
 from flink_agents.plan.actions.context_retrieval_action import CONTEXT_RETRIEVAL_ACTION
@@ -233,7 +240,6 @@ class AgentPlan(BaseModel):
         self.__resources.clear()
 
 
-
 def _get_actions(agent: Agent) -> List[Action]:
     """Extract all registered agent actions from an agent.
 
@@ -286,8 +292,11 @@ def _get_actions(agent: Agent) -> List[Action]:
     return actions
 
 
-def _get_resource_providers(agent: Agent, config: AgentConfiguration) -> List[ResourceProvider]:
+def _get_resource_providers(
+    agent: Agent, config: AgentConfiguration
+) -> List[ResourceProvider]:
     resource_providers = []
+    skills_descriptors = {}
     # retrieve resource declared by decorator
     for name, value in agent.__class__.__dict__.items():
         if (
@@ -338,6 +347,10 @@ def _get_resource_providers(agent: Agent, config: AgentConfiguration) -> List[Re
 
             descriptor = value()
             _add_mcp_server(name, resource_providers, descriptor, config)
+        elif hasattr(value, "_is_skills"):
+            if isinstance(value, staticmethod):
+                value = value.__func__
+            skills_descriptors[name] = value()
 
     # retrieve resource declared by add interface
     for name, prompt in agent.resources[ResourceType.PROMPT].items():
@@ -354,6 +367,10 @@ def _get_resource_providers(agent: Agent, config: AgentConfiguration) -> List[Re
 
     for name, descriptor in agent.resources[ResourceType.MCP_SERVER].items():
         _add_mcp_server(name, resource_providers, descriptor)
+
+    _add_skills(
+        skills_descriptors | agent.resources[ResourceType.SKILL], resource_providers
+    )
 
     for resource_type in [
         ResourceType.CHAT_MODEL,
@@ -376,7 +393,10 @@ def _get_resource_providers(agent: Agent, config: AgentConfiguration) -> List[Re
 
 
 def _add_mcp_server(
-    name: str, resource_providers: List[ResourceProvider], descriptor: ResourceDescriptor, config: AgentConfiguration
+    name: str,
+    resource_providers: List[ResourceProvider],
+    descriptor: ResourceDescriptor,
+    config: AgentConfiguration,
 ) -> None:
     provider = PythonResourceProvider.get(name=name, descriptor=descriptor)
 
@@ -385,7 +405,9 @@ def _add_mcp_server(
     def get_resource(name: str, descriptor: ResourceDescriptor) -> Any:
         """Placeholder."""
 
-    mcp_server = cast("MCPServer", provider.provide(get_resource=get_resource, config=config))
+    mcp_server = cast(
+        "MCPServer", provider.provide(get_resource=get_resource, config=config)
+    )
 
     resource_providers.extend(
         [
@@ -406,3 +428,54 @@ def _add_mcp_server(
     )
 
     mcp_server.close()
+
+
+def _add_skills(
+    descriptors: Dict[str, ResourceDescriptor],
+    resource_providers: List[ResourceProvider],
+) -> None:
+    if len(descriptors) == 0:
+        return
+
+    # register tools for skill usage
+    load_skill = LoadSkillTool()
+    execute_shell_command = ExecuteShellCommandTool()
+    resource_providers.extend(
+        [
+            PythonSerializableResourceProvider.from_resource(
+                name=load_skill.name, resource=load_skill
+            ),
+            PythonSerializableResourceProvider.from_resource(
+                name=execute_shell_command.name, resource=execute_shell_command
+            ),
+        ]
+    )
+
+    # TODO: Currently, we construct a global agent skill manager for all skill
+    #  resource descriptors. In the future, we can support crate individual
+    #  agent skill manager for each resource descriptor, and support specifying
+    #  skill names and which skill manager they belong to when declaring a chat
+    #  model setup. MCP prompts and tools face the same situation, we can refactor
+    #  them as a whole.
+    paths = []
+    urls = []
+    resource_paths = []
+    for descriptor in descriptors.values():
+        paths.extend(descriptor.arguments.get("paths", []))
+        urls.extend(descriptor.arguments.get("urls", []))
+        resource_paths.extend(descriptor.arguments.get("resources", []))
+
+    paths = list(set(paths))
+    urls = list(set(urls))
+    resource_paths = list(set(resource_paths))
+    resource_providers.append(
+        PythonResourceProvider.get(
+            name=SKILL_MANAGER,
+            descriptor=ResourceDescriptor(
+                clazz=ResourceName.SKILL_MANAGER,
+                paths=paths,
+                urls=urls,
+                resources=resource_paths,
+            ),
+        )
+    )

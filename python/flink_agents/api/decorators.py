@@ -189,6 +189,24 @@ def vector_store(func: Callable) -> Callable:
     func._is_vector_store = True
     return func
 
+
+def skills(func: Callable) -> Callable:
+    """Decorator for marking a function declaring skills.
+
+    Parameters
+    ----------
+    func : Callable
+        Function to be decorated.
+
+    Returns:
+    -------
+    Callable
+        Decorator function that marks the target function declare skills.
+    """
+    func._is_skills = True
+    return func
+
+
 def java_resource(cls: Type) -> Type:
     """Decorator to mark a class as Java resource."""
     cls._is_java_resource = True

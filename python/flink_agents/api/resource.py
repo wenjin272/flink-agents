@@ -25,12 +25,11 @@ from pydantic import BaseModel, Field, PrivateAttr, model_validator
 if TYPE_CHECKING:
     from flink_agents.api.metric_group import MetricGroup
 
-
 class ResourceType(Enum):
     """Type enum of resource.
 
     Currently, support chat_model, chat_model_server, tool, embedding_model,
-    vector_store and prompt.
+    vector_store, prompt, mcp_server and skill.
     """
 
     CHAT_MODEL = "chat_model"
@@ -41,6 +40,7 @@ class ResourceType(Enum):
     VECTOR_STORE = "vector_store"
     PROMPT = "prompt"
     MCP_SERVER = "mcp_server"
+    SKILL = "skill"
 
 
 class Resource(BaseModel, ABC):
@@ -318,3 +318,5 @@ class ResourceName:
 
     # MCP resource names
     MCP_SERVER = "flink_agents.integrations.mcp.mcp.MCPServer"
+
+    SKILL_MANAGER = "flink_agents.integrations.skills.skill_manager.AgentSkillManager"
