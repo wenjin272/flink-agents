@@ -37,6 +37,9 @@ from flink_agents.api.tools.tool import ToolType
 class SlowMockChatModel(BaseChatModelSetup):
     """Mock ChatModel with slow connection."""
 
+    def open(self) -> None:
+        """Do nothing."""
+
     @property
     def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
         return {}

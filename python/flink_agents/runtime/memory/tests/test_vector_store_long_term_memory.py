@@ -27,6 +27,7 @@ from chromadb.utils import embedding_functions
 from pydantic import ConfigDict
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.embedding_models.embedding_model import BaseEmbeddingModelSetup
 from flink_agents.api.memory.long_term_memory import (
     CompactionConfig,
     DatetimeRange,
@@ -58,13 +59,14 @@ if TYPE_CHECKING:
 current_dir = Path(__file__).parent
 
 
-class MockEmbeddingModel(Resource):  # noqa: D101
+class MockEmbeddingModel(BaseEmbeddingModelSetup):  # noqa: D101
     model_config = ConfigDict(arbitrary_types_allowed=True)
     ef: EmbeddingFunction = embedding_functions.DefaultEmbeddingFunction()
+    connection: str = "mock"
+    model: str = "mock"
 
-    @classmethod
-    def resource_type(cls) -> ResourceType:  # noqa: D102
-        return ResourceType.EMBEDDING_MODEL
+    def open(self) -> None:  # noqa: D102
+        pass
 
     @property
     def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
@@ -84,18 +86,20 @@ def long_term_memory() -> VectorStoreLongTermMemory:  # noqa: D103
 
     def get_resource(name: str, type: ResourceType) -> Resource:
         if type == ResourceType.CHAT_MODEL:
-            return chat_model
+            resource = chat_model
         elif type == ResourceType.CHAT_MODEL_CONNECTION:
-            return chat_model_connection
+            resource = chat_model_connection
         elif type == ResourceType.EMBEDDING_MODEL:
             if use_ollama:
-                return embedding_model
+                resource = embedding_model
             else:
-                return MockEmbeddingModel()
+                resource = MockEmbeddingModel()
         elif type == ResourceType.EMBEDDING_MODEL_CONNECTION:
-            return embedding_model_connection
+            resource = embedding_model_connection
         else:
-            return vector_store
+            resource = vector_store
+        resource.open()
+        return resource
 
     chat_model = OllamaChatModelSetup(
         get_resource=get_resource, connection="chat_model_connection", model="qwen3:8b"

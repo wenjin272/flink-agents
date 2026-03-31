@@ -124,6 +124,11 @@ class JavaChatModelSetupImpl(JavaChatModelSetup):
         return {}
 
     @override
+    def open(self) -> None:
+        """Open the java resource."""
+        self._j_resource.open()
+
+    @override
     def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
         """Execute chat conversation by delegating to Java implementation.
 

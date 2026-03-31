@@ -225,6 +225,7 @@ public class RunnerContextImpl implements RunnerContext {
 
     @Override
     public Resource getResource(String name, ResourceType type) throws Exception {
+        mailboxThreadChecker.run();
         if (resourceCache == null) {
             throw new IllegalStateException("ResourceCache is not available in this context");
         }

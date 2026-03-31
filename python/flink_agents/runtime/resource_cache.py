@@ -79,6 +79,7 @@ class ResourceCache:
         resource = resource_provider.provide(
             get_resource=self.get_resource, config=self._config
         )
+        resource.open()
         self._cache.setdefault(type, {})[name] = resource
         return resource
 

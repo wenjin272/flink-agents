@@ -19,7 +19,6 @@
 package org.apache.flink.agents.integrations.vectorstores.s3vectors;
 
 import org.apache.flink.agents.api.RetryExecutor;
-import org.apache.flink.agents.api.embedding.model.BaseEmbeddingModelSetup;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
@@ -133,9 +132,6 @@ public class S3VectorsVectorStore extends BaseVectorStore {
     public List<String> add(
             List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
             throws IOException {
-        BaseEmbeddingModelSetup emb =
-                (BaseEmbeddingModelSetup)
-                        this.getResource.apply(this.embeddingModel, ResourceType.EMBEDDING_MODEL);
         List<String> texts = new ArrayList<>();
         List<Integer> needsEmbedding = new ArrayList<>();
         for (int i = 0; i < documents.size(); i++) {
@@ -145,7 +141,7 @@ public class S3VectorsVectorStore extends BaseVectorStore {
             }
         }
         if (!texts.isEmpty()) {
-            List<float[]> embeddings = emb.embed(texts);
+            List<float[]> embeddings = this.embeddingModel.embed(texts);
             for (int j = 0; j < needsEmbedding.size(); j++) {
                 documents.get(needsEmbedding.get(j)).setEmbedding(embeddings.get(j));
             }
