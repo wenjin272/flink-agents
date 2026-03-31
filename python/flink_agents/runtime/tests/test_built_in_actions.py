@@ -73,6 +73,9 @@ class MockChatModelConnection(BaseChatModelConnection):
 class MockChatModel(BaseChatModelSetup):
     """Mock ChatModel for testing integrating prompt and tool."""
 
+    def open(self) -> None:
+        """Do nothing."""
+
     @property
     def model_kwargs(self) -> Dict[str, Any]:
         """Return model kwargs."""

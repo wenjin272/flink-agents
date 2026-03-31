@@ -60,6 +60,11 @@ public class PythonRunnerContextImpl extends RunnerContextImpl {
         sendEvent(new PythonEvent(event, type, eventJsonStr));
     }
 
+    public void checkMailboxThread() {
+        // this method will be invoked by PythonActionExecutor's python interpreter.
+        this.mailboxThreadChecker.run();
+    }
+
     public String getPythonAwaitableRef() {
         return pythonAwaitableRef;
     }

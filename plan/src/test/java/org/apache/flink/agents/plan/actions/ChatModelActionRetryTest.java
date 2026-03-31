@@ -75,7 +75,7 @@ class ChatModelActionRetryTest {
         sensoryMemory = createStatefulMemoryObject();
 
         // Wire up ChatModel
-        when(mockChatModel.getConnection()).thenReturn("test-connection");
+        when(mockChatModel.getConnectionName()).thenReturn("test-connection");
 
         // Wire up RunnerContext
         when(mockCtx.getResource(anyString(), eq(ResourceType.CHAT_MODEL)))
@@ -158,7 +158,7 @@ class ChatModelActionRetryTest {
         assertThat(elapsed).isGreaterThanOrEqualTo(1000L);
 
         // Verify metrics recorded under connection name
-        verify(mockActionMetricGroup).getSubGroup(mockChatModel.getConnection());
+        verify(mockActionMetricGroup).getSubGroup(mockChatModel.getConnectionName());
         verify(mockRetryCountCounter).inc(1);
         verify(mockRetryWaitSecCounter).inc(1);
     }

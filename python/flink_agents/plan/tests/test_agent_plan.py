@@ -93,6 +93,9 @@ class MockChatModelImpl(BaseChatModelSetup):  # noqa: D101
     host: str
     desc: str
 
+    def open(self) -> None:
+        """Do nothing."""
+
     @property
     def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
         return {}

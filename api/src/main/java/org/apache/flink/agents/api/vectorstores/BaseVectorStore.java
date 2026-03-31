@@ -22,6 +22,7 @@ import org.apache.flink.agents.api.embedding.model.BaseEmbeddingModelSetup;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.util.Preconditions;
 
 import javax.annotation.Nullable;
 
@@ -38,12 +39,29 @@ import java.util.function.BiFunction;
 public abstract class BaseVectorStore extends Resource {
 
     /** Name of the embedding model resource to use. */
-    protected final String embeddingModel;
+    protected final String embeddingModelName;
+
+    @Nullable protected BaseEmbeddingModelSetup embeddingModel;
 
     public BaseVectorStore(
             ResourceDescriptor descriptor, BiFunction<String, ResourceType, Resource> getResource) {
         super(descriptor, getResource);
-        this.embeddingModel = descriptor.getArgument("embedding_model");
+        this.embeddingModelName = descriptor.getArgument("embedding_model");
+    }
+
+    /**
+     * Trigger construction for resource objects.
+     *
+     * <p>Currently, in cross-language invocation scenarios, constructing resource object within an
+     * async thread may encounter issues. We resolved this issue by moving the construction of the
+     * resources object out of the method to be async executed and invoking it in the main thread.
+     */
+    @Override
+    public void open() {
+        this.embeddingModel =
+                (BaseEmbeddingModelSetup)
+                        this.getResource.apply(
+                                this.embeddingModelName, ResourceType.EMBEDDING_MODEL);
     }
 
     @Override
@@ -71,13 +89,9 @@ public abstract class BaseVectorStore extends Resource {
     public List<String> add(
             List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
             throws IOException {
-        final BaseEmbeddingModelSetup embeddingModel =
-                (BaseEmbeddingModelSetup)
-                        this.getResource.apply(this.embeddingModel, ResourceType.EMBEDDING_MODEL);
-
         for (Document doc : documents) {
             if (doc.getEmbedding() == null) {
-                doc.setEmbedding(embeddingModel.embed(doc.getContent()));
+                doc.setEmbedding(getEmbeddingModel().embed(doc.getContent()));
             }
         }
 
@@ -95,11 +109,7 @@ public abstract class BaseVectorStore extends Resource {
      * @return VectorStoreQueryResult containing the retrieved documents
      */
     public VectorStoreQueryResult query(VectorStoreQuery query) {
-        final BaseEmbeddingModelSetup embeddingModel =
-                (BaseEmbeddingModelSetup)
-                        this.getResource.apply(this.embeddingModel, ResourceType.EMBEDDING_MODEL);
-
-        final float[] queryEmbedding = embeddingModel.embed(query.getQueryText());
+        final float[] queryEmbedding = getEmbeddingModel().embed(query.getQueryText());
 
         final Map<String, Object> storeKwargs = this.getStoreKwargs();
         storeKwargs.putAll(query.getExtraArgs());
@@ -170,4 +180,11 @@ public abstract class BaseVectorStore extends Resource {
     protected abstract List<String> addEmbedding(
             List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
             throws IOException;
+
+    private BaseEmbeddingModelSetup getEmbeddingModel() {
+        Preconditions.checkNotNull(
+                embeddingModel,
+                "Embedding model is not initialized. Ensure open() is called before add().");
+        return embeddingModel;
+    }
 }

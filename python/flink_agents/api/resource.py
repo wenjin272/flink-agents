@@ -90,6 +90,9 @@ class Resource(BaseModel, ABC):
         """
         return self._metric_group
 
+    def open(self) -> None:
+        """Open the resource."""
+
     def close(self) -> None:
         """Close the resource."""
 
@@ -120,14 +123,14 @@ class ResourceDescriptor(BaseModel):
     arguments: Dict[str, Any]
 
     def __init__(
-            self,
-            /,
-            *,
-            clazz: str | None = None,
-            target_module: str | None = None,
-            target_clazz: str | None = None,
-            arguments: Dict[str, Any] | None = None,
-            **kwargs: Any,
+        self,
+        /,
+        *,
+        clazz: str | None = None,
+        target_module: str | None = None,
+        target_clazz: str | None = None,
+        arguments: Dict[str, Any] | None = None,
+        **kwargs: Any,
     ) -> None:
         """Initialize ResourceDescriptor.
 
@@ -182,9 +185,9 @@ class ResourceDescriptor(BaseModel):
         if not isinstance(other, ResourceDescriptor):
             return False
         return (
-                self.target_module == other.target_module
-                and self.target_clazz == other.target_clazz
-                and self.arguments == other.arguments
+            self.target_module == other.target_module
+            and self.target_clazz == other.target_clazz
+            and self.arguments == other.arguments
         )
 
     def __hash__(self) -> int:
@@ -253,8 +256,12 @@ class ResourceName:
         TONGYI_SETUP = "flink_agents.integrations.chat_models.tongyi_chat_model.TongyiChatModelSetup"
 
         # Java Wrapper
-        JAVA_WRAPPER_CONNECTION = "flink_agents.api.chat_models.java_chat_model.JavaChatModelConnection"
-        JAVA_WRAPPER_SETUP = "flink_agents.api.chat_models.java_chat_model.JavaChatModelSetup"
+        JAVA_WRAPPER_CONNECTION = (
+            "flink_agents.api.chat_models.java_chat_model.JavaChatModelConnection"
+        )
+        JAVA_WRAPPER_SETUP = (
+            "flink_agents.api.chat_models.java_chat_model.JavaChatModelSetup"
+        )
 
         class Java:
             """Java implementations of ChatModel."""
@@ -307,7 +314,9 @@ class ResourceName:
         CHROMA_VECTOR_STORE = "flink_agents.integrations.vector_stores.chroma.chroma_vector_store.ChromaVectorStore"
 
         # Java Wrapper
-        JAVA_WRAPPER_VECTOR_STORE = "flink_agents.api.vector_stores.java_vector_store.JavaVectorStore"
+        JAVA_WRAPPER_VECTOR_STORE = (
+            "flink_agents.api.vector_stores.java_vector_store.JavaVectorStore"
+        )
         JAVA_WRAPPER_COLLECTION_MANAGEABLE_VECTOR_STORE = "flink_agents.api.vector_stores.java_vector_store.JavaCollectionManageableVectorStore"
 
         class Java:

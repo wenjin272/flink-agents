@@ -111,6 +111,9 @@ def test_ollama_chat_with_tools() -> None:  # noqa :D103
         tools=["add"],
         get_resource=get_resource,
     )
+
+    llm.open()
+
     response = llm.chat(
         [
             ChatMessage(
@@ -174,6 +177,8 @@ def test_ollama_chat_with_extract_reasoning() -> None:
         extract_reasoning=True,
         get_resource=get_resource,
     )
+
+    llm.open()
 
     # Replace the real client with our mock client
     connection._OllamaChatModelConnection__client = mock_client

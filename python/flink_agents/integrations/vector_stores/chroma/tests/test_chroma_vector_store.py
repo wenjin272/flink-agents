@@ -28,6 +28,7 @@ try:
 except ImportError:
     chromadb_available = False
 
+from flink_agents.api.embedding_models.embedding_model import BaseEmbeddingModelSetup
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.vector_stores.vector_store import (
     Document,
@@ -42,12 +43,13 @@ tenant = os.environ.get("TEST_TENANT")
 database = os.environ.get("TEST_DATABASE")
 
 
-class MockEmbeddingModel(Resource):  # noqa: D101
+class MockEmbeddingModel(BaseEmbeddingModelSetup):  # noqa: D101
     name: str
+    connection: str = "mock"
+    model: str = "mock"
 
-    @classmethod
-    def resource_type(cls) -> ResourceType:  # noqa: D102
-        return ResourceType.EMBEDDING_MODEL
+    def open(self) -> None:  # noqa: D102
+        pass
 
     @property
     def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
@@ -100,6 +102,8 @@ def test_local_chroma_vector_store() -> None:
         get_resource=get_resource,
     )
 
+    vector_store.open()
+
     _populate_test_data(vector_store, "test_collection")
 
     query = VectorStoreQuery(query_text="What is Flink Agent?", limit=1)
@@ -128,6 +132,8 @@ def test_collection_management() -> None:
         collection="test_collection",
         get_resource=get_resource,
     )
+
+    vector_store.open()
 
     vector_store.get_or_create_collection(
         name="collection_management", metadata={"key1": "value1", "key2": "value2"}
@@ -164,6 +170,8 @@ def test_document_management() -> None:
         collection="test_collection",
         get_resource=get_resource,
     )
+
+    vector_store.open()
 
     vector_store.get_or_create_collection(
         name="document_management", metadata={"key1": "value1", "key2": "value2"}
@@ -220,6 +228,8 @@ def test_cloud_chroma_vector_store() -> None:
         database=database,
         get_resource=get_resource,
     )
+
+    vector_store.open()
 
     _populate_test_data(vector_store)
 
