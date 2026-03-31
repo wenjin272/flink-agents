@@ -68,6 +68,10 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
         return {}
 
     @override
+    def open(self) -> None:
+        self._j_resource.open()
+
+    @override
     def add(
             self,
             documents: Document | List[Document],

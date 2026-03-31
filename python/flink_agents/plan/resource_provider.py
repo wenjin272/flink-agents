@@ -194,7 +194,6 @@ class JavaResourceProvider(ResourceProvider):
         if not self._j_resource_adapter:
             err_msg = "java resource adapter is not set"
             raise RuntimeError(err_msg)
-
         j_resource = self._j_resource_adapter.getResource(self.name, self.type.value)
 
         class_path = JAVA_RESOURCE_MAPPING.get(self.type)

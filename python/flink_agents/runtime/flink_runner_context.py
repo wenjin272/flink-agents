@@ -241,6 +241,7 @@ class FlinkRunnerContext(RunnerContext):
 
     @override
     def get_resource(self, name: str, type: ResourceType, metric_group: MetricGroup = None) -> Resource:
+        self._j_runner_context.checkMailboxThread()
         resource = self.__resource_cache.get_resource(name, type)
         # Bind metric group to the resource
         resource.set_metric_group(metric_group or self.action_metric_group)

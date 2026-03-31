@@ -17,11 +17,12 @@
 ################################################################################
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
+from flink_agents.api.embedding_models.embedding_model import BaseEmbeddingModelSetup
 from flink_agents.api.resource import Resource, ResourceType
 
 
@@ -141,8 +142,8 @@ class BaseVectorStore(Resource, ABC):
     embedding generation internally.
     """
 
-    embedding_model: str = Field(
-        description="Name of the embedding model resource to use."
+    embedding_model: str | BaseEmbeddingModelSetup = Field(
+        description="The embedding model to use."
     )
 
     @classmethod
@@ -159,6 +160,13 @@ class BaseVectorStore(Resource, ABC):
         These parameters are merged with query-specific parameters
         when performing vector search operations.
         """
+
+    @override
+    def open(self) -> None:
+        self.embedding_model = cast(
+            "BaseEmbeddingModelSetup",
+            self.get_resource(self.embedding_model, ResourceType.EMBEDDING_MODEL),
+        )
 
     def add(
         self,
@@ -181,16 +189,10 @@ class BaseVectorStore(Resource, ABC):
         """
         # Normalize to list
         documents = _maybe_cast_to_list(documents)
-
-        # Generate embeddings for all documents
-        embedding_model = self.get_resource(
-            self.embedding_model, ResourceType.EMBEDDING_MODEL
-        )
-
         # Generate embeddings for each document
         for doc in documents:
             if doc.embedding is None:
-                doc.embedding = embedding_model.embed(doc.content)
+                doc.embedding = self.embedding_model.embed(doc.content)
 
         # Merge setup kwargs with add-specific args
         merged_kwargs = self.store_kwargs.copy()
@@ -213,10 +215,7 @@ class BaseVectorStore(Resource, ABC):
             VectorStoreQueryResult containing the retrieved documents
         """
         # Generate embedding from the query text
-        embedding_model = self.get_resource(
-            self.embedding_model, ResourceType.EMBEDDING_MODEL
-        )
-        query_embedding = embedding_model.embed(query.query_text)
+        query_embedding = self.embedding_model.embed(query.query_text)
 
         # Merge setup kwargs with query-specific args
         merged_kwargs = self.store_kwargs.copy()

@@ -88,6 +88,8 @@ def test_tongyi_chat_with_tools() -> None:
         get_resource=get_resource,
     )
 
+    llm.open()
+
     response = llm.chat(
         [
             ChatMessage(
@@ -150,6 +152,8 @@ def test_tongyi_chat_with_extract_reasoning(monkeypatch: pytest.MonkeyPatch) -> 
         extract_reasoning=True,
         get_resource=get_resource,
     )
+
+    llm.open()
 
     response = llm.chat(
         [ChatMessage(role=MessageRole.USER, content="What's the meaning of life?")]

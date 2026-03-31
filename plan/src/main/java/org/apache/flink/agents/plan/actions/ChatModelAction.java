@@ -48,6 +48,7 @@ import javax.annotation.Nullable;
 import java.util.*;
 
 import static org.apache.flink.agents.api.agents.Agent.STRUCTURED_OUTPUT;
+import static org.apache.flink.agents.plan.actions.Utils.supportAsync;
 
 /** Built-in action for processing chat request and tool call result. */
 public class ChatModelAction {
@@ -247,9 +248,10 @@ public class ChatModelAction {
                 (BaseChatModelSetup) ctx.getResource(model, ResourceType.CHAT_MODEL);
 
         boolean chatAsync = ctx.getConfig().get(AgentExecutionOptions.CHAT_ASYNC);
-        // TODO: python chat model doesn't support async execution yet, see
-        // https://github.com/apache/flink-agents/issues/448 for details.
-        chatAsync = chatAsync && !(chatModel instanceof PythonChatModelSetup);
+
+        if ((chatModel instanceof PythonChatModelSetup) && !supportAsync()) {
+            chatAsync = false;
+        }
 
         Agent.ErrorHandlingStrategy strategy =
                 ctx.getConfig().get(AgentExecutionOptions.ERROR_HANDLING_STRATEGY);

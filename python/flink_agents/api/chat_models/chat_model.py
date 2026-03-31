@@ -17,7 +17,7 @@
 #################################################################################
 import re
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, List, Sequence, Tuple
+from typing import Any, ClassVar, Dict, List, Sequence, Tuple, cast
 
 from pydantic import Field
 from typing_extensions import override
@@ -49,12 +49,16 @@ class BaseChatModelConnection(Resource, ABC):
         """Return resource type of class."""
         return ResourceType.CHAT_MODEL_CONNECTION
 
-    DEFAULT_REASONING_PATTERNS: ClassVar[Tuple[re.Pattern[str],...]] = (
+    DEFAULT_REASONING_PATTERNS: ClassVar[Tuple[re.Pattern[str], ...]] = (
         re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE),
         re.compile(r"<analysis>(.*?)</analysis>", re.DOTALL | re.IGNORECASE),
         re.compile(r"<reasoning>(.*?)</reasoning>", re.DOTALL | re.IGNORECASE),
-        re.compile(r"```(?:think|reasoning|thought)\s*\n(.*?)\n```", re.DOTALL | re.IGNORECASE),
-        re.compile(r"(?:^|\n)Reasoning:\s*(.*?)(?:\n{2,}|$)", re.DOTALL | re.IGNORECASE),
+        re.compile(
+            r"```(?:think|reasoning|thought)\s*\n(.*?)\n```", re.DOTALL | re.IGNORECASE
+        ),
+        re.compile(
+            r"(?:^|\n)Reasoning:\s*(.*?)(?:\n{2,}|$)", re.DOTALL | re.IGNORECASE
+        ),
     )
 
     @staticmethod
@@ -133,9 +137,11 @@ class BaseChatModelSetup(Resource):
     different chat configurations.
     """
 
-    connection: str = Field(description="Name of the referenced connection.")
+    connection: str | BaseChatModelConnection = Field(
+        description="The referenced connection."
+    )
     prompt: Prompt | str | None = None
-    tools: List[str] | None = None
+    tools: List[str] | List[Tool] | None = None
 
     @property
     @abstractmethod
@@ -147,6 +153,24 @@ class BaseChatModelSetup(Resource):
     def resource_type(cls) -> ResourceType:
         """Return resource type of class."""
         return ResourceType.CHAT_MODEL
+
+    @override
+    def open(self) -> None:
+        self.connection = cast(
+            "BaseChatModelConnection",
+            self.get_resource(self.connection, ResourceType.CHAT_MODEL_CONNECTION),
+        )
+        if self.prompt is not None:
+            if isinstance(self.prompt, str):
+                # Get prompt resource if it's a string
+                self.prompt = cast(
+                    "Prompt", self.get_resource(self.prompt, ResourceType.PROMPT)
+                )
+        if self.tools is not None:
+            self.tools = [
+                cast("Tool", self.get_resource(tool_name, ResourceType.TOOL))
+                for tool_name in self.tools
+            ]
 
     def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
         """Execute chat conversation.
@@ -168,19 +192,8 @@ class BaseChatModelSetup(Resource):
         ChatMessage
             Model response message
         """
-        # Get model connection
-        connection = self.get_resource(
-            self.connection, ResourceType.CHAT_MODEL_CONNECTION
-        )
-
         # Apply prompt template
         if self.prompt is not None:
-            if isinstance(self.prompt, str):
-                # Get prompt resource if it's a string
-                prompt = self.get_resource(self.prompt, ResourceType.PROMPT)
-            else:
-                prompt = self.prompt
-
             input_variable = {}
 
             # fill the prompt template
@@ -188,25 +201,20 @@ class BaseChatModelSetup(Resource):
                 # Convert Any values to str to match format_messages signature
                 str_extra_args = {k: str(v) for k, v in msg.extra_args.items()}
                 input_variable.update(str_extra_args)
-            prompt_messages = prompt.format_messages(**input_variable)
+            prompt_messages = self.prompt.format_messages(**input_variable)
 
             # append meaningful messages
             for msg in messages:
-                if (msg.content is not None and msg.content != "") or msg.role == MessageRole.ASSISTANT:
+                if (
+                    msg.content is not None and msg.content != ""
+                ) or msg.role == MessageRole.ASSISTANT:
                     prompt_messages.append(msg)
             messages = prompt_messages
-        # Bind tools
-        tools = None
-        if self.tools is not None:
-            tools = [
-                self.get_resource(tool_name, ResourceType.TOOL)
-                for tool_name in self.tools
-            ]
 
         # Call chat model connection to execute chat
         merged_kwargs = self.model_kwargs.copy()
         merged_kwargs.update(kwargs)
-        return connection.chat(messages, tools=tools, **merged_kwargs)
+        return self.connection.chat(messages, tools=self.tools, **merged_kwargs)
 
     def _record_token_metrics(
         self, model_name: str, prompt_tokens: int, completion_tokens: int

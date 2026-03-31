@@ -32,6 +32,7 @@ import pemja.core.object.PyObject;
 import javax.annotation.Nullable;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +68,11 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
         super(descriptor, getResource);
         this.vectorStore = vectorStore;
         this.adapter = adapter;
+    }
+
+    @Override
+    public void open() {
+        adapter.callMethod(vectorStore, "open", Collections.emptyMap());
     }
 
     @Override

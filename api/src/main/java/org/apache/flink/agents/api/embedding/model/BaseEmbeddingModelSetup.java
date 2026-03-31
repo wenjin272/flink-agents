@@ -34,14 +34,28 @@ import java.util.function.BiFunction;
  * management and model configuration.
  */
 public abstract class BaseEmbeddingModelSetup extends Resource {
-    protected final String connection;
+    protected final String connectionName;
     protected String model;
+
+    protected BaseEmbeddingModelConnection connection;
 
     public BaseEmbeddingModelSetup(
             ResourceDescriptor descriptor, BiFunction<String, ResourceType, Resource> getResource) {
         super(descriptor, getResource);
-        this.connection = descriptor.getArgument("connection");
+        this.connectionName = descriptor.getArgument("connection");
         this.model = descriptor.getArgument("model");
+    }
+
+    /**
+     * Trigger construction for resource objects.
+     *
+     * <p>Currently, in cross-language invocation scenarios, constructing resource object within an
+     * async thread may encounter issues. We resolved this issue by moving the construction of the
+     * resources object out of the method to be async executed and invoking it in the main thread.
+     */
+    @Override
+    public void open() {
+        this.connection = this.getConnection();
     }
 
     public abstract Map<String, Object> getParameters();
@@ -58,7 +72,7 @@ public abstract class BaseEmbeddingModelSetup extends Resource {
      */
     public BaseEmbeddingModelConnection getConnection() {
         return (BaseEmbeddingModelConnection)
-                getResource.apply(connection, ResourceType.EMBEDDING_MODEL_CONNECTION);
+                getResource.apply(connectionName, ResourceType.EMBEDDING_MODEL_CONNECTION);
     }
 
     /**

@@ -100,6 +100,8 @@ def test_local_chroma_vector_store() -> None:
         get_resource=get_resource,
     )
 
+    vector_store.open()
+
     _populate_test_data(vector_store, "test_collection")
 
     query = VectorStoreQuery(query_text="What is Flink Agent?", limit=1)
@@ -128,6 +130,8 @@ def test_collection_management() -> None:
         collection="test_collection",
         get_resource=get_resource,
     )
+
+    vector_store.open()
 
     vector_store.get_or_create_collection(
         name="collection_management", metadata={"key1": "value1", "key2": "value2"}
@@ -164,6 +168,8 @@ def test_document_management() -> None:
         collection="test_collection",
         get_resource=get_resource,
     )
+
+    vector_store.open()
 
     vector_store.get_or_create_collection(
         name="document_management", metadata={"key1": "value1", "key2": "value2"}
@@ -220,6 +226,8 @@ def test_cloud_chroma_vector_store() -> None:
         database=database,
         get_resource=get_resource,
     )
+
+    vector_store.open()
 
     _populate_test_data(vector_store)
 
