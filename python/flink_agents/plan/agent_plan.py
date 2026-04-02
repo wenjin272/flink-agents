@@ -20,7 +20,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, cast
 from pydantic import BaseModel, field_serializer, model_validator
 
 from flink_agents.api.agents.agent import Agent
-from flink_agents.api.resource import ResourceDescriptor, ResourceType
+from flink_agents.api.resource import (
+    Resource,
+    ResourceDescriptor,
+    ResourceType,
+)
 from flink_agents.plan.actions.action import Action
 from flink_agents.plan.actions.chat_model_action import CHAT_MODEL_ACTION
 from flink_agents.plan.actions.context_retrieval_action import CONTEXT_RETRIEVAL_ACTION
@@ -37,7 +41,7 @@ from flink_agents.plan.resource_provider import (
 from flink_agents.plan.tools.function_tool import from_callable
 
 if TYPE_CHECKING:
-    from flink_agents.integrations.mcp.mcp import MCPServer
+    from flink_agents.api.resource_context import ResourceContext
 
 BUILT_IN_ACTIONS = [CHAT_MODEL_ACTION, TOOL_CALL_ACTION, CONTEXT_RETRIEVAL_ACTION]
 
@@ -59,6 +63,9 @@ class AgentPlan(BaseModel):
     actions_by_event: Dict[str, List[str]]
     resource_providers: Dict[ResourceType, Dict[str, ResourceProvider]] | None = None
     config: AgentConfiguration | None = None
+    __resources: Dict[ResourceType, Dict[str, Resource]] = {}
+    __j_resource_adapter: Any = None
+    __resource_context: "ResourceContext | None" = None
 
     @field_serializer("resource_providers")
     def __serialize_resource_providers(
@@ -198,6 +205,19 @@ class AgentPlan(BaseModel):
         return self.actions[action_name].config.get(key, None)
 
 
+    def set_resource_context(self, ctx: "ResourceContext") -> None:
+        """Set the ResourceContext to be injected into resources.
+
+        This should be called by the runtime layer before any resources
+        are accessed.
+
+        Parameters
+        ----------
+        ctx : ResourceContext
+            The resource context implementation provided by the runtime.
+        """
+        self.__resource_context = ctx
+        
 def _get_actions(agent: Agent) -> List[Action]:
     """Extract all registered agent actions from an agent.
 
@@ -250,7 +270,9 @@ def _get_actions(agent: Agent) -> List[Action]:
     return actions
 
 
-def _get_resource_providers(agent: Agent, config: AgentConfiguration) -> List[ResourceProvider]:
+def _get_resource_providers(
+    agent: Agent, config: AgentConfiguration
+) -> List[ResourceProvider]:
     resource_providers = []
     # retrieve resource declared by decorator
     for name, value in agent.__class__.__dict__.items():
@@ -340,7 +362,10 @@ def _get_resource_providers(agent: Agent, config: AgentConfiguration) -> List[Re
 
 
 def _add_mcp_server(
-    name: str, resource_providers: List[ResourceProvider], descriptor: ResourceDescriptor, config: AgentConfiguration
+    name: str,
+    resource_providers: List[ResourceProvider],
+    descriptor: ResourceDescriptor,
+    config: AgentConfiguration,
 ) -> None:
     provider = PythonResourceProvider.get(name=name, descriptor=descriptor)
 
@@ -349,7 +374,9 @@ def _add_mcp_server(
     def get_resource(name: str, type: ResourceType) -> Any:
         """Placeholder - MCP server construction doesn't need resource resolution."""
 
-    mcp_server = cast("MCPServer", provider.provide(get_resource=get_resource, config=config))
+    mcp_server = cast(
+        "MCPServer", provider.provide(resource_context=get_resource, config=config)
+    )
 
     resource_providers.extend(
         [

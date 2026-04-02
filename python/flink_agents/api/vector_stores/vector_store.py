@@ -165,7 +165,7 @@ class BaseVectorStore(Resource, ABC):
     def open(self) -> None:
         self.embedding_model = cast(
             "BaseEmbeddingModelSetup",
-            self.get_resource(self.embedding_model, ResourceType.EMBEDDING_MODEL),
+            self.resource_context.get_resource(self.embedding_model, ResourceType.EMBEDDING_MODEL),
         )
 
     def _get_embedding_model(self) -> BaseEmbeddingModelSetup:

@@ -284,7 +284,12 @@ class LocalRunner(AgentRunner):
         agent : Agent
             The agent class to convert and run.
         """
+        from flink_agents.runtime.resource_context import ResourceContextImpl
+
         self.__agent_plan = AgentPlan.from_agent(agent, config)
+        self.__agent_plan.set_resource_context(
+            ResourceContextImpl(self.__agent_plan)
+        )
         self.__keyed_contexts = {}
         self.__outputs = []
         self.__config = config

@@ -18,19 +18,20 @@
 import importlib
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Dict, Type
+from typing import TYPE_CHECKING, Any, Dict, Type
 
-from pydantic import BaseModel, Field, PrivateAttr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+
+from flink_agents.api.resource_context import ResourceContext
 
 if TYPE_CHECKING:
     from flink_agents.api.metric_group import MetricGroup
-
 
 class ResourceType(Enum):
     """Type enum of resource.
 
     Currently, support chat_model, chat_model_server, tool, embedding_model,
-    vector_store and prompt.
+    vector_store, prompt, mcp_server.
     """
 
     CHAT_MODEL = "chat_model"
@@ -52,14 +53,13 @@ class Resource(BaseModel, ABC):
 
     Attributes:
     ----------
-    get_resource : Callable[[str, ResourceType], "Resource"]
+    resource_context : ResourceContext
         Get other resource object declared in the same Agent. The first argument is
         resource name and the second argument is resource type.
     """
 
-    get_resource: Callable[[str, ResourceType], "Resource"] = Field(
-        exclude=True, default=None
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    resource_context: ResourceContext | None = Field(exclude=True, default=None)
 
     # The metric group bound to this resource, injected in RunnerContext#get_resource
     _metric_group: "MetricGroup | None" = PrivateAttr(default=None)

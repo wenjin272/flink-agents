@@ -203,6 +203,8 @@ class FlinkRunnerContext(RunnerContext):
         j_runner_context : Any
             Java runner context used to synchronize data between Python and Java.
         """
+        from flink_agents.runtime.resource_context import ResourceContextImpl
+
         self._j_runner_context = j_runner_context
         self.__agent_plan = AgentPlan.model_validate_json(agent_plan_json)
         self.__resource_cache = ResourceCache(

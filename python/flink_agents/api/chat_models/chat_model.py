@@ -22,7 +22,10 @@ from typing import Any, ClassVar, Dict, List, Sequence, Tuple, cast
 from pydantic import Field
 from typing_extensions import override
 
-from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.chat_message import (
+    ChatMessage,
+    MessageRole,
+)
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.tools.tool import Tool
@@ -158,17 +161,17 @@ class BaseChatModelSetup(Resource):
     def open(self) -> None:
         self.connection = cast(
             "BaseChatModelConnection",
-            self.get_resource(self.connection, ResourceType.CHAT_MODEL_CONNECTION),
+            self.resource_context.get_resource(self.connection, ResourceType.CHAT_MODEL_CONNECTION),
         )
         if self.prompt is not None:
             if isinstance(self.prompt, str):
                 # Get prompt resource if it's a string
                 self.prompt = cast(
-                    "Prompt", self.get_resource(self.prompt, ResourceType.PROMPT)
+                    "Prompt", self.resource_context.get_resource(self.prompt, ResourceType.PROMPT)
                 )
         if self.tools is not None:
             self.tools = [
-                cast("Tool", self.get_resource(tool_name, ResourceType.TOOL))
+                cast("Tool", self.resource_context.get_resource(tool_name, ResourceType.TOOL))
                 for tool_name in self.tools
             ]
 
@@ -210,6 +213,13 @@ class BaseChatModelSetup(Resource):
                 ) or msg.role == MessageRole.ASSISTANT:
                     prompt_messages.append(msg)
             messages = prompt_messages
+        # Bind tools
+        tools = None
+        if self.tools is not None:
+            tools = [
+                self.resource_context.get_resource(tool_name, ResourceType.TOOL)
+                for tool_name in self.tools
+            ]
 
         # Call chat model connection to execute chat
         merged_kwargs = self.model_kwargs.copy()
