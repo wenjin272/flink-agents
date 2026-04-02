@@ -35,6 +35,7 @@ from flink_agents.plan.agent_plan import AgentPlan
 from flink_agents.plan.configuration import AgentConfiguration
 from flink_agents.runtime.agent_runner import AgentRunner
 from flink_agents.runtime.local_memory_object import LocalMemoryObject
+from flink_agents.runtime.resource_cache import ResourceCache
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -81,6 +82,9 @@ class LocalRunnerContext(RunnerContext):
             KeyedStream.
         """
         self.__agent_plan = agent_plan
+        self.__resource_cache = ResourceCache(
+            agent_plan.resource_providers, agent_plan.config
+        )
         self.__key = key
         self.events = deque()
         self._sensory_mem_store = {}
@@ -120,7 +124,7 @@ class LocalRunnerContext(RunnerContext):
 
     @override
     def get_resource(self, name: str, type: ResourceType, metric_group: MetricGroup = None) -> Resource:
-        return self.__agent_plan.get_resource(name, type)
+        return self.__resource_cache.get_resource(name, type)
 
     @property
     @override
@@ -244,11 +248,11 @@ class LocalRunnerContext(RunnerContext):
 
     def close(self) -> None:
         """Cleanup the resource."""
-        if self.__agent_plan is not None:
+        if self.__resource_cache is not None:
             try:
-                self.__agent_plan.close()
+                self.__resource_cache.close()
             finally:
-                self.__agent_plan = None
+                self.__resource_cache = None
 
 
 class LocalRunner(AgentRunner):

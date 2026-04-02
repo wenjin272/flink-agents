@@ -93,6 +93,18 @@ class AgentPlanDeclareChatModelTest {
         agentPlan = new AgentPlan(new ChatAgent());
     }
 
+    /** Resolves a resource directly from its provider. */
+    private Resource resolveResource(String name, ResourceType type) throws Exception {
+        return agentPlan
+                .getResourceProviders()
+                .get(type)
+                .get(name)
+                .provide(
+                        (n, t) -> {
+                            throw new UnsupportedOperationException("No dependencies expected");
+                        });
+    }
+
     @Test
     @DisplayName("Discover @ChatModel in AgentPlan resource providers")
     void discoverChatModel() {
@@ -107,8 +119,7 @@ class AgentPlanDeclareChatModelTest {
     @DisplayName("Retrieve chat model and invoke chat(Prompt)")
     void retrieveAndChat() throws Exception {
         BaseChatModelSetup model =
-                (BaseChatModelSetup)
-                        agentPlan.getResource("testChatModel", ResourceType.CHAT_MODEL);
+                (BaseChatModelSetup) resolveResource("testChatModel", ResourceType.CHAT_MODEL);
         assertNotNull(model);
 
         Prompt prompt = Prompt.fromText("Hello world");
@@ -126,7 +137,15 @@ class AgentPlanDeclareChatModelTest {
         AgentPlan restored = mapper.readValue(json, AgentPlan.class);
 
         BaseChatModelSetup model =
-                (BaseChatModelSetup) restored.getResource("testChatModel", ResourceType.CHAT_MODEL);
+                (BaseChatModelSetup)
+                        restored.getResourceProviders()
+                                .get(ResourceType.CHAT_MODEL)
+                                .get("testChatModel")
+                                .provide(
+                                        (n, t) -> {
+                                            throw new UnsupportedOperationException(
+                                                    "No dependencies expected");
+                                        });
         ChatMessage reply =
                 model.chat(Prompt.fromText("Hi").formatMessages(MessageRole.USER, new HashMap<>()));
         assertEquals("ok:Hi", reply.getContent());
@@ -148,10 +167,17 @@ class AgentPlanDeclareChatModelTest {
         AgentPlan actualPlan = new AgentPlan(agent);
         BaseChatModelSetup actualChatModel =
                 (BaseChatModelSetup)
-                        actualPlan.getResource("testChatModel", ResourceType.CHAT_MODEL);
+                        actualPlan
+                                .getResourceProviders()
+                                .get(ResourceType.CHAT_MODEL)
+                                .get("testChatModel")
+                                .provide(
+                                        (n, t) -> {
+                                            throw new UnsupportedOperationException(
+                                                    "No dependencies expected");
+                                        });
         BaseChatModelSetup expectedChatModel =
-                (BaseChatModelSetup)
-                        agentPlan.getResource("testChatModel", ResourceType.CHAT_MODEL);
+                (BaseChatModelSetup) resolveResource("testChatModel", ResourceType.CHAT_MODEL);
         Assertions.assertEquals(expectedChatModel.getClass(), actualChatModel.getClass());
         Assertions.assertEquals(expectedChatModel.getConnection(), actualChatModel.getConnection());
         Assertions.assertEquals(expectedChatModel.getModel(), actualChatModel.getModel());

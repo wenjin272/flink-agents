@@ -35,6 +35,8 @@ import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.agents.plan.PythonFunction;
 import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
+import org.apache.flink.agents.runtime.PythonMCPResourceDiscovery;
+import org.apache.flink.agents.runtime.ResourceCache;
 import org.apache.flink.agents.runtime.actionstate.ActionState;
 import org.apache.flink.agents.runtime.actionstate.ActionStateStore;
 import org.apache.flink.agents.runtime.actionstate.KafkaActionStateStore;
@@ -130,6 +132,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     private static final String PENDING_INPUT_EVENT_STATE_NAME = "pendingInputEvents";
 
     private final AgentPlan agentPlan;
+
+    private transient ResourceCache resourceCache;
 
     private final Boolean inputIsJava;
 
@@ -265,6 +269,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                         TypeInformation.of(String.class),
                         TypeInformation.of(MemoryObjectImpl.MemoryItem.class));
         shortTermMemState = getRuntimeContext().getMapState(shortTermMemStateDescriptor);
+
+        resourceCache = new ResourceCache(agentPlan.getResourceProviders());
 
         metricGroup = new FlinkAgentsMetricGroupImpl(getMetricGroup());
         builtInMetrics = new BuiltInMetrics(metricGroup, agentPlan);
@@ -606,7 +612,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
     private Resource getResource(String name, ResourceType type) {
         try {
-            return agentPlan.getResource(name, type);
+            return resourceCache.getResource(name, type);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -651,6 +657,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                             this.metricGroup,
                             this::checkMailboxThread,
                             this.agentPlan,
+                            this.resourceCache,
                             this.jobIdentifier);
 
             javaResourceAdapter = new JavaResourceAdapter(this::getResource, pythonInterpreter);
@@ -679,7 +686,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 new PythonResourceAdapterImpl(
                         (String anotherName, ResourceType anotherType) -> {
                             try {
-                                return agentPlan.getResource(anotherName, anotherType);
+                                return resourceCache.getResource(anotherName, anotherType);
                             } catch (Exception e) {
                                 throw new RuntimeException(e);
                             }
@@ -687,7 +694,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                         pythonInterpreter,
                         javaResourceAdapter);
         pythonResourceAdapter.open();
-        agentPlan.setPythonResourceAdapter(pythonResourceAdapter);
+        PythonMCPResourceDiscovery.discoverPythonMCPResources(
+                agentPlan.getResourceProviders(), pythonResourceAdapter, resourceCache);
     }
 
     @Override
@@ -704,6 +712,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
     @Override
     public void close() throws Exception {
+        // Must close before pythonInterpreter since cached resources may hold Python references.
+        if (resourceCache != null) {
+            resourceCache.close();
+        }
         if (runnerContext != null) {
             try {
                 runnerContext.close();
@@ -725,9 +737,6 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         }
         if (actionStateStore != null) {
             actionStateStore.close();
-        }
-        if (runnerContext != null) {
-            runnerContext.close();
         }
         if (continuationActionExecutor != null) {
             continuationActionExecutor.close();
@@ -1096,6 +1105,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                                 this.metricGroup,
                                 this::checkMailboxThread,
                                 this.agentPlan,
+                                this.resourceCache,
                                 this.jobIdentifier,
                                 continuationActionExecutor);
             }
@@ -1107,6 +1117,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                                 this.metricGroup,
                                 this::checkMailboxThread,
                                 this.agentPlan,
+                                this.resourceCache,
                                 jobIdentifier);
             }
             return pythonRunnerContext;
