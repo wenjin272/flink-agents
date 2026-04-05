@@ -27,7 +27,7 @@ import java.util.StringTokenizer;
 
 public final class Utils {
     private static final Logger LOG = LoggerFactory.getLogger(Utils.class);
-    private static final String defaultValue = "<unknown>";
+    private static final String DEFAULT_VALUE = "<unknown>";
 
     static final Versions INSTANCE = new Versions();
 
@@ -44,7 +44,7 @@ public final class Utils {
     public static boolean supportAsync() {
         String version = INSTANCE.projectVersion;
 
-        if (defaultValue.equals(version)) {
+        if (DEFAULT_VALUE.equals(version)) {
             return false;
         }
 
@@ -71,7 +71,7 @@ public final class Utils {
     }
 
     private static class Versions {
-        private String projectVersion = defaultValue;
+        private String projectVersion = DEFAULT_VALUE;
 
         public Versions() {
             ClassLoader classLoader = Utils.class.getClassLoader();
@@ -80,7 +80,7 @@ public final class Utils {
                 if (propFile != null) {
                     Properties properties = new Properties();
                     properties.load(propFile);
-                    this.projectVersion = getProperty(properties, "project.version", defaultValue);
+                    this.projectVersion = getProperty(properties, "project.version", DEFAULT_VALUE);
                 }
             } catch (IOException ioe) {
                 LOG.info(
@@ -89,9 +89,9 @@ public final class Utils {
             }
         }
 
-        private String getProperty(Properties properties, String key, String defaultValue) {
+        private String getProperty(Properties properties, String key, String DEFAULT_VALUE) {
             String value = properties.getProperty(key);
-            return value != null && value.charAt(0) != '$' ? value : defaultValue;
+            return value != null && value.charAt(0) != '$' ? value : DEFAULT_VALUE;
         }
     }
 }

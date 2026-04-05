@@ -345,7 +345,8 @@ public class ChatModelAction {
             int totalRetryCount = retryStats.get(TOTAL_RETRY_COUNT).intValue();
             int totalRetryWaitSec = retryStats.get(TOTAL_RETRY_WAIT_SEC).intValue();
 
-            recordRetryMetrics(ctx, chatModel.getConnection(), totalRetryCount, totalRetryWaitSec);
+            recordRetryMetrics(
+                    ctx, chatModel.getConnectionName(), totalRetryCount, totalRetryWaitSec);
 
             ctx.sendEvent(
                     new ChatResponseEvent(

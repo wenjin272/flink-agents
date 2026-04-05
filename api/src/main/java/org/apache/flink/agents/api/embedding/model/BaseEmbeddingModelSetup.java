@@ -21,6 +21,10 @@ package org.apache.flink.agents.api.embedding.model;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.util.Preconditions;
+
+import javax.annotation.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -37,7 +41,7 @@ public abstract class BaseEmbeddingModelSetup extends Resource {
     protected final String connectionName;
     protected String model;
 
-    protected BaseEmbeddingModelConnection connection;
+    @Nullable protected BaseEmbeddingModelConnection connection;
 
     public BaseEmbeddingModelSetup(
             ResourceDescriptor descriptor, BiFunction<String, ResourceType, Resource> getResource) {
@@ -55,7 +59,9 @@ public abstract class BaseEmbeddingModelSetup extends Resource {
      */
     @Override
     public void open() {
-        this.connection = this.getConnection();
+        this.connection =
+                (BaseEmbeddingModelConnection)
+                        getResource.apply(connectionName, ResourceType.EMBEDDING_MODEL_CONNECTION);
     }
 
     public abstract Map<String, Object> getParameters();
@@ -70,9 +76,12 @@ public abstract class BaseEmbeddingModelSetup extends Resource {
      *
      * @return The embedding model connection instance
      */
+    @VisibleForTesting
     public BaseEmbeddingModelConnection getConnection() {
-        return (BaseEmbeddingModelConnection)
-                getResource.apply(connectionName, ResourceType.EMBEDDING_MODEL_CONNECTION);
+        Preconditions.checkNotNull(
+                connection,
+                "Connection is not initialized. Ensure open() is called before embed().");
+        return connection;
     }
 
     /**
@@ -95,13 +104,9 @@ public abstract class BaseEmbeddingModelSetup extends Resource {
     }
 
     public float[] embed(String text, Map<String, Object> parameters) {
-        BaseEmbeddingModelConnection connection = getConnection();
-
         Map<String, Object> params = this.getParameters();
         params.putAll(parameters);
-
-        // params are propagated to the connection
-        return connection.embed(text, params);
+        return getConnection().embed(text, params);
     }
 
     /**
@@ -116,12 +121,8 @@ public abstract class BaseEmbeddingModelSetup extends Resource {
     }
 
     public List<float[]> embed(List<String> texts, Map<String, Object> parameters) {
-        BaseEmbeddingModelConnection connection = getConnection();
-
         Map<String, Object> params = this.getParameters();
         params.putAll(parameters);
-
-        // params are propagated to the connection
-        return connection.embed(texts, params);
+        return getConnection().embed(texts, params);
     }
 }

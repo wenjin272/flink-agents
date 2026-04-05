@@ -26,6 +26,9 @@ import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.util.Preconditions;
+
+import javax.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,7 +43,7 @@ public abstract class BaseChatModelSetup extends Resource {
     protected Object prompt;
     protected List<String> toolNames;
 
-    protected BaseChatModelConnection connection;
+    @Nullable protected BaseChatModelConnection connection;
     protected final List<Tool> tools = new ArrayList<>();
 
     public BaseChatModelSetup(
@@ -82,11 +85,17 @@ public abstract class BaseChatModelSetup extends Resource {
     }
 
     public ChatMessage chat(List<ChatMessage> messages, Map<String, Object> parameters) {
+        Preconditions.checkNotNull(
+                connection,
+                "Connection is not initialized. Ensure open() is called before chat().");
         // Pass metric group to connection for token usage tracking
         connection.setMetricGroup(getMetricGroup());
 
         // Format input messages if set prompt.
         if (this.prompt != null) {
+            Preconditions.checkState(
+                    prompt instanceof Prompt,
+                    "Prompt is not initialized. Ensure open() is called before chat().");
             Prompt prompt = (Prompt) this.prompt;
             Map<String, String> arguments = new HashMap<>();
             for (ChatMessage message : messages) {

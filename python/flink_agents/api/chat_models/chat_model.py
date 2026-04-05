@@ -141,7 +141,7 @@ class BaseChatModelSetup(Resource):
         description="The referenced connection."
     )
     prompt: Prompt | str | None = None
-    tools: List[str] | List[Tool] | None = None
+    tools: List[str] | List[Tool] = Field(default_factory=list)
 
     @property
     @abstractmethod
@@ -201,7 +201,7 @@ class BaseChatModelSetup(Resource):
                 # Convert Any values to str to match format_messages signature
                 str_extra_args = {k: str(v) for k, v in msg.extra_args.items()}
                 input_variable.update(str_extra_args)
-            prompt_messages = self.prompt.format_messages(**input_variable)
+            prompt_messages = self._get_prompt().format_messages(**input_variable)
 
             # append meaningful messages
             for msg in messages:
@@ -214,7 +214,7 @@ class BaseChatModelSetup(Resource):
         # Call chat model connection to execute chat
         merged_kwargs = self.model_kwargs.copy()
         merged_kwargs.update(kwargs)
-        return self.connection.chat(messages, tools=self.tools, **merged_kwargs)
+        return self._get_connection().chat(messages, tools=self._get_tools(), **merged_kwargs)
 
     def _record_token_metrics(
         self, model_name: str, prompt_tokens: int, completion_tokens: int
@@ -237,3 +237,23 @@ class BaseChatModelSetup(Resource):
         model_group = metric_group.get_sub_group(model_name)
         model_group.get_counter("promptTokens").inc(prompt_tokens)
         model_group.get_counter("completionTokens").inc(completion_tokens)
+
+    def _get_connection(self) -> BaseChatModelConnection:
+        if not isinstance(self.connection, BaseChatModelConnection):
+            err_msg = f"Expect BaseChatModelConnection, but is {self.connection.__class__.__name__}"
+            raise TypeError(err_msg)
+        return self.connection
+
+    def _get_prompt(self) -> Prompt:
+        if not isinstance(self.prompt, Prompt):
+            err_msg = f"Expect Prompt, but is {self.prompt.__class__.__name__}"
+            raise TypeError(err_msg)
+        return self.prompt
+
+    def _get_tools(self) -> List[Tool]:
+        for tool in self.tools:
+            if not isinstance(tool, Tool):
+                err_msg = f"Expect Tool, but is {tool.__class__.__name__}"
+                raise TypeError(err_msg)
+        return self.tools
+
