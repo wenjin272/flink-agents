@@ -22,6 +22,7 @@ import org.apache.flink.agents.api.embedding.model.BaseEmbeddingModelSetup;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.util.Preconditions;
 
 import javax.annotation.Nullable;
 
@@ -40,7 +41,7 @@ public abstract class BaseVectorStore extends Resource {
     /** Name of the embedding model resource to use. */
     protected final String embeddingModelName;
 
-    protected BaseEmbeddingModelSetup embeddingModel;
+    @Nullable protected BaseEmbeddingModelSetup embeddingModel;
 
     public BaseVectorStore(
             ResourceDescriptor descriptor, BiFunction<String, ResourceType, Resource> getResource) {
@@ -90,7 +91,7 @@ public abstract class BaseVectorStore extends Resource {
             throws IOException {
         for (Document doc : documents) {
             if (doc.getEmbedding() == null) {
-                doc.setEmbedding(embeddingModel.embed(doc.getContent()));
+                doc.setEmbedding(getEmbeddingModel().embed(doc.getContent()));
             }
         }
 
@@ -108,7 +109,7 @@ public abstract class BaseVectorStore extends Resource {
      * @return VectorStoreQueryResult containing the retrieved documents
      */
     public VectorStoreQueryResult query(VectorStoreQuery query) {
-        final float[] queryEmbedding = embeddingModel.embed(query.getQueryText());
+        final float[] queryEmbedding = getEmbeddingModel().embed(query.getQueryText());
 
         final Map<String, Object> storeKwargs = this.getStoreKwargs();
         storeKwargs.putAll(query.getExtraArgs());
@@ -179,4 +180,11 @@ public abstract class BaseVectorStore extends Resource {
     protected abstract List<String> addEmbedding(
             List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
             throws IOException;
+
+    private BaseEmbeddingModelSetup getEmbeddingModel() {
+        Preconditions.checkNotNull(
+                embeddingModel,
+                "Embedding model is not initialized. Ensure open() is called before add().");
+        return embeddingModel;
+    }
 }

@@ -28,6 +28,7 @@ try:
 except ImportError:
     chromadb_available = False
 
+from flink_agents.api.embedding_models.embedding_model import BaseEmbeddingModelSetup
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.vector_stores.vector_store import (
     Document,
@@ -42,12 +43,13 @@ tenant = os.environ.get("TEST_TENANT")
 database = os.environ.get("TEST_DATABASE")
 
 
-class MockEmbeddingModel(Resource):  # noqa: D101
+class MockEmbeddingModel(BaseEmbeddingModelSetup):  # noqa: D101
     name: str
+    connection: str = "mock"
+    model: str = "mock"
 
-    @classmethod
-    def resource_type(cls) -> ResourceType:  # noqa: D102
-        return ResourceType.EMBEDDING_MODEL
+    def open(self) -> None:  # noqa: D102
+        pass
 
     @property
     def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102

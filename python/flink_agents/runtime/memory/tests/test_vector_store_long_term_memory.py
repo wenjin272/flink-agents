@@ -27,6 +27,7 @@ from chromadb.utils import embedding_functions
 from pydantic import ConfigDict
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.embedding_models.embedding_model import BaseEmbeddingModelSetup
 from flink_agents.api.memory.long_term_memory import (
     CompactionConfig,
     DatetimeRange,
@@ -58,13 +59,14 @@ if TYPE_CHECKING:
 current_dir = Path(__file__).parent
 
 
-class MockEmbeddingModel(Resource):  # noqa: D101
+class MockEmbeddingModel(BaseEmbeddingModelSetup):  # noqa: D101
     model_config = ConfigDict(arbitrary_types_allowed=True)
     ef: EmbeddingFunction = embedding_functions.DefaultEmbeddingFunction()
+    connection: str = "mock"
+    model: str = "mock"
 
-    @classmethod
-    def resource_type(cls) -> ResourceType:  # noqa: D102
-        return ResourceType.EMBEDDING_MODEL
+    def open(self) -> None:  # noqa: D102
+        pass
 
     @property
     def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102

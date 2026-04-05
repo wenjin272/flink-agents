@@ -168,6 +168,12 @@ class BaseVectorStore(Resource, ABC):
             self.get_resource(self.embedding_model, ResourceType.EMBEDDING_MODEL),
         )
 
+    def _get_embedding_model(self) -> BaseEmbeddingModelSetup:
+        if not isinstance(self.embedding_model, BaseEmbeddingModelSetup):
+            err_msg = f"Expect BaseEmbeddingModelSetup, but is {self.embedding_model.__class__.__name__}"
+            raise TypeError(err_msg)
+        return self.embedding_model
+
     def add(
         self,
         documents: Document | List[Document],
@@ -192,7 +198,7 @@ class BaseVectorStore(Resource, ABC):
         # Generate embeddings for each document
         for doc in documents:
             if doc.embedding is None:
-                doc.embedding = self.embedding_model.embed(doc.content)
+                doc.embedding = self._get_embedding_model().embed(doc.content)
 
         # Merge setup kwargs with add-specific args
         merged_kwargs = self.store_kwargs.copy()
@@ -215,7 +221,7 @@ class BaseVectorStore(Resource, ABC):
             VectorStoreQueryResult containing the retrieved documents
         """
         # Generate embedding from the query text
-        query_embedding = self.embedding_model.embed(query.query_text)
+        query_embedding = self._get_embedding_model().embed(query.query_text)
 
         # Merge setup kwargs with query-specific args
         merged_kwargs = self.store_kwargs.copy()

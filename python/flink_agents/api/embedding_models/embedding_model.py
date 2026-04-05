@@ -96,6 +96,12 @@ class BaseEmbeddingModelSetup(Resource, ABC):
             self.get_resource(self.connection, ResourceType.EMBEDDING_MODEL_CONNECTION),
         )
 
+    def _get_connection(self) -> BaseEmbeddingModelConnection:
+        if not isinstance(self.connection, BaseEmbeddingModelConnection):
+            err_msg = f"Expect BaseEmbeddingModelConnection, but is {self.connection.__class__.__name__}"
+            raise TypeError(err_msg)
+        return self.connection
+
     def embed(
         self, text: str | Sequence[str], **kwargs: Any
     ) -> list[float] | list[list[float]]:
@@ -114,4 +120,4 @@ class BaseEmbeddingModelSetup(Resource, ABC):
         """
         merged_kwargs = self.model_kwargs.copy()
         merged_kwargs.update(kwargs)
-        return self.connection.embed(text, **merged_kwargs)
+        return self._get_connection().embed(text, **merged_kwargs)
