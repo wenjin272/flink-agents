@@ -28,7 +28,7 @@ from flink_agents.runtime.skill.skill_manager import SkillManager
 if TYPE_CHECKING:
     from flink_agents.api.resource import Resource
     from flink_agents.api.skills import Skills
-    from flink_agents.plan.agent_plan import AgentPlan
+    from flink_agents.runtime.resource_cache import ResourceCache
 
 
 class ResourceContextImpl(ResourceContext):
@@ -40,12 +40,39 @@ class ResourceContextImpl(ResourceContext):
     :class:`ResourceContext` interface.
     """
 
-    def __init__(self, agent_plan: AgentPlan) -> None:
+    def __init__(self, resource_cache: ResourceCache) -> None:
         """Initialize with the backing AgentPlan."""
-        self._agent_plan = agent_plan
+        self._resource_cache = resource_cache
         self._skill_manager: SkillManager | None = None
         self._skill_manager_initialized = False
 
     def get_resource(self, name: str, resource_type: ResourceType) -> Resource:
         """Get another resource declared in the same Agent."""
-        return self._agent_plan.get_resource(name, resource_type)
+        return self._resource_cache.get_resource(name, resource_type)
+
+    def generate_skill_discovery_prompt(self, *skill_names: str) -> str:
+        """Generate the skill discovery prompt for the given skill names."""
+        manager = self.get_skill_manager()
+        if manager is None:
+            return ""
+        return manager.generate_discovery_prompt(*skill_names)
+
+    def get_skill_manager(self) -> SkillManager | None:
+        """Get the SkillManager (runtime-internal only).
+
+        NOT part of the public ResourceContext interface.
+        """
+        if not self._skill_manager_initialized:
+            self._skill_manager_initialized = True
+            self._skill_manager = self._create_skill_manager()
+        return self._skill_manager
+
+    def _create_skill_manager(self) -> SkillManager | None:
+        try:
+            skills_config = cast(
+                "Skills",
+                self._resource_cache.get_resource(SKILLS_CONFIG, ResourceType.SKILL),
+            )
+        except KeyError:
+            return None
+        return SkillManager(skills_config)

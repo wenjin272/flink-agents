@@ -25,6 +25,12 @@ from flink_agents.api.resource import (
     ResourceDescriptor,
     ResourceType,
 )
+from flink_agents.api.resource_context import ResourceContext
+from flink_agents.api.skills import (
+    EXECUTE_COMMAND_TOOL,
+    LOAD_SKILL_TOOL,
+    Skills,
+)
 from flink_agents.plan.actions.action import Action
 from flink_agents.plan.actions.chat_model_action import CHAT_MODEL_ACTION
 from flink_agents.plan.actions.context_retrieval_action import CONTEXT_RETRIEVAL_ACTION
@@ -41,7 +47,7 @@ from flink_agents.plan.resource_provider import (
 from flink_agents.plan.tools.function_tool import from_callable
 
 if TYPE_CHECKING:
-    from flink_agents.api.resource_context import ResourceContext
+    from flink_agents.integrations.mcp.mcp import MCPServer
 
 BUILT_IN_ACTIONS = [CHAT_MODEL_ACTION, TOOL_CALL_ACTION, CONTEXT_RETRIEVAL_ACTION]
 
@@ -65,7 +71,6 @@ class AgentPlan(BaseModel):
     config: AgentConfiguration | None = None
     __resources: Dict[ResourceType, Dict[str, Resource]] = {}
     __j_resource_adapter: Any = None
-    __resource_context: "ResourceContext | None" = None
 
     @field_serializer("resource_providers")
     def __serialize_resource_providers(
@@ -205,19 +210,6 @@ class AgentPlan(BaseModel):
         return self.actions[action_name].config.get(key, None)
 
 
-    def set_resource_context(self, ctx: "ResourceContext") -> None:
-        """Set the ResourceContext to be injected into resources.
-
-        This should be called by the runtime layer before any resources
-        are accessed.
-
-        Parameters
-        ----------
-        ctx : ResourceContext
-            The resource context implementation provided by the runtime.
-        """
-        self.__resource_context = ctx
-        
 def _get_actions(agent: Agent) -> List[Action]:
     """Extract all registered agent actions from an agent.
 
@@ -274,6 +266,7 @@ def _get_resource_providers(
     agent: Agent, config: AgentConfiguration
 ) -> List[ResourceProvider]:
     resource_providers = []
+    skills_descriptors = {}
     # retrieve resource declared by decorator
     for name, value in agent.__class__.__dict__.items():
         if (
@@ -324,6 +317,10 @@ def _get_resource_providers(
 
             descriptor = value()
             _add_mcp_server(name, resource_providers, descriptor, config)
+        elif hasattr(value, "_is_skills"):
+            if isinstance(value, staticmethod):
+                value = value.__func__
+            skills_descriptors[name] = value()
 
     # retrieve resource declared by add interface
     for name, prompt in agent.resources[ResourceType.PROMPT].items():
@@ -340,6 +337,10 @@ def _get_resource_providers(
 
     for name, descriptor in agent.resources[ResourceType.MCP_SERVER].items():
         _add_mcp_server(name, resource_providers, descriptor, config)
+
+    # Merge decorator-based and programmatic skills
+    all_skills: Dict[str, Skills] = dict({**skills_descriptors, **agent.resources[ResourceType.SKILL]}.items())
+    _add_skills(all_skills, resource_providers)
 
     for resource_type in [
         ResourceType.CHAT_MODEL,
@@ -371,11 +372,17 @@ def _add_mcp_server(
 
     resource_providers.append(provider)
 
-    def get_resource(name: str, type: ResourceType) -> Any:
+    class ResourceContextPlaceholder(ResourceContext):
         """Placeholder - MCP server construction doesn't need resource resolution."""
 
+        def generate_skill_discovery_prompt(self, *skill_names: str) -> str:
+            pass
+
+        def get_resource(self, name: str, resource_type: "ResourceType") -> "Resource":
+            pass
+
     mcp_server = cast(
-        "MCPServer", provider.provide(resource_context=get_resource, config=config)
+        "MCPServer", provider.provide(resource_context=ResourceContextPlaceholder(), config=config)
     )
 
     resource_providers.extend(
@@ -397,3 +404,76 @@ def _add_mcp_server(
     )
 
     mcp_server.close()
+
+
+SKILLS_CONFIG = "_skills_config"
+
+
+def _add_skills(
+    skills_objects: Dict[str, Skills],
+    resource_providers: List[ResourceProvider],
+) -> None:
+    """Register skill configuration and skill tools.
+
+    Merges all Skills objects into a single Skills config resource,
+    and registers built-in skill tools (load_skill, execute_command).
+
+
+    """
+    if len(skills_objects) == 0:
+        return
+
+    # Register skill tools via descriptor (no runtime import needed).
+    # The tool classes live in flink_agents.runtime.skill_tools and will
+    # be instantiated at runtime by PythonResourceProvider.
+
+    resource_providers.extend(
+        [
+            PythonResourceProvider.get(
+                name=LOAD_SKILL_TOOL,
+                descriptor=ResourceDescriptor(
+                    clazz="flink_agents.runtime.skill.skill_tools.LoadSkillTool",
+                ),
+            ),
+            PythonResourceProvider.get(
+                name=EXECUTE_COMMAND_TOOL,
+                descriptor=ResourceDescriptor(
+                    clazz="flink_agents.runtime.skill.skill_tools.ExecuteCommandTool",
+                ),
+            ),
+        ]
+    )
+
+    # TODO: Currently, we construct a global agent skill manager for all skill
+    #  resource descriptors. In the future, we can support crate individual
+    #  agent skill manager for each resource descriptor, and support specifying
+    #  skill names and which skill manager they belong to when declaring a chat
+    #  model setup. MCP prompts and tools face the same situation, we can refactor
+    #  them as a whole.
+    paths: List[str] = []
+    urls: List[str] = []
+    resource_paths: List[str] = []
+    allowed_commands: List[str] = []
+    allowed_script_types: List[str] = []
+    for skills_obj in skills_objects.values():
+        paths.extend(skills_obj.paths)
+        urls.extend(skills_obj.urls)
+        resource_paths.extend(skills_obj.resources)
+        allowed_commands.extend(skills_obj.allowed_commands)
+        allowed_script_types.extend(skills_obj.allowed_script_types)
+
+    merged = Skills(
+        paths=list(dict.fromkeys(paths)),
+        urls=list(dict.fromkeys(urls)),
+        resources=list(dict.fromkeys(resource_paths)),
+        allowed_commands=list(dict.fromkeys(allowed_commands)),
+        allowed_script_types=list(dict.fromkeys(allowed_script_types)),
+    )
+
+    resource_providers.append(
+        PythonSerializableResourceProvider.from_resource(
+            name=SKILLS_CONFIG, resource=merged
+        )
+    )
+
+

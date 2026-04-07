@@ -36,6 +36,7 @@ from flink_agents.plan.configuration import AgentConfiguration
 from flink_agents.runtime.agent_runner import AgentRunner
 from flink_agents.runtime.local_memory_object import LocalMemoryObject
 from flink_agents.runtime.resource_cache import ResourceCache
+from flink_agents.runtime.resource_context import ResourceContextImpl
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -85,6 +86,7 @@ class LocalRunnerContext(RunnerContext):
         self.__resource_cache = ResourceCache(
             agent_plan.resource_providers, agent_plan.config
         )
+        self.__resource_cache.set_resource_context(ResourceContextImpl(self.__resource_cache))
         self.__key = key
         self.events = deque()
         self._sensory_mem_store = {}

@@ -42,6 +42,7 @@ class ResourceType(Enum):
     VECTOR_STORE = "vector_store"
     PROMPT = "prompt"
     MCP_SERVER = "mcp_server"
+    SKILL = "skill"
 
 
 class Resource(BaseModel, ABC):
