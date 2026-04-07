@@ -18,7 +18,7 @@
 import importlib
 import json
 import typing
-from typing import Any, Callable, Dict
+from typing import Any, Dict
 
 import cloudpickle
 
@@ -39,7 +39,7 @@ from flink_agents.api.vector_stores.vector_store import (
 )
 from flink_agents.plan.resource_provider import JAVA_RESOURCE_MAPPING
 from flink_agents.runtime.java.java_resource_wrapper import (
-    JavaGetResourceWrapper,
+    JavaResourceContextWrapper,
     JavaPrompt,
     JavaTool,
 )
@@ -90,16 +90,16 @@ def create_resource(resource_module: str, resource_clazz: str, func_kwargs: Dict
     cls = getattr(module, resource_clazz)
     return cls(**func_kwargs)
 
-def get_resource_function(j_resource_adapter: Any) -> Callable:
-    """Create a callable wrapper for Java resource adapter.
+def get_resource_context(j_resource_adapter: Any) -> JavaResourceContextWrapper:
+    """Create a ResourceContext wrapper for Java resource adapter.
 
     Args:
         j_resource_adapter: Java resource adapter object
 
     Returns:
-        Callable: A Python callable that wraps the Java resource adapter
+        JavaResourceContextWrapper: A ResourceContext that wraps the Java resource adapter
     """
-    return JavaGetResourceWrapper(j_resource_adapter).get_resource
+    return JavaResourceContextWrapper(j_resource_adapter)
 
 def from_java_tool(j_tool: Any) -> JavaTool:
     """Convert a Java tool object to a Python JavaTool instance.
@@ -131,8 +131,6 @@ def from_java_prompt(j_prompt: Any) -> JavaPrompt:
 
 def from_java_resource(type_name: str, kwargs: Dict[str, Any]) -> Resource:
     """Convert a Java resource object to a Python Resource instance.
-    This function is used to convert a Java resource object to a Python Resource
-    instance.
 
     Args:
         type_name: Java resource type name
