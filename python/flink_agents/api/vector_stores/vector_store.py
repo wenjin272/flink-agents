@@ -224,7 +224,9 @@ class BaseVectorStore(Resource, ABC):
         if self.embedding_model is not None:
             self.embedding_model = cast(
                 "BaseEmbeddingModelSetup",
-                self.get_resource(self.embedding_model, ResourceType.EMBEDDING_MODEL),
+                self.resource_context.get_resource(
+                    self.embedding_model, ResourceType.EMBEDDING_MODEL
+                ),
             )
 
     def _get_embedding_model(self) -> BaseEmbeddingModelSetup:

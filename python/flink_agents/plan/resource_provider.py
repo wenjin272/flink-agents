@@ -17,7 +17,6 @@
 #################################################################################
 import importlib
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from typing import Any, Dict
 
 from pydantic import BaseModel, Field
@@ -29,6 +28,7 @@ from flink_agents.api.resource import (
     SerializableResource,
     get_resource_class,
 )
+from flink_agents.api.resource_context import ResourceContext
 from flink_agents.plan.configuration import AgentConfiguration
 
 
@@ -48,13 +48,15 @@ class ResourceProvider(BaseModel, ABC):
     type: ResourceType
 
     @abstractmethod
-    def provide(self, get_resource: Callable, config: AgentConfiguration) -> Resource:
+    def provide(
+        self, resource_context: ResourceContext, config: AgentConfiguration
+    ) -> Resource:
         """Create resource in runtime.
 
         Parameters
         ----------
-        get_resource : Callable
-            The helper function to get other resource declared in the same Agent.
+        resource_context : ResourceContext
+            The context for the resource.
 
         config : AgentConfiguration
             Configuration for Flink Agents.
@@ -102,7 +104,9 @@ class PythonResourceProvider(ResourceProvider):
             descriptor=descriptor,
         )
 
-    def provide(self, get_resource: Callable, config: AgentConfiguration) -> Resource:
+    def provide(
+        self, resource_context: ResourceContext, config: AgentConfiguration
+    ) -> Resource:
         """Create resource in runtime."""
         cls = self.descriptor.clazz
 
@@ -113,7 +117,7 @@ class PythonResourceProvider(ResourceProvider):
         final_kwargs.update(resource_class_config)
         final_kwargs.update(self.descriptor.arguments)
 
-        resource = cls(**final_kwargs, get_resource=get_resource)
+        resource = cls(**final_kwargs, resource_context=resource_context)
         return resource
 
 
@@ -145,11 +149,14 @@ class PythonSerializableResourceProvider(SerializableResourceProvider):
             resource=resource,
         )
 
-    def provide(self, get_resource: Callable, config: AgentConfiguration) -> Resource:
+    def provide(
+        self, resource_context: ResourceContext, config: AgentConfiguration
+    ) -> Resource:
         """Get or deserialize resource in runtime."""
         if self.resource is None:
             module = importlib.import_module(self.module)
             clazz = getattr(module, self.clazz)
+            self.serialized["resource_context"] = resource_context
             self.resource = clazz.model_validate(self.serialized)
         return self.resource
 
@@ -190,7 +197,9 @@ class JavaResourceProvider(ResourceProvider):
             descriptor=descriptor,
         )
 
-    def provide(self, get_resource: Callable, config: AgentConfiguration) -> Resource:
+    def provide(
+        self, resource_context: ResourceContext, config: AgentConfiguration
+    ) -> Resource:
         """Create resource in runtime."""
         if not self._j_resource_adapter:
             err_msg = "java resource adapter is not set"
@@ -207,7 +216,7 @@ class JavaResourceProvider(ResourceProvider):
 
         return cls(
             **kwargs,
-            get_resource=get_resource,
+            resource_context=resource_context,
             j_resource=j_resource,
             j_resource_adapter=self._j_resource_adapter,
         )
@@ -224,7 +233,9 @@ class JavaSerializableResourceProvider(SerializableResourceProvider):
     Currently, this class only used for deserializing Java agent plan json
     """
 
-    def provide(self, get_resource: Callable, config: AgentConfiguration) -> Resource:
+    def provide(
+        self, resource_context: ResourceContext, config: AgentConfiguration
+    ) -> Resource:
         """Get or deserialize resource in runtime."""
         err_msg = (
             "Currently, flink-agents doesn't support create resource "

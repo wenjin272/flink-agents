@@ -20,7 +20,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, cast
 from pydantic import BaseModel, field_serializer, model_validator
 
 from flink_agents.api.agents.agent import Agent
-from flink_agents.api.resource import ResourceDescriptor, ResourceType
+from flink_agents.api.resource import (
+    Resource,
+    ResourceDescriptor,
+    ResourceType,
+)
+from flink_agents.api.resource_context import ResourceContext
 from flink_agents.plan.actions.action import Action
 from flink_agents.plan.actions.chat_model_action import CHAT_MODEL_ACTION
 from flink_agents.plan.actions.context_retrieval_action import CONTEXT_RETRIEVAL_ACTION
@@ -351,11 +356,14 @@ def _add_mcp_server(
 
     resource_providers.append(provider)
 
-    def get_resource(name: str, type: ResourceType) -> Any:
+    class ResourceContextPlaceholder(ResourceContext):
         """Placeholder - MCP server construction doesn't need resource resolution."""
+        
+        def get_resource(self, name: str, resource_type: "ResourceType") -> "Resource":
+            pass
 
     mcp_server = cast(
-        "MCPServer", provider.provide(get_resource=get_resource, config=config)
+        "MCPServer", provider.provide(resource_context=ResourceContextPlaceholder(), config=config)
     )
 
     resource_providers.extend(
