@@ -17,9 +17,12 @@
 ################################################################################
 import os
 from typing import Any, Dict, List
+from unittest.mock import MagicMock
 
 import pytest
 from chromadb.errors import NotFoundError
+
+from flink_agents.api.resource_context import ResourceContext
 
 try:
     import chromadb  # noqa: F401
@@ -96,11 +99,14 @@ def test_local_chroma_vector_store() -> None:
             msg = f"Unknown resource type: {resource_type}"
             raise ValueError(msg)
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     vector_store = ChromaVectorStore(
         name="chroma_vector_store",
         embedding_model="mock_embeddings",
         collection="test_collection",
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
 
     vector_store.open()
@@ -127,11 +133,14 @@ def test_collection_management() -> None:
             msg = f"Unknown resource type: {resource_type}"
             raise ValueError(msg)
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     vector_store = ChromaVectorStore(
         name="chroma_vector_store",
         embedding_model="mock_embeddings",
         collection="test_collection",
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
 
     vector_store.open()
@@ -159,11 +168,14 @@ def test_document_management() -> None:
             msg = f"Unknown resource type: {resource_type}"
             raise ValueError(msg)
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     vector_store = ChromaVectorStore(
         name="chroma_vector_store",
         embedding_model="mock_embeddings",
         collection="test_collection",
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
 
     vector_store.open()
@@ -261,11 +273,14 @@ def _filter_test_store() -> ChromaVectorStore:
         msg = f"Unknown resource type: {resource_type}"
         raise ValueError(msg)
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     vector_store = ChromaVectorStore(
         name="chroma_vector_store",
         embedding_model="mock_embeddings",
         collection="filter_tests",
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
     vector_store.open()
     vector_store.create_collection_if_not_exists(name="filter_tests")
@@ -436,6 +451,9 @@ def test_cloud_chroma_vector_store() -> None:
             msg = f"Unknown resource type: {resource_type}"
             raise ValueError(msg)
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     vector_store = ChromaVectorStore(
         name="chroma_vector_store",
         embedding_model="mock_embeddings",
@@ -443,7 +461,7 @@ def test_cloud_chroma_vector_store() -> None:
         api_key=api_key,
         tenant=tenant,
         database=database,
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
 
     vector_store.open()

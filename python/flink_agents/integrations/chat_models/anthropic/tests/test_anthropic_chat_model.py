@@ -16,11 +16,13 @@
 # limitations under the License.
 #################################################################################
 import os
+from unittest.mock import MagicMock
 
 import pytest
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.resource_context import ResourceContext
 from flink_agents.integrations.chat_models.anthropic.anthropic_chat_model import (
     AnthropicChatModelConnection,
     AnthropicChatModelSetup,
@@ -41,11 +43,14 @@ def test_anthropic_chat_model() -> None:
         else:
             return get_resource(name, ResourceType.TOOL)
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     chat_model = AnthropicChatModelSetup(
         name="anthropic",
         model=test_model,
         connection="anthropic_server",
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
     response = chat_model.chat([ChatMessage(role=MessageRole.USER, content="Hello!")])
     assert response is not None
@@ -80,12 +85,15 @@ def test_anthropic_chat_with_tools() -> None:
         else:
             return from_callable(func=add)
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     chat_model = AnthropicChatModelSetup(
         name="anthropic",
         model=test_model,
         connection="anthropic_server",
         tools=["add"],
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
     response = chat_model.chat(
         [ChatMessage(role=MessageRole.USER, content="What is 1 + 1?")]

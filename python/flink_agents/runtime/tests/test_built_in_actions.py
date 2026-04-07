@@ -84,13 +84,17 @@ class MockChatModel(BaseChatModelSetup):
     def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
         """Execute chat conversation."""
         # Get model connection
-        server = self.get_resource(self.connection, ResourceType.CHAT_MODEL_CONNECTION)
+        server = self.resource_context.get_resource(
+            self.connection, ResourceType.CHAT_MODEL_CONNECTION
+        )
 
         # Apply prompt template
         if self.prompt is not None:
             if isinstance(self.prompt, str):
                 # Get prompt resource if it's a string
-                prompt = self.get_resource(self.prompt, ResourceType.PROMPT)
+                prompt = self.resource_context.get_resource(
+                    self.prompt, ResourceType.PROMPT
+                )
             else:
                 prompt = self.prompt
 
@@ -106,7 +110,7 @@ class MockChatModel(BaseChatModelSetup):
         tools = None
         if self.tools is not None:
             tools = [
-                self.get_resource(tool_name, ResourceType.TOOL)
+                self.resource_context.get_resource(tool_name, ResourceType.TOOL)
                 for tool_name in self.tools
             ]
 
