@@ -26,6 +26,7 @@ from ollama import Client
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.resource_context import ResourceContext
 from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelConnection,
     OllamaChatModelSetup,
@@ -104,12 +105,15 @@ def test_ollama_chat_with_tools() -> None:
         else:
             return connection
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     llm = OllamaChatModelSetup(
         name="ollama",
         connection="ollama",
         model=test_model,
         tools=["add"],
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
 
     llm.open()
@@ -170,12 +174,15 @@ def test_ollama_chat_with_extract_reasoning() -> None:
     def get_resource(name: str, type: ResourceType) -> Resource:
         return connection
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     llm = OllamaChatModelSetup(
         name="ollama",
         connection="ollama",
         model=test_model,
         extract_reasoning=True,
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
 
     llm.open()

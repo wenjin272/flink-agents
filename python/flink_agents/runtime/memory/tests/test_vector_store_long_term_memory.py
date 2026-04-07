@@ -19,7 +19,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
-from unittest.mock import create_autospec
+from unittest.mock import MagicMock, create_autospec
 
 import pytest
 from chromadb import EmbeddingFunction
@@ -35,6 +35,7 @@ from flink_agents.api.memory.long_term_memory import (
 )
 from flink_agents.api.metric_group import MetricGroup
 from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.resource_context import ResourceContext
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.integrations.chat_models.ollama_chat_model import (
     OllamaChatModelConnection,
@@ -101,12 +102,15 @@ def long_term_memory() -> VectorStoreLongTermMemory:
         resource.open()
         return resource
 
+    mock_ctx = MagicMock(spec=ResourceContext)
+    mock_ctx.get_resource = get_resource
+
     chat_model = OllamaChatModelSetup(
-        get_resource=get_resource, connection="chat_model_connection", model="qwen3:8b"
+        resource_context=mock_ctx, connection="chat_model_connection", model="qwen3:8b"
     )
 
     embedding_model = OllamaEmbeddingModelSetup(
-        get_resource=get_resource,
+        resource_context=mock_ctx,
         connection="embedding_model_connection",
         model="nomic-embed-text",
     )
@@ -117,7 +121,7 @@ def long_term_memory() -> VectorStoreLongTermMemory:
     vector_store = ChromaVectorStore(
         persist_directory=chromadb_path,
         embedding_model="embedding_model",
-        get_resource=get_resource,
+        resource_context=mock_ctx,
     )
 
     mock_runner_context = create_autospec(RunnerContext, instance=True)

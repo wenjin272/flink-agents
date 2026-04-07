@@ -218,7 +218,7 @@ class LongTermMemoryAgent(Agent):
     "flink-agent doesn't allow get resource in async thread. We will deprecate VectorStoreLongTermMemory in 0.3.0,"
     "so we will not fix this issue for now."
 )
-def test_long_term_memory_async_execution_in_action(tmp_path: Path) -> None:  # noqa: D103
+def test_long_term_memory_async_execution_in_action(tmp_path: Path) -> None:
     env = StreamExecutionEnvironment.get_execution_environment()
     env.set_runtime_mode(RuntimeExecutionMode.STREAMING)
     env.set_parallelism(1)

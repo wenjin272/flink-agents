@@ -46,6 +46,7 @@ from flink_agents.runtime.memory.vector_store_long_term_memory import (
 )
 from flink_agents.runtime.python_java_utils import _build_event_log_string
 from flink_agents.runtime.resource_cache import ResourceCache
+from flink_agents.runtime.resource_context import ResourceContextImpl
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +210,7 @@ class FlinkRunnerContext(RunnerContext):
             self.__agent_plan.resource_providers, self.__agent_plan.config
         )
         self.__resource_cache.set_java_resource_adapter(j_resource_adapter)
+        self.__resource_cache.set_resource_context(ResourceContextImpl(self.__resource_cache))
         self.executor = executor
 
     def set_long_term_memory(self, ltm: InternalBaseLongTermMemory) -> None:
