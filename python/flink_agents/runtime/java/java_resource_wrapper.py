@@ -17,13 +17,13 @@
 #################################################################################
 from typing import Any, List
 
-from flink_agents.api.resource_context import ResourceContext
 from pydantic import Field
 from typing_extensions import override
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.resource_context import ResourceContext
 from flink_agents.api.tools.tool import Tool, ToolType
 
 
@@ -69,7 +69,7 @@ class JavaPrompt(Prompt):
 
 class JavaResourceContextWrapper(ResourceContext):
     """Python wrapper for Java ResourceAdapter."""
-    
+
     def __init__(self, j_resource_adapter: Any) -> None:
         """Initialize with a Java ResourceAdapter."""
         self._j_resource_adapter = j_resource_adapter
@@ -78,7 +78,7 @@ class JavaResourceContextWrapper(ResourceContext):
     def get_resource(self, name: str, type: ResourceType) -> Resource:
         """Get a resource by name and type."""
         return self._j_resource_adapter.getResource(name, type.value)
-    
+
     @override
     def generate_skill_discovery_prompt(self, *skill_names: str) -> str:
         """Generate the skill discovery prompt for the given skill names."""

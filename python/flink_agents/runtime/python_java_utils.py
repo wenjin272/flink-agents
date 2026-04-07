@@ -39,8 +39,8 @@ from flink_agents.api.vector_stores.vector_store import (
 )
 from flink_agents.plan.resource_provider import JAVA_RESOURCE_MAPPING
 from flink_agents.runtime.java.java_resource_wrapper import (
-    JavaResourceContextWrapper,
     JavaPrompt,
+    JavaResourceContextWrapper,
     JavaTool,
 )
 
@@ -97,7 +97,8 @@ def get_resource_context(j_resource_adapter: Any) -> JavaResourceContextWrapper:
         j_resource_adapter: Java resource adapter object
 
     Returns:
-        JavaResourceContextWrapper: A ResourceContext that wraps the Java resource adapter
+        JavaResourceContextWrapper: A ResourceContext that wraps the
+        Java resource adapter
     """
     return JavaResourceContextWrapper(j_resource_adapter)
 

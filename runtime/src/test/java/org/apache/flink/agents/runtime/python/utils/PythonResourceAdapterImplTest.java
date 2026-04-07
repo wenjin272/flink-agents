@@ -87,7 +87,7 @@ public class PythonResourceAdapterImplTest {
 
         verify(mockInterpreter).exec(PythonResourceAdapterImpl.PYTHON_IMPORTS);
         verify(mockInterpreter)
-                .invoke(PythonResourceAdapterImpl.RESOURCE_CONTEXT_KEY, pythonResourceAdapter);
+                .invoke(PythonResourceAdapterImpl.GET_RESOURCE_CONTEXT, pythonResourceAdapter);
     }
 
     @Test
