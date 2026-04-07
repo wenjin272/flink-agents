@@ -15,28 +15,3 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 ################################################################################
-"""Public ResourceContext interface.
-
-Defines the capabilities available to a Resource during execution.
-The concrete implementation lives in :mod:`flink_agents.runtime.resource_context`.
-"""
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from flink_agents.api.resource import Resource, ResourceType
-
-
-class ResourceContext(ABC):
-    """Base abstract class for Resource Context."""
-
-    @abstractmethod
-    def get_resource(self, name: str, resource_type: "ResourceType") -> "Resource":
-        """Get another resource declared in the same Agent."""
-
-    @abstractmethod
-    def generate_skill_discovery_prompt(self, *skill_names: str) -> str:
-        """Generate the skill discovery prompt for the given skill names.
-
-        Returns empty string if no skills are configured.
-        """

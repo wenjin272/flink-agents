@@ -78,3 +78,8 @@ class JavaResourceContextWrapper(ResourceContext):
     def get_resource(self, name: str, type: ResourceType) -> Resource:
         """Get a resource by name and type."""
         return self._j_resource_adapter.getResource(name, type.value)
+
+    @override
+    def generate_skill_discovery_prompt(self, *skill_names: str) -> str:
+        """Generate the skill discovery prompt for the given skill names."""
+        #TODO: Implement after java supports agent skills.

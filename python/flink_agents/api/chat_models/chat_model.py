@@ -25,9 +25,11 @@ from typing_extensions import override
 from flink_agents.api.chat_message import (
     ChatMessage,
     MessageRole,
+    find_first_system_message,
 )
 from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import Resource, ResourceType
+from flink_agents.api.skills import EXECUTE_COMMAND_TOOL, LOAD_SKILL_TOOL
 from flink_agents.api.tools.tool import Tool
 
 
@@ -145,6 +147,8 @@ class BaseChatModelSetup(Resource):
     )
     prompt: Prompt | str | None = None
     tools: List[str] | List[Tool] = Field(default_factory=list)
+    skills: List[str] | None = None
+    skill_discovery_prompt: str | None = None
 
     @property
     @abstractmethod
@@ -169,7 +173,12 @@ class BaseChatModelSetup(Resource):
                 self.prompt = cast(
                     "Prompt", self.resource_context.get_resource(self.prompt, ResourceType.PROMPT)
                 )
-                
+        if self.skills is not None:
+            self.skill_discovery_prompt = (
+                self.resource_context.generate_skill_discovery_prompt(*self.skills)
+            )
+            self.tools.extend([LOAD_SKILL_TOOL, EXECUTE_COMMAND_TOOL])
+
         if len(self.tools) > 0:
             self.tools = [
                 cast("Tool", self.resource_context.get_resource(tool_name, ResourceType.TOOL))
@@ -215,6 +224,14 @@ class BaseChatModelSetup(Resource):
                 ) or msg.role == MessageRole.ASSISTANT:
                     prompt_messages.append(msg)
             messages = prompt_messages
+
+        if self.skills is not None:
+            index = find_first_system_message(messages)
+            messages = (
+                messages[: index + 1]
+                + [ChatMessage(role=MessageRole.SYSTEM, content=self.skill_discovery_prompt)]
+                + messages[index + 1 :]
+            )
 
         # Call chat model connection to execute chat
         merged_kwargs = self.model_kwargs.copy()
