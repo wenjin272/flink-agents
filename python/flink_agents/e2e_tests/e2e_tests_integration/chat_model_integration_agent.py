@@ -42,7 +42,8 @@ class ChatModelTestAgent(Agent):
     def openai_connection() -> ResourceDescriptor:
         """ChatModelConnection responsible for openai model service connection."""
         return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.OPENAI_COMPLETIONS_CONNECTION, api_key=os.environ.get("OPENAI_API_KEY")
+            clazz=ResourceName.ChatModel.OPENAI_COMPLETIONS_CONNECTION,
+            api_key=os.environ.get("OPENAI_API_KEY"),
         )
 
     @chat_model_connection

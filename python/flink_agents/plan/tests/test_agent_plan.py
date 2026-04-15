@@ -197,7 +197,8 @@ class MyAgent(Agent):
     @staticmethod
     def mock_embedding_conn() -> ResourceDescriptor:
         return ResourceDescriptor(
-            clazz=f"{MockEmbeddingModelConnection.__module__}.{MockEmbeddingModelConnection.__name__}", api_key="mock-api-key"
+            clazz=f"{MockEmbeddingModelConnection.__module__}.{MockEmbeddingModelConnection.__name__}",
+            api_key="mock-api-key",
         )
 
     @embedding_model_setup
@@ -290,7 +291,8 @@ def test_add_action_and_resource_to_agent() -> None:
         name="mock_embedding_conn",
         resource_type=ResourceType.EMBEDDING_MODEL_CONNECTION,
         instance=ResourceDescriptor(
-            clazz=f"{MockEmbeddingModelConnection.__module__}.{MockEmbeddingModelConnection.__name__}", api_key="mock-api-key"
+            clazz=f"{MockEmbeddingModelConnection.__module__}.{MockEmbeddingModelConnection.__name__}",
+            api_key="mock-api-key",
         ),
     )
     my_agent.add_resource(

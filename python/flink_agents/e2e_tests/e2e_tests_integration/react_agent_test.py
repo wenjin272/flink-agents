@@ -90,9 +90,11 @@ def test_react_agent_on_local_runner() -> None:
         env.add_resource(
             "ollama",
             ResourceType.CHAT_MODEL_CONNECTION,
-            ResourceDescriptor(clazz=ResourceName.ChatModel.OLLAMA_CONNECTION, request_timeout=240.0),
+            ResourceDescriptor(
+                clazz=ResourceName.ChatModel.OLLAMA_CONNECTION, request_timeout=240.0
+            ),
         )
-        .add_resource("add", ResourceType.TOOL,  Tool.from_callable(add))
+        .add_resource("add", ResourceType.TOOL, Tool.from_callable(add))
         .add_resource("multiply", ResourceType.TOOL, Tool.from_callable(multiply))
     )
 
@@ -169,7 +171,9 @@ def test_react_agent_on_remote_runner(tmp_path: Path) -> None:
         env.add_resource(
             "ollama",
             ResourceType.CHAT_MODEL_CONNECTION,
-            ResourceDescriptor(clazz=ResourceName.ChatModel.OLLAMA_CONNECTION, request_timeout=240.0),
+            ResourceDescriptor(
+                clazz=ResourceName.ChatModel.OLLAMA_CONNECTION, request_timeout=240.0
+            ),
         )
         .add_resource("add", ResourceType.TOOL, Tool.from_callable(add))
         .add_resource("multiply", ResourceType.TOOL, Tool.from_callable(multiply))

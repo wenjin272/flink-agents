@@ -187,4 +187,3 @@ def test_durable_execute_with_kwargs() -> None:
     env.execute()
 
     assert output_list == [{"alice": 25}]
-

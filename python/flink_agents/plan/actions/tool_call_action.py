@@ -26,6 +26,7 @@ from flink_agents.plan.function import PythonFunction
 
 _logger = logging.getLogger(__name__)
 
+
 async def process_tool_request(event: ToolRequestEvent, ctx: RunnerContext) -> None:
     """Built-in action for processing tool call requests."""
     tool_call_async = ctx.config.get(AgentExecutionOptions.TOOL_CALL_ASYNC)

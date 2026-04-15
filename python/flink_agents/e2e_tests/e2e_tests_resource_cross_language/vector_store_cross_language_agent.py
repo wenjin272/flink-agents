@@ -46,6 +46,7 @@ from flink_agents.api.vector_stores.vector_store import (
 TEST_COLLECTION = "test_collection"
 MAX_RETRIES_TIMES = 10
 
+
 class VectorStoreCrossLanguageAgent(Agent):
     """Example agent demonstrating cross-language embedding model testing."""
 
@@ -115,7 +116,9 @@ class VectorStoreCrossLanguageAgent(Agent):
 
             vector_store = ctx.get_resource("vector_store", ResourceType.VECTOR_STORE)
             if isinstance(vector_store, CollectionManageableVectorStore):
-                vector_store.get_or_create_collection(TEST_COLLECTION , metadata={"key1": "value1", "key2": "value2"})
+                vector_store.get_or_create_collection(
+                    TEST_COLLECTION, metadata={"key1": "value1", "key2": "value2"}
+                )
 
                 collection = vector_store.get_collection(name=TEST_COLLECTION)
 
@@ -168,18 +171,24 @@ class VectorStoreCrossLanguageAgent(Agent):
                 doc = vector_store.get(ids="doc2")
                 assert doc is not None
                 assert doc[0].id == "doc2"
-                assert doc[0].content == "Why did the cat sit on the computer? Because it wanted to keep an eye on the mouse."
+                assert (
+                    doc[0].content
+                    == "Why did the cat sit on the computer? Because it wanted to keep an eye on the mouse."
+                )
 
                 print("[TEST] Vector store Document Management PASSED")
 
             stm.set("is_initialized", True)
 
-
-        ctx.send_event(ContextRetrievalRequestEvent(query=input_text, vector_store="vector_store"))
+        ctx.send_event(
+            ContextRetrievalRequestEvent(query=input_text, vector_store="vector_store")
+        )
 
     @action(ContextRetrievalResponseEvent)
     @staticmethod
-    def contextRetrievalResponseEvent(event: ContextRetrievalResponseEvent, ctx: RunnerContext) -> None:
+    def contextRetrievalResponseEvent(
+        event: ContextRetrievalResponseEvent, ctx: RunnerContext
+    ) -> None:
         """User defined action for processing context retrieval response.
 
         In this action, we will test Vector store Context Retrieval.
@@ -195,6 +204,8 @@ class VectorStoreCrossLanguageAgent(Agent):
             assert document.content is not None
 
         test_result = f"[PASS] retrieved_count={len(documents)}, first_doc_id={documents[0].id}, first_doc_preview={documents[0].content[:50]}"
-        print(f"[TEST] Vector store Context Retrieval PASSED, first_doc_id={documents[0].id}, first_doc_preview={documents[0].content[:50]}")
+        print(
+            f"[TEST] Vector store Context Retrieval PASSED, first_doc_id={documents[0].id}, first_doc_preview={documents[0].content[:50]}"
+        )
 
         ctx.send_event(OutputEvent(output=test_result))

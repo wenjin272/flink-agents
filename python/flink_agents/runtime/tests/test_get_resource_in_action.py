@@ -49,8 +49,12 @@ class MyAgent(Agent):
     @chat_model_setup
     @staticmethod
     def mock_chat_model() -> ResourceDescriptor:
-        return ResourceDescriptor(clazz=f"{MockChatModelImpl.__module__}.{MockChatModelImpl.__name__}", host="8.8.8.8",
-                                  desc="mock chat model just for testing.", connection="mock")
+        return ResourceDescriptor(
+            clazz=f"{MockChatModelImpl.__module__}.{MockChatModelImpl.__name__}",
+            host="8.8.8.8",
+            desc="mock chat model just for testing.",
+            connection="mock",
+        )
 
     @tool
     @staticmethod

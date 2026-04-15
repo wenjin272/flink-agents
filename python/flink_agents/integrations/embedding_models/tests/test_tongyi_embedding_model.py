@@ -49,7 +49,9 @@ def test_tongyi_embedding_model() -> None:
     )
     embedding_model.open()
 
-    response = embedding_model.embed("The quality of the clothes is excellent, very beautiful, worth the wait, I like it and will buy here again")
+    response = embedding_model.embed(
+        "The quality of the clothes is excellent, very beautiful, worth the wait, I like it and will buy here again"
+    )
     assert response is not None
     assert isinstance(response, list)
     assert len(response) > 0

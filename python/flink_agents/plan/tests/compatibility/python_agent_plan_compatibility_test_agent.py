@@ -60,7 +60,10 @@ class PythonAgentPlanCompatibilityTestAgent(Agent):
     def chat_model() -> ResourceDescriptor:
         """ChatModel can be used in action."""
         return ResourceDescriptor(
-            clazz=f"{MockChatModel.__module__}.{MockChatModel.__name__}", name="chat_model", prompt="prompt", tools=["add"]
+            clazz=f"{MockChatModel.__module__}.{MockChatModel.__name__}",
+            name="chat_model",
+            prompt="prompt",
+            tools=["add"],
         )
 
     @tool

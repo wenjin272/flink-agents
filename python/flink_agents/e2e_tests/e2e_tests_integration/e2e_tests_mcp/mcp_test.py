@@ -101,7 +101,9 @@ class MyMCPAgent(Agent):
         }
         # Only add prompt if using server with prompts
         if mcp_mode == "with_prompts":
-            descriptor_kwargs["prompt"] = "ask_sum"  # MCP prompt registered from my_mcp_server
+            descriptor_kwargs["prompt"] = (
+                "ask_sum"  # MCP prompt registered from my_mcp_server
+            )
         return ResourceDescriptor(**descriptor_kwargs)
 
     @action(InputEvent)
@@ -154,7 +156,11 @@ client = pull_model(OLLAMA_MODEL)
     ("mcp_server_mode", "server_file", "server_endpoint"),
     [
         ("with_prompts", "mcp_server.py", MCP_SERVER_ENDPOINT),
-        ("without_prompts", "mcp_server_without_prompts.py", MCP_SERVER_ENDPOINT_WITHOUT_PROMPTS),
+        (
+            "without_prompts",
+            "mcp_server_without_prompts.py",
+            MCP_SERVER_ENDPOINT_WITHOUT_PROMPTS,
+        ),
     ],
 )
 @pytest.mark.skipif(

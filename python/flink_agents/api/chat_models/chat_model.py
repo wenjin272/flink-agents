@@ -214,7 +214,9 @@ class BaseChatModelSetup(Resource):
         # Call chat model connection to execute chat
         merged_kwargs = self.model_kwargs.copy()
         merged_kwargs.update(kwargs)
-        return self._get_connection().chat(messages, tools=self._get_tools(), **merged_kwargs)
+        return self._get_connection().chat(
+            messages, tools=self._get_tools(), **merged_kwargs
+        )
 
     def _record_token_metrics(
         self, model_name: str, prompt_tokens: int, completion_tokens: int
@@ -256,4 +258,3 @@ class BaseChatModelSetup(Resource):
                 err_msg = f"Expect Tool, but is {tool.__class__.__name__}"
                 raise TypeError(err_msg)
         return self.tools
-

@@ -32,7 +32,10 @@ from flink_agents.integrations.mcp.mcp import MCPServer
 def run_server() -> None:
     runpy.run_path(f"{current_dir}/mcp_server.py")
 
+
 current_dir = Path(__file__).parent
+
+
 def test_mcp() -> None:
     process = multiprocessing.Process(target=run_server)
     process.start()
@@ -44,17 +47,18 @@ def test_mcp() -> None:
     prompt = prompts[0]
     assert prompt.name == "ask_sum"
     message = prompt.format_messages(role=MessageRole.SYSTEM, a="1", b="2")
-    assert [ChatMessage(
+    assert [
+        ChatMessage(
             role=MessageRole.USER,
             content="Can you please calculate the sum of 1 and 2?",
-        )] == message
+        )
+    ] == message
     tools = mcp_server.list_tools()
     assert len(tools) == 1
     tool = tools[0]
     assert tool.name == "add"
 
     process.kill()
-
 
 
 class InMemoryTokenStorage(TokenStorage):
@@ -90,6 +94,7 @@ async def handle_callback() -> tuple[str, str | None]:
     params = parse_qs(urlparse(callback_url).query)
     return params["code"][0], params.get("state", [None])[0]
 
+
 def test_serialize_mcp_server() -> None:
     oauth_auth = OAuthClientProvider(
         server_url="http://localhost:8001",
@@ -119,8 +124,3 @@ def test_serialize_mcp_server() -> None:
         deserialized.auth.context.client_metadata
         == mcp_server.auth.context.client_metadata
     )
-
-
-
-
-

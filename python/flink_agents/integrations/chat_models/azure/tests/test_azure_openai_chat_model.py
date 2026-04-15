@@ -100,7 +100,12 @@ def test_azure_openai_chat_with_tools() -> None:
         get_resource=get_resource,
     )
     response = chat_model.chat(
-        [ChatMessage(role=MessageRole.USER, content="You MUST use the add tool to calculate: What is 377 + 688?")]
+        [
+            ChatMessage(
+                role=MessageRole.USER,
+                content="You MUST use the add tool to calculate: What is 377 + 688?",
+            )
+        ]
     )
     tool_calls = response.tool_calls
     assert len(tool_calls) == 1

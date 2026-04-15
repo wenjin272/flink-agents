@@ -142,7 +142,7 @@ def _generate_summarization(
     item_type: Type,
     compaction_config: CompactionConfig,
     ctx: RunnerContext,
-    metric_group: MetricGroup
+    metric_group: MetricGroup,
 ) -> ChatMessage:
     """Generate summarization of the items by llm."""
     # get arguments
@@ -161,7 +161,9 @@ def _generate_summarization(
     # generate summary
     model: BaseChatModelSetup = cast(
         "BaseChatModelSetup",
-        ctx.get_resource(name=model_name, type=ResourceType.CHAT_MODEL, metric_group=metric_group),
+        ctx.get_resource(
+            name=model_name, type=ResourceType.CHAT_MODEL, metric_group=metric_group
+        ),
     )
     input_variable = {}
     for msg in msgs:
@@ -171,14 +173,18 @@ def _generate_summarization(
         if isinstance(prompt, str):
             prompt: Prompt = cast(
                 "Prompt",
-                ctx.get_resource(prompt, ResourceType.PROMPT, metric_group=metric_group),
+                ctx.get_resource(
+                    prompt, ResourceType.PROMPT, metric_group=metric_group
+                ),
             )
         prompt_messages = prompt.format_messages(
             role=MessageRole.USER, **input_variable
         )
         msgs.extend(prompt_messages)
     else:
-        msgs.extend(DEFAULT_ANALYSIS_PROMPT.format_messages(limit=str(compaction_config.limit)))
+        msgs.extend(
+            DEFAULT_ANALYSIS_PROMPT.format_messages(limit=str(compaction_config.limit))
+        )
 
     response: ChatMessage = model.chat(messages=msgs)
 

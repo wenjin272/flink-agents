@@ -43,9 +43,9 @@ class User:
 
     def __eq__(self, other: object) -> bool:
         return (
-                isinstance(other, User)
-                and other.name == self.name
-                and other.age == self.age
+            isinstance(other, User)
+            and other.name == self.name
+            and other.age == self.age
         )
 
 
@@ -115,7 +115,9 @@ def test_get_with_ref_to_nested_object() -> None:
 def test_get_with_non_existent_ref() -> None:
     mem = create_memory()
 
-    non_existent_ref = MemoryRef.create(MemoryType.SHORT_TERM, "this.path.does.not.exist")
+    non_existent_ref = MemoryRef.create(
+        MemoryType.SHORT_TERM, "this.path.does.not.exist"
+    )
 
     assert mem.get(non_existent_ref) is None
 

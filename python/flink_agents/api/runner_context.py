@@ -37,7 +37,9 @@ class AsyncExecutionResult:
     and `asyncio.sleep` are NOT supported because there is no asyncio event loop.
     """
 
-    def __init__(self, executor: Any, func: Callable, args: tuple, kwargs: dict) -> None:
+    def __init__(
+        self, executor: Any, func: Callable, args: tuple, kwargs: dict
+    ) -> None:
         """Initialize an AsyncExecutionResult.
 
         Parameters
@@ -90,7 +92,9 @@ class RunnerContext(ABC):
         """
 
     @abstractmethod
-    def get_resource(self, name: str, type: ResourceType, metric_group: MetricGroup = None) -> Resource:
+    def get_resource(
+        self, name: str, type: ResourceType, metric_group: MetricGroup = None
+    ) -> Resource:
         """Get resource from context.
 
         Parameters

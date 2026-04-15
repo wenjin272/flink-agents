@@ -40,7 +40,11 @@ def resource_provider() -> ResourceProvider:
     return PythonResourceProvider(
         name="mock",
         type=MockChatModelImpl.resource_type(),
-        descriptor=ResourceDescriptor(clazz=f"{MockChatModelImpl.__module__}.{MockChatModelImpl.__name__}", host="8.8.8.8", desc="mock chat model"),
+        descriptor=ResourceDescriptor(
+            clazz=f"{MockChatModelImpl.__module__}.{MockChatModelImpl.__name__}",
+            host="8.8.8.8",
+            desc="mock chat model",
+        ),
     )
 
 

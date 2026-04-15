@@ -100,7 +100,7 @@ Please provide a helpful answer based on the context provided."""
         return ResourceDescriptor(
             clazz=ResourceName.ChatModel.OLLAMA_SETUP,
             connection="ollama_chat_connection",
-            model=OLLAMA_CHAT_MODEL
+            model=OLLAMA_CHAT_MODEL,
         )
 
     @action(InputEvent)
@@ -119,7 +119,7 @@ Please provide a helpful answer based on the context provided."""
     @action(ContextRetrievalResponseEvent)
     @staticmethod
     def process_retrieved_context(
-            event: ContextRetrievalResponseEvent, ctx: RunnerContext
+        event: ContextRetrievalResponseEvent, ctx: RunnerContext
     ) -> None:
         """Process retrieved context and create enhanced chat request."""
         user_query = event.query
@@ -131,10 +131,11 @@ Please provide a helpful answer based on the context provided."""
         )
 
         # Get prompt resource and format it
-        prompt_resource = ctx.get_resource("context_enhanced_prompt", ResourceType.PROMPT)
+        prompt_resource = ctx.get_resource(
+            "context_enhanced_prompt", ResourceType.PROMPT
+        )
         enhanced_prompt = prompt_resource.format_string(
-            context=context_text,
-            user_query=user_query
+            context=context_text, user_query=user_query
         )
 
         # Send chat request with enhanced prompt
@@ -174,8 +175,16 @@ if __name__ == "__main__":
     agents_env = AgentsExecutionEnvironment.get_execution_environment()
 
     # Setup Ollama embedding and chat model connections
-    agents_env.add_resource("ollama_embedding_connection", ResourceType.EMBEDDING_MODEL_CONNECTION, ResourceDescriptor(clazz=ResourceName.EmbeddingModel.OLLAMA_CONNECTION))
-    agents_env.add_resource("ollama_chat_connection", ResourceType.EMBEDDING_MODEL, ResourceDescriptor(clazz=ResourceName.ChatModel.OLLAMA_CONNECTION))
+    agents_env.add_resource(
+        "ollama_embedding_connection",
+        ResourceType.EMBEDDING_MODEL_CONNECTION,
+        ResourceDescriptor(clazz=ResourceName.EmbeddingModel.OLLAMA_CONNECTION),
+    )
+    agents_env.add_resource(
+        "ollama_chat_connection",
+        ResourceType.EMBEDDING_MODEL,
+        ResourceDescriptor(clazz=ResourceName.ChatModel.OLLAMA_CONNECTION),
+    )
 
     output_list = agents_env.from_list(input_list).apply(agent).to_list()
 

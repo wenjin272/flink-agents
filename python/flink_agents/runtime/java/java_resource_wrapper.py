@@ -40,10 +40,11 @@ class JavaTool(Tool):
         err_msg = "Java tool is defined in Java and needs to be executed through the Java runtime."
         raise NotImplementedError(err_msg)
 
+
 class JavaPrompt(Prompt):
     """Python wrapper for Java's Prompt."""
 
-    j_prompt: Any= Field(exclude=True)
+    j_prompt: Any = Field(exclude=True)
 
     @override
     def format_string(self, **kwargs: str) -> str:
@@ -54,17 +55,28 @@ class JavaPrompt(Prompt):
         self, role: MessageRole = MessageRole.SYSTEM, **kwargs: str
     ) -> List[ChatMessage]:
         from pemja import findClass
-        j_MessageRole = findClass("org.apache.flink.agents.api.chat.messages.MessageRole")
-        j_chat_messages = self.j_prompt.formatMessages(j_MessageRole.fromValue(role.value), kwargs)
-        chatMessages = [ChatMessage(role=MessageRole(j_chat_message.getRole().getValue()),
-                                            content=j_chat_message.getContent(),
-                                            tool_calls= j_chat_message.getToolCalls(),
-                                            extra_args=j_chat_message.getExtraArgs()) for j_chat_message in j_chat_messages]
+
+        j_MessageRole = findClass(
+            "org.apache.flink.agents.api.chat.messages.MessageRole"
+        )
+        j_chat_messages = self.j_prompt.formatMessages(
+            j_MessageRole.fromValue(role.value), kwargs
+        )
+        chatMessages = [
+            ChatMessage(
+                role=MessageRole(j_chat_message.getRole().getValue()),
+                content=j_chat_message.getContent(),
+                tool_calls=j_chat_message.getToolCalls(),
+                extra_args=j_chat_message.getExtraArgs(),
+            )
+            for j_chat_message in j_chat_messages
+        ]
         return chatMessages
 
     @override
     def close(self) -> None:
         self.j_prompt.close()
+
 
 class JavaGetResourceWrapper:
     """Python wrapper for Java ResourceAdapter."""
@@ -72,7 +84,6 @@ class JavaGetResourceWrapper:
     def __init__(self, j_resource_adapter: Any) -> None:
         """Initialize with a Java ResourceAdapter."""
         self._j_resource_adapter = j_resource_adapter
-
 
     def get_resource(self, name: str, type: ResourceType) -> Resource:
         """Get a resource by name and type."""
