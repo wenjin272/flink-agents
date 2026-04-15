@@ -26,7 +26,7 @@ from flink_agents.api.execution_environment import AgentsExecutionEnvironment
 from flink_agents.api.runner_context import RunnerContext
 
 
-class Agent1(Agent):  # noqa: D101
+class Agent1(Agent):
     @action(InputEvent)
     @staticmethod
     def increment(event: Event, ctx: RunnerContext):  # noqa D102
@@ -35,7 +35,7 @@ class Agent1(Agent):  # noqa: D101
         ctx.send_event(OutputEvent(output=value))
 
 
-class Agent1WithAsync(Agent):  # noqa: D101
+class Agent1WithAsync(Agent):
     @action(InputEvent)
     @staticmethod
     async def increment(event: Event, ctx: RunnerContext):  # noqa D102
@@ -48,7 +48,7 @@ class Agent1WithAsync(Agent):  # noqa: D101
         ctx.send_event(OutputEvent(output=value))
 
 
-class Agent2(Agent):  # noqa: D101
+class Agent2(Agent):
     @action(InputEvent)
     @staticmethod
     def decrease(event: Event, ctx: RunnerContext):  # noqa D102
@@ -57,7 +57,7 @@ class Agent2(Agent):  # noqa: D101
         ctx.send_event(OutputEvent(output=value))
 
 
-def test_local_execution_environment() -> None:  # noqa: D103
+def test_local_execution_environment() -> None:
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
@@ -73,7 +73,7 @@ def test_local_execution_environment() -> None:  # noqa: D103
     assert output_list == [{"bob": 2}, {"john": 3}]
 
 
-def test_local_execution_environment_with_async() -> None:  # noqa: D103
+def test_local_execution_environment_with_async() -> None:
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
@@ -89,7 +89,7 @@ def test_local_execution_environment_with_async() -> None:  # noqa: D103
     assert output_list == [{"bob": 2}, {"john": 3}]
 
 
-def test_local_execution_environment_apply_multi_agents() -> None:  # noqa: D103
+def test_local_execution_environment_apply_multi_agents() -> None:
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
@@ -100,7 +100,7 @@ def test_local_execution_environment_apply_multi_agents() -> None:  # noqa: D103
         env.from_list(input_list).apply(agent1).apply(agent2).to_list()
 
 
-def test_local_execution_environment_execute_multi_times() -> None:  # noqa: D103
+def test_local_execution_environment_execute_multi_times() -> None:
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []
@@ -116,7 +116,7 @@ def test_local_execution_environment_execute_multi_times() -> None:  # noqa: D10
         env.execute()
 
 
-def test_local_execution_environment_call_from_list_twice() -> None:  # noqa: D103
+def test_local_execution_environment_call_from_list_twice() -> None:
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []

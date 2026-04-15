@@ -43,19 +43,19 @@ tenant = os.environ.get("TEST_TENANT")
 database = os.environ.get("TEST_DATABASE")
 
 
-class MockEmbeddingModel(BaseEmbeddingModelSetup):  # noqa: D101
+class MockEmbeddingModel(BaseEmbeddingModelSetup):
     name: str
     connection: str = "mock"
     model: str = "mock"
 
-    def open(self) -> None:  # noqa: D102
+    def open(self) -> None:
         pass
 
     @property
-    def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
+    def model_kwargs(self) -> Dict[str, Any]:
         return {}
 
-    def embed(self, text: str, **kwargs: Any) -> list[float]:  # noqa: D102
+    def embed(self, text: str, **kwargs: Any) -> list[float]:
         if "ChromaDB" in text:
             return [0.2, 0.3, 0.4, 0.5, 0.6]
         else:

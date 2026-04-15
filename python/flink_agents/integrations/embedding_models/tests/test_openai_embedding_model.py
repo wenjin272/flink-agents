@@ -30,7 +30,7 @@ api_key = os.environ.get("TEST_API_KEY")
 
 
 @pytest.mark.skipif(api_key is None, reason="TEST_API_KEY is not set")
-def test_openai_embedding_model() -> None:  # noqa: D103
+def test_openai_embedding_model() -> None:
     connection = OpenAIEmbeddingModelConnection(
         name="openai", api_key=api_key
     )

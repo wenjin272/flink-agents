@@ -180,7 +180,7 @@ def test_get_str() -> None:
     # Test None value
     assert config.get_str('none_key') is None
 
-def test_get_with_config_option() -> None:  # noqa: D103
+def test_get_with_config_option() -> None:
     data = {
         "config.str": "config.value",
         "config.int": 6789,
@@ -207,7 +207,7 @@ def test_get_with_config_option() -> None:  # noqa: D103
     assert config.get(missing_key) is None
 
 
-def test_get_with_default_value() -> None:  # noqa: D103
+def test_get_with_default_value() -> None:
     default_str = ConfigOption("default.str", str, "default_value")
     default_int = ConfigOption("default.int", int, 100)
     default_double = ConfigOption("default.double", float, 2.5)
@@ -219,7 +219,7 @@ def test_get_with_default_value() -> None:  # noqa: D103
     assert config.get(default_double) == 2.5
 
 
-def test_get_with_null_and_default() -> None:  # noqa: D103
+def test_get_with_null_and_default() -> None:
     nullable_str = ConfigOption("nullable.str", str, "default")
 
     config = AgentConfiguration()

@@ -25,45 +25,45 @@ from pyflink.common import Row
 from flink_agents.api.events.event import Event, InputEvent, OutputEvent
 
 
-def test_event_init_serializable() -> None:  # noqa D103
+def test_event_init_serializable() -> None:
     Event(a=1, b=InputEvent(input=1), c=OutputEvent(output="111"))
 
 
-def test_event_init_non_serializable() -> None:  # noqa D103
+def test_event_init_non_serializable() -> None:
     with pytest.raises(ValidationError):
         Event(a=1, b=Type[InputEvent])
 
 
-def test_event_setattr_serializable() -> None:  # noqa D103
+def test_event_setattr_serializable() -> None:
     event = Event(a=1)
     event.c = Event()
 
 
-def test_event_setattr_non_serializable() -> None:  # noqa D103
+def test_event_setattr_non_serializable() -> None:
     event = Event(a=1)
     with pytest.raises(PydanticSerializationError):
         event.c = Type[InputEvent]
 
 
-def test_input_event_ignore_row_unserializable() -> None:  # noqa D103
+def test_input_event_ignore_row_unserializable() -> None:
     InputEvent(input=Row({"a": 1}))
 
 
-def test_event_row_with_non_serializable_fails() -> None:  # noqa D103
+def test_event_row_with_non_serializable_fails() -> None:
     with pytest.raises(ValidationError):
         Event(row_field=Row({"a": 1}), non_serializable_field=Type[InputEvent])
 
 
-def test_event_multiple_rows_serializable() -> None:  # noqa D103
+def test_event_multiple_rows_serializable() -> None:
     Event(row1=Row({"a": 1}), row2=Row({"b": 2}), normal_field="test")
 
 
-def test_event_setattr_row_serializable() -> None:  # noqa D103
+def test_event_setattr_row_serializable() -> None:
     event = Event(a=1)
     event.row_field = Row({"key": "value"})
 
 
-def test_event_json_serialization_with_row() -> None:  # noqa D103
+def test_event_json_serialization_with_row() -> None:
     event = InputEvent(input=Row({"test": "data"}))
     json_str = event.model_dump_json()
     assert "test" in json_str
