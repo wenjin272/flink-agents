@@ -34,6 +34,7 @@ from flink_agents.api.prompts.prompt import Prompt
 
 ItemType = str | ChatMessage
 
+
 class CompactionConfig(BaseModel):
     """Compaction configuration.
 
@@ -47,6 +48,7 @@ class CompactionConfig(BaseModel):
     model: str
     prompt: str | Prompt | None = None
     limit: int = 1
+
 
 class LongTermMemoryBackend(Enum):
     """Backend for Long-Term Memory."""

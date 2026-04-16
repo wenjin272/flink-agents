@@ -97,11 +97,10 @@ class PythonResourceProvider(ResourceProvider):
         """Create PythonResourceProvider instance."""
         clazz = descriptor.clazz
         return PythonResourceProvider(
-                    name=name,
-                    type=clazz.resource_type(),
-                    descriptor=descriptor,
-                )
-
+            name=name,
+            type=clazz.resource_type(),
+            descriptor=descriptor,
+        )
 
     def provide(self, get_resource: Callable, config: AgentConfiguration) -> Resource:
         """Create resource in runtime."""
@@ -154,6 +153,7 @@ class PythonSerializableResourceProvider(SerializableResourceProvider):
             self.resource = clazz.model_validate(self.serialized)
         return self.resource
 
+
 JAVA_RESOURCE_MAPPING: dict[ResourceType, str] = {
     ResourceType.CHAT_MODEL: "flink_agents.runtime.java.java_chat_model.JavaChatModelSetupImpl",
     ResourceType.CHAT_MODEL_CONNECTION: "flink_agents.runtime.java.java_chat_model.JavaChatModelConnectionImpl",
@@ -161,6 +161,7 @@ JAVA_RESOURCE_MAPPING: dict[ResourceType, str] = {
     ResourceType.EMBEDDING_MODEL_CONNECTION: "flink_agents.runtime.java.java_embedding_model.JavaEmbeddingModelConnectionImpl",
     ResourceType.VECTOR_STORE: "flink_agents.runtime.java.java_vector_store.JavaVectorStoreImpl",
 }
+
 
 class JavaResourceProvider(ResourceProvider):
     """Represent Resource Provider declared by Java.
@@ -179,7 +180,7 @@ class JavaResourceProvider(ResourceProvider):
         kwargs.update(descriptor.arguments)
 
         clazz = descriptor.arguments.get("java_clazz", "")
-        if len(clazz) <1:
+        if len(clazz) < 1:
             err_msg = f"java_clazz are not set for {wrapper_clazz.__name__}"
             raise KeyError(err_msg)
 
@@ -204,8 +205,12 @@ class JavaResourceProvider(ResourceProvider):
         cls = get_resource_class(module_path, class_name)
         kwargs = self.descriptor.arguments
 
-        return cls(**kwargs, get_resource=get_resource, j_resource=j_resource, j_resource_adapter= self._j_resource_adapter)
-
+        return cls(
+            **kwargs,
+            get_resource=get_resource,
+            j_resource=j_resource,
+            j_resource_adapter=self._j_resource_adapter,
+        )
 
     def set_java_resource_adapter(self, j_resource_adapter: Any) -> None:
         """Set java resource adapter for java resource initialization."""

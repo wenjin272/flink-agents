@@ -250,7 +250,9 @@ def _get_actions(agent: Agent) -> List[Action]:
     return actions
 
 
-def _get_resource_providers(agent: Agent, config: AgentConfiguration) -> List[ResourceProvider]:
+def _get_resource_providers(
+    agent: Agent, config: AgentConfiguration
+) -> List[ResourceProvider]:
     resource_providers = []
     # retrieve resource declared by decorator
     for name, value in agent.__class__.__dict__.items():
@@ -340,7 +342,10 @@ def _get_resource_providers(agent: Agent, config: AgentConfiguration) -> List[Re
 
 
 def _add_mcp_server(
-    name: str, resource_providers: List[ResourceProvider], descriptor: ResourceDescriptor, config: AgentConfiguration
+    name: str,
+    resource_providers: List[ResourceProvider],
+    descriptor: ResourceDescriptor,
+    config: AgentConfiguration,
 ) -> None:
     provider = PythonResourceProvider.get(name=name, descriptor=descriptor)
 
@@ -349,7 +354,9 @@ def _add_mcp_server(
     def get_resource(name: str, type: ResourceType) -> Any:
         """Placeholder - MCP server construction doesn't need resource resolution."""
 
-    mcp_server = cast("MCPServer", provider.provide(get_resource=get_resource, config=config))
+    mcp_server = cast(
+        "MCPServer", provider.provide(get_resource=get_resource, config=config)
+    )
 
     resource_providers.extend(
         [

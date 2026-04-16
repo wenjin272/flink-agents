@@ -129,7 +129,9 @@ class MyAgent(Agent):
     @staticmethod
     def mock_connection() -> ResourceDescriptor:
         """Chat model server can be used by ChatModel."""
-        return ResourceDescriptor(clazz=f"{MockChatModelConnection.__module__}.{MockChatModelConnection.__name__}")
+        return ResourceDescriptor(
+            clazz=f"{MockChatModelConnection.__module__}.{MockChatModelConnection.__name__}"
+        )
 
     @chat_model_setup
     @staticmethod
@@ -188,7 +190,7 @@ class MyAgent(Agent):
         ctx.send_event(OutputEvent(output=input.content))
 
 
-def test_built_in_actions() -> None:  # noqa: D103
+def test_built_in_actions() -> None:
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []

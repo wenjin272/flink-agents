@@ -54,13 +54,13 @@ except Exception:
 
 
 @pytest.mark.skipif(
-    client is None, reason="Ollama client is not available or test embedding model is missing"
+    client is None,
+    reason="Ollama client is not available or test embedding model is missing",
 )
 def test_ollama_embedding_setup() -> None:
     """Test embedding functionality with OllamaEmbeddingModelSetup."""
     connection = OllamaEmbeddingModelConnection(
-        name="ollama_embed",
-        base_url="http://localhost:11434"
+        name="ollama_embed", base_url="http://localhost:11434"
     )
 
     def get_resource(name: str, type: ResourceType) -> Resource:
@@ -71,7 +71,7 @@ def test_ollama_embedding_setup() -> None:
         connection="ollama_embed",
         model=test_model,
         truncate=True,
-        get_resource=get_resource
+        get_resource=get_resource,
     )
 
     # Test embedding through setup

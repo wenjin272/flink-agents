@@ -50,7 +50,7 @@ class ItemData(BaseModel):
     memory_info: dict | None = None
 
 
-class MyEvent(Event):  # noqa D101
+class MyEvent(Event):
     value: Any
 
 

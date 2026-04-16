@@ -205,7 +205,9 @@ class _ReconcilerDurableAsyncExecutionResult(AsyncExecutionResult):
         )
 
         if plan.mode == "replay":
-            result = self._ctx._replay_terminal_call(self._func, self._args, self._kwargs)
+            result = self._ctx._replay_terminal_call(
+                self._func, self._args, self._kwargs
+            )
             if False:
                 yield
             return result
@@ -304,7 +306,9 @@ class FlinkRunnerContext(RunnerContext):
             raise RuntimeError(err_msg) from e
 
     @override
-    def get_resource(self, name: str, type: ResourceType, metric_group: MetricGroup = None) -> Resource:
+    def get_resource(
+        self, name: str, type: ResourceType, metric_group: MetricGroup = None
+    ) -> Resource:
         self._j_runner_context.checkMailboxThread()
         resource = self.__resource_cache.get_resource(name, type)
         # Bind metric group to the resource
@@ -492,7 +496,9 @@ class FlinkRunnerContext(RunnerContext):
             function_id=function_id,
             args_digest=args_digest,
             status=status,
-            result_payload=bytes(result_payload) if result_payload is not None else None,
+            result_payload=bytes(result_payload)
+            if result_payload is not None
+            else None,
             exception_payload=(
                 bytes(exception_payload) if exception_payload is not None else None
             ),
@@ -793,6 +799,7 @@ def flink_runner_context_switch_action_context(
     if ctx.long_term_memory is not None:
         ctx.long_term_memory.switch_context(str(key))
 
+
 def close_flink_runner_context(
     ctx: FlinkRunnerContext,
 ) -> None:
@@ -804,7 +811,9 @@ def create_async_thread_pool(max_workers: int | None) -> ThreadPoolExecutor:
     """Used to create a thread pool to execute asynchronous
     code block in action.
     """
-    logging.info(f"Initialize fixed thread pool for async task with {max_workers} threads")
+    logging.info(
+        f"Initialize fixed thread pool for async task with {max_workers} threads"
+    )
     return ThreadPoolExecutor(max_workers=max_workers or os.cpu_count() * 2)
 
 

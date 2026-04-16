@@ -122,10 +122,13 @@ def _accumulate_retry_stats(
 ) -> None:
     """Accumulate retry stats for a given initial request across tool call rounds."""
     retry_stats_context = sensory_memory.get(_RETRY_STATS_CONTEXT) or {}
-    stats = retry_stats_context.get(initial_request_id, {
-        "total_retry_count": 0,
-        "total_retry_wait_sec": 0,
-    })
+    stats = retry_stats_context.get(
+        initial_request_id,
+        {
+            "total_retry_count": 0,
+            "total_retry_wait_sec": 0,
+        },
+    )
     stats["total_retry_count"] += retry_count
     stats["total_retry_wait_sec"] += retry_wait_sec
     retry_stats_context[initial_request_id] = stats
@@ -138,10 +141,13 @@ def _get_retry_stats(
 ) -> dict:
     """Get accumulated retry stats for a given initial request."""
     retry_stats_context = sensory_memory.get(_RETRY_STATS_CONTEXT) or {}
-    return retry_stats_context.get(initial_request_id, {
-        "total_retry_count": 0,
-        "total_retry_wait_sec": 0,
-    })
+    return retry_stats_context.get(
+        initial_request_id,
+        {
+            "total_retry_count": 0,
+            "total_retry_wait_sec": 0,
+        },
+    )
 
 
 def _record_retry_metrics(
@@ -296,7 +302,10 @@ async def chat(
 
     if actual_retry_count > 0:
         _accumulate_retry_stats(
-            ctx.sensory_memory, initial_request_id, actual_retry_count, total_wait_time_sec
+            ctx.sensory_memory,
+            initial_request_id,
+            actual_retry_count,
+            total_wait_time_sec,
         )
 
     if (
@@ -310,7 +319,9 @@ async def chat(
         total_retry_count = retry_stats["total_retry_count"]
         total_retry_wait_sec = retry_stats["total_retry_wait_sec"]
 
-        _record_retry_metrics(ctx, chat_model.connection, total_retry_count, total_retry_wait_sec)
+        _record_retry_metrics(
+            ctx, chat_model.connection, total_retry_count, total_retry_wait_sec
+        )
 
         ctx.send_event(
             ChatResponseEvent(

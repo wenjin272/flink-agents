@@ -125,7 +125,9 @@ class LocalRunnerContext(RunnerContext):
         self.events.append(event)
 
     @override
-    def get_resource(self, name: str, type: ResourceType, metric_group: MetricGroup = None) -> Resource:
+    def get_resource(
+        self, name: str, type: ResourceType, metric_group: MetricGroup = None
+    ) -> Resource:
         return self.__resource_cache.get_resource(name, type)
 
     @property

@@ -34,7 +34,7 @@ api_version = os.environ.get("AZURE_OPENAI_API_VERSION")
 
 
 @pytest.mark.skipif(api_key is None, reason="AZURE_OPENAI_API_KEY is not set")
-def test_azure_openai_chat_model() -> None:  # noqa: D103
+def test_azure_openai_chat_model() -> None:
     connection = AzureOpenAIChatModelConnection(
         name="azure_openai",
         api_key=api_key,
@@ -78,7 +78,7 @@ def add(a: int, b: int) -> int:
 
 
 @pytest.mark.skipif(api_key is None, reason="AZURE_OPENAI_API_KEY is not set")
-def test_azure_openai_chat_with_tools() -> None:  # noqa : D103
+def test_azure_openai_chat_with_tools() -> None:
     connection = AzureOpenAIChatModelConnection(
         name="azure_openai",
         api_key=api_key,
@@ -100,7 +100,12 @@ def test_azure_openai_chat_with_tools() -> None:  # noqa : D103
         get_resource=get_resource,
     )
     response = chat_model.chat(
-        [ChatMessage(role=MessageRole.USER, content="You MUST use the add tool to calculate: What is 377 + 688?")]
+        [
+            ChatMessage(
+                role=MessageRole.USER,
+                content="You MUST use the add tool to calculate: What is 377 + 688?",
+            )
+        ]
     )
     tool_calls = response.tool_calls
     assert len(tool_calls) == 1

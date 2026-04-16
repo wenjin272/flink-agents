@@ -44,6 +44,7 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
     but unlike JavaEmbeddingModelConnection, it does not provide direct embedding
     functionality in Python.
     """
+
     _j_resource: Any
     _j_resource_adapter: Any
 
@@ -57,10 +58,10 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
         """
         # embedding_model are required parameters for BaseVectorStore
         embedding_model = kwargs.pop("embedding_model", "")
-        super().__init__(embedding_model = embedding_model, **kwargs)
+        super().__init__(embedding_model=embedding_model, **kwargs)
 
-        self._j_resource=j_resource
-        self._j_resource_adapter=j_resource_adapter
+        self._j_resource = j_resource
+        self._j_resource_adapter = j_resource_adapter
 
     @override
     @property
@@ -73,12 +74,11 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
 
     @override
     def add(
-            self,
-            documents: Document | List[Document],
-            collection_name: str | None = None,
-            **kwargs: Any,
+        self,
+        documents: Document | List[Document],
+        collection_name: str | None = None,
+        **kwargs: Any,
     ) -> List[str]:
-
         documents = _maybe_cast_to_list(documents)
         j_documents = [
             self._j_resource_adapter.fromPythonDocument(document)
@@ -99,10 +99,10 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
 
     @override
     def get(
-            self,
-            ids: str | List[str] | None = None,
-            collection_name: str | None = None,
-            **kwargs: Any,
+        self,
+        ids: str | List[str] | None = None,
+        collection_name: str | None = None,
+        **kwargs: Any,
     ) -> List[Document]:
         ids = _maybe_cast_to_list(ids)
         j_documents = self._j_resource.get(ids, collection_name, kwargs)
@@ -120,7 +120,7 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
 
     @override
     def get_or_create_collection(
-            self, name: str, metadata: Dict[str, Any] | None = None
+        self, name: str, metadata: Dict[str, Any] | None = None
     ) -> Collection:
         j_collection = self._j_resource.getOrCreateCollection(name, metadata)
         return from_java_collection(j_collection)

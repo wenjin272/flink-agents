@@ -36,7 +36,9 @@ OPENAI_MODEL = os.environ.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo")
 os.environ["OPENAI_CHAT_MODEL"] = OPENAI_MODEL
 AZURE_OPENAI_MODEL = os.environ.get("AZURE_OPENAI_CHAT_MODEL", "gpt-5")
 os.environ["AZURE_OPENAI_CHAT_MODEL"] = AZURE_OPENAI_MODEL
-AZURE_OPENAI_API_VERSION= os.environ.get("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
+AZURE_OPENAI_API_VERSION = os.environ.get(
+    "AZURE_OPENAI_API_VERSION", "2025-04-01-preview"
+)
 os.environ["AZURE_OPENAI_API_VERSION"] = AZURE_OPENAI_API_VERSION
 
 DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY")
@@ -76,7 +78,7 @@ client = pull_model(OLLAMA_MODEL)
         ),
     ],
 )
-def test_chat_model_integration(model_provider: str) -> None:  # noqa: D103
+def test_chat_model_integration(model_provider: str) -> None:
     os.environ["MODEL_PROVIDER"] = model_provider
     env = AgentsExecutionEnvironment.get_execution_environment()
     input_list = []

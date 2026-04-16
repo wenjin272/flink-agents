@@ -133,7 +133,10 @@ class Agent(ABC):
         return self
 
     def add_resource(
-        self, name: str, resource_type: ResourceType, instance: SerializableResource | ResourceDescriptor
+        self,
+        name: str,
+        resource_type: ResourceType,
+        instance: SerializableResource | ResourceDescriptor,
     ) -> "Agent":
         """Add resource to agent instance.
 

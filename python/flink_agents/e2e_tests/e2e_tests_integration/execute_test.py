@@ -255,4 +255,3 @@ def test_durable_execute_async_exception_flink(tmp_path: Path) -> None:
             f"{current_dir}/../resources/ground_truth/test_execute_async_exception.txt"
         ),
     )
-

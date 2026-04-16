@@ -33,12 +33,12 @@ if TYPE_CHECKING:
 current_dir = Path(__file__).parent
 
 
-class ProcessedData(BaseModel):  # noqa D101
+class ProcessedData(BaseModel):
     content: str
     visit_count: int
 
 
-class MyEvent(Event):  # noqa D101
+class MyEvent(Event):
     value: Any
 
 
@@ -93,7 +93,7 @@ class MyAgent(Agent):
         ctx.send_event(OutputEvent(output={key_with_count: final_content}))
 
 
-def test_workflow() -> None:  # noqa: D103
+def test_workflow() -> None:
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []

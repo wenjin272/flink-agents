@@ -105,9 +105,7 @@ def test_python_event_logging(tmp_path: Path) -> None:
     log_files = list(event_log_dir.glob("events-*.log"))
 
     # At least one log file should exist
-    assert len(log_files) > 0, (
-        f"Event log files should be created in {event_log_dir}"
-    )
+    assert len(log_files) > 0, f"Event log files should be created in {event_log_dir}"
 
     # Check that log files contain structured event content
     record = None

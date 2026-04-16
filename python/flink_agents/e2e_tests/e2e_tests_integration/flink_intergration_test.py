@@ -47,7 +47,7 @@ current_dir = Path(__file__).parent
 os.environ["PYTHONPATH"] = sysconfig.get_paths()["purelib"]
 
 
-def test_from_datastream_to_datastream(tmp_path: Path) -> None:  # noqa: D103
+def test_from_datastream_to_datastream(tmp_path: Path) -> None:
     config = Configuration()
     config.set_string("state.backend.type", "rocksdb")
     config.set_string("checkpointing.interval", "1s")
@@ -99,7 +99,7 @@ def test_from_datastream_to_datastream(tmp_path: Path) -> None:  # noqa: D103
     )
 
 
-def test_from_table_to_table(tmp_path: Path) -> None:  # noqa: D103
+def test_from_table_to_table(tmp_path: Path) -> None:
     env = StreamExecutionEnvironment.get_execution_environment()
 
     env.set_runtime_mode(RuntimeExecutionMode.STREAMING)
@@ -174,7 +174,7 @@ def test_from_table_to_table(tmp_path: Path) -> None:  # noqa: D103
     )
 
 
-def test_from_datastream_to_table(tmp_path: Path) -> None:  # noqa: D103
+def test_from_datastream_to_table(tmp_path: Path) -> None:
     env = StreamExecutionEnvironment.get_execution_environment()
 
     env.set_runtime_mode(RuntimeExecutionMode.STREAMING)

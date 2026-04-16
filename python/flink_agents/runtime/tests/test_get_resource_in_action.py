@@ -27,7 +27,7 @@ from flink_agents.api.resource import ResourceDescriptor, ResourceType
 from flink_agents.api.runner_context import RunnerContext
 
 
-class MockChatModelImpl(BaseChatModelSetup):  # noqa: D101
+class MockChatModelImpl(BaseChatModelSetup):
     host: str
     desc: str
 
@@ -35,22 +35,26 @@ class MockChatModelImpl(BaseChatModelSetup):  # noqa: D101
         """Do nothing."""
 
     @property
-    def model_kwargs(self) -> Dict[str, Any]:  # noqa: D102
+    def model_kwargs(self) -> Dict[str, Any]:
         return {}
 
-    def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:  # noqa: D102
+    def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=f"{messages[0].content} {self.host} {self.desc}",
         )
 
 
-class MyAgent(Agent):  # noqa: D101
+class MyAgent(Agent):
     @chat_model_setup
     @staticmethod
-    def mock_chat_model() -> ResourceDescriptor:  # noqa: D102
-        return ResourceDescriptor(clazz=f"{MockChatModelImpl.__module__}.{MockChatModelImpl.__name__}", host="8.8.8.8",
-                                  desc="mock chat model just for testing.", connection="mock")
+    def mock_chat_model() -> ResourceDescriptor:
+        return ResourceDescriptor(
+            clazz=f"{MockChatModelImpl.__module__}.{MockChatModelImpl.__name__}",
+            host="8.8.8.8",
+            desc="mock chat model just for testing.",
+            connection="mock",
+        )
 
     @tool
     @staticmethod
@@ -71,7 +75,7 @@ class MyAgent(Agent):  # noqa: D101
 
     @action(InputEvent)
     @staticmethod
-    def mock_action(event: InputEvent, ctx: RunnerContext) -> None:  # noqa: D102
+    def mock_action(event: InputEvent, ctx: RunnerContext) -> None:
         input = event.input
         mock_chat_model = ctx.get_resource(
             type=ResourceType.CHAT_MODEL, name="mock_chat_model"
@@ -88,7 +92,7 @@ class MyAgent(Agent):  # noqa: D101
         )
 
 
-def test_get_resource_in_action() -> None:  # noqa: D103
+def test_get_resource_in_action() -> None:
     env = AgentsExecutionEnvironment.get_execution_environment()
 
     input_list = []

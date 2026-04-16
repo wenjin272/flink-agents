@@ -104,7 +104,9 @@ class ExecuteTestAgent(Agent):
         input_data: ExecuteTestData = event.input
         # Use synchronous durable execute
         result = ctx.durable_execute(compute_value, input_data.value, 10)
-        ctx.send_event(OutputEvent(output=ExecuteTestOutput(id=input_data.id, result=result)))
+        ctx.send_event(
+            OutputEvent(output=ExecuteTestOutput(id=input_data.id, result=result))
+        )
 
 
 class ExecuteMultipleTestAgent(Agent):
@@ -117,7 +119,9 @@ class ExecuteMultipleTestAgent(Agent):
         input_data: ExecuteTestData = event.input
         result1 = ctx.durable_execute(compute_value, input_data.value, 5)
         result2 = ctx.durable_execute(multiply_value, result1, 2)
-        ctx.send_event(OutputEvent(output=ExecuteTestOutput(id=input_data.id, result=result2)))
+        ctx.send_event(
+            OutputEvent(output=ExecuteTestOutput(id=input_data.id, result=result2))
+        )
 
 
 class ExecuteWithAsyncTestAgent(Agent):
@@ -155,4 +159,3 @@ class ExecuteWithAsyncExceptionTestAgent(Agent):
                     output=ExecuteTestErrorOutput(id=input_data.id, error=str(exc))
                 )
             )
-

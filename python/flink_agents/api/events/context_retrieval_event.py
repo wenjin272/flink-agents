@@ -34,6 +34,7 @@ class ContextRetrievalRequestEvent(Event):
     max_results : int
         Maximum number of results to return (default: 3)
     """
+
     query: str
     vector_store: str
     max_results: int = 3
@@ -51,6 +52,7 @@ class ContextRetrievalResponseEvent(Event):
     documents : List[Document]
         List of retrieved documents from the vector store
     """
+
     request_id: UUID
     query: str
     documents: List[Document]
