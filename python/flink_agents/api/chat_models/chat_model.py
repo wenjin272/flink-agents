@@ -19,7 +19,7 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Dict, List, Sequence, Tuple, cast
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 from typing_extensions import override
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
@@ -137,9 +137,8 @@ class BaseChatModelSetup(Resource):
     different chat configurations.
     """
 
-    connection: str | BaseChatModelConnection = Field(
-        description="The referenced connection."
-    )
+    connection: str = Field(description="The referenced connection name.")
+    _resolved_connection: BaseChatModelConnection | None = PrivateAttr(default=None)
     prompt: Prompt | str | None = None
     tools: List[str] | List[Tool] = Field(default_factory=list)
 
@@ -156,7 +155,7 @@ class BaseChatModelSetup(Resource):
 
     @override
     def open(self) -> None:
-        self.connection = cast(
+        self._resolved_connection = cast(
             "BaseChatModelConnection",
             self.get_resource(self.connection, ResourceType.CHAT_MODEL_CONNECTION),
         )
@@ -241,10 +240,13 @@ class BaseChatModelSetup(Resource):
         model_group.get_counter("completionTokens").inc(completion_tokens)
 
     def _get_connection(self) -> BaseChatModelConnection:
-        if not isinstance(self.connection, BaseChatModelConnection):
-            err_msg = f"Expect BaseChatModelConnection, but is {self.connection.__class__.__name__}"
+        if self._resolved_connection is None:
+            err_msg = (
+                f"Connection '{self.connection}' has not been resolved. "
+                "Ensure open() is called before using the connection."
+            )
             raise TypeError(err_msg)
-        return self.connection
+        return self._resolved_connection
 
     def _get_prompt(self) -> Prompt:
         if not isinstance(self.prompt, Prompt):
