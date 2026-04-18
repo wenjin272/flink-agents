@@ -103,7 +103,7 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
 
     @Override
     public long size(@Nullable String collection) throws Exception {
-        return (long) vectorStore.invokeMethod("size", collection);
+        throw new UnsupportedOperationException("PythonVectorStore doesn't support size()");
     }
 
     @Override

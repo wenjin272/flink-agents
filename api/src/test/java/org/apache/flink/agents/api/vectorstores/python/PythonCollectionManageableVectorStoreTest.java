@@ -323,19 +323,6 @@ public class PythonCollectionManageableVectorStoreTest {
     }
 
     @Test
-    void testSize() throws Exception {
-        String collection = "test_collection";
-        long expectedSize = 100L;
-
-        when(mockVectorStore.invokeMethod("size", collection)).thenReturn(expectedSize);
-
-        long result = vectorStore.size(collection);
-
-        assertThat(result).isEqualTo(expectedSize);
-        verify(mockVectorStore).invokeMethod("size", collection);
-    }
-
-    @Test
     void testInheritanceFromPythonVectorStore() {
         assertThat(vectorStore).isInstanceOf(PythonVectorStore.class);
     }
