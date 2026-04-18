@@ -29,7 +29,6 @@ from flink_agents.api.configuration import ReadableConfiguration
 from flink_agents.api.events.event import Event
 from flink_agents.api.memory.long_term_memory import (
     BaseLongTermMemory,
-    LongTermMemoryBackend,
     LongTermMemoryOptions,
 )
 from flink_agents.api.memory_object import MemoryType
@@ -49,8 +48,8 @@ from flink_agents.runtime.flink_metric_group import FlinkMetricGroup
 from flink_agents.runtime.memory.internal_base_long_term_memory import (
     InternalBaseLongTermMemory,
 )
-from flink_agents.runtime.memory.vector_store_long_term_memory import (
-    VectorStoreLongTermMemory,
+from flink_agents.runtime.memory.mem0.mem0_long_term_memory import (
+    Mem0LongTermMemory,
 )
 from flink_agents.runtime.python_java_utils import _build_event_log_string
 from flink_agents.runtime.resource_cache import ResourceCache
@@ -769,22 +768,34 @@ def create_flink_runner_context(
     ctx = FlinkRunnerContext(
         j_runner_context, agent_plan_json, executor, j_resource_adapter
     )
-
-    backend = ctx.config.get(LongTermMemoryOptions.BACKEND)
-    # use external vector store based long term memory
-    if backend == LongTermMemoryBackend.EXTERNAL_VECTOR_STORE:
-        vector_store_name = ctx.config.get(
-            LongTermMemoryOptions.EXTERNAL_VECTOR_STORE_NAME
-        )
-        ctx.set_long_term_memory(
-            VectorStoreLongTermMemory(
-                ctx=ctx,
-                vector_store=vector_store_name,
-                job_id=job_identifier,
-            )
-        )
-
+    ltm = _init_long_term_memory(ctx, job_identifier)
+    if ltm is not None:
+        ctx.set_long_term_memory(ltm)
     return ctx
+
+
+def _init_long_term_memory(
+    ctx: FlinkRunnerContext, job_id: str
+) -> Mem0LongTermMemory | None:
+    """Build a :class:`Mem0LongTermMemory` from ``LongTermMemoryOptions``,
+    or return ``None`` if any of the three LTM resource options is missing.
+    """
+    chat_model_name = ctx.config.get(LongTermMemoryOptions.CHAT_MODEL_SETUP)
+    embedding_model_name = ctx.config.get(LongTermMemoryOptions.EMBEDDING_MODEL_SETUP)
+    vector_store_name = ctx.config.get(LongTermMemoryOptions.VECTOR_STORE)
+    if (
+        chat_model_name is None
+        or embedding_model_name is None
+        or vector_store_name is None
+    ):
+        return None
+    return Mem0LongTermMemory(
+        ctx=ctx,
+        job_id=job_id,
+        chat_model_name=chat_model_name,
+        embedding_model_name=embedding_model_name,
+        vector_store_name=vector_store_name,
+    )
 
 
 def flink_runner_context_switch_action_context(
