@@ -36,6 +36,7 @@ from flink_agents.api.vector_stores.vector_store import (
 )
 from flink_agents.integrations.vector_stores.chroma.chroma_vector_store import (
     ChromaVectorStore,
+    _translate_filters_to_chroma_where,
 )
 
 api_key = os.environ.get("TEST_API_KEY")
@@ -66,7 +67,7 @@ def _populate_test_data(
     vector_store: ChromaVectorStore, collection_name: str | None = None
 ) -> List[Document]:
     """Private helper method to populate ChromaDB with test data."""
-    vector_store.get_or_create_collection(name=collection_name)
+    vector_store.create_collection_if_not_exists(name=collection_name)
     documents = [
         Document(
             id="doc1",
@@ -135,21 +136,15 @@ def test_collection_management() -> None:
 
     vector_store.open()
 
-    vector_store.get_or_create_collection(
+    vector_store.create_collection_if_not_exists(
         name="collection_management", metadata={"key1": "value1", "key2": "value2"}
     )
-
-    collection = vector_store.get_collection(name="collection_management")
-
-    assert collection is not None
-    assert collection.name == "collection_management"
-    assert vector_store.size(collection_name="collection_management") == 0
-    assert collection.metadata == {"key1": "value1", "key2": "value2"}
+    assert vector_store.get(collection_name="collection_management") == []
 
     vector_store.delete_collection(name="collection_management")
 
     with pytest.raises(NotFoundError):
-        vector_store.get_collection(name="collection_management")
+        vector_store.get(collection_name="collection_management")
 
 
 @pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
@@ -173,7 +168,7 @@ def test_document_management() -> None:
 
     vector_store.open()
 
-    vector_store.get_or_create_collection(
+    vector_store.create_collection_if_not_exists(
         name="document_management", metadata={"key1": "value1", "key2": "value2"}
     )
 
@@ -205,6 +200,228 @@ def test_document_management() -> None:
     vector_store.delete(collection_name="document_management")
     documents = vector_store.get(collection_name="document_management")
     assert documents == []
+
+
+# ---------------------------------------------------------------------------
+# Filter DSL → ChromaDB `where` translator (pure-function unit tests, no
+# ChromaDB client needed).
+# ---------------------------------------------------------------------------
+def test_translate_filters_empty_and_none() -> None:
+    assert _translate_filters_to_chroma_where(None) is None
+    assert _translate_filters_to_chroma_where({}) is None
+
+
+def test_translate_filters_single_key_equality() -> None:
+    assert _translate_filters_to_chroma_where({"k": "v"}) == {"k": "v"}
+
+
+def test_translate_filters_multi_key_wraps_in_and() -> None:
+    # Multi-key top-level → ChromaDB rejects without $and; translator adds it.
+    out = _translate_filters_to_chroma_where({"k": "v", "n": 1})
+    assert out == {"$and": [{"k": "v"}, {"n": 1}]}
+
+
+@pytest.mark.parametrize(
+    "filters",
+    [
+        {"n": {"$gt": 1}},
+        {"$and": [{"k": "v"}, {"n": 1}]},
+        {"$or": [{"k": "v"}, {"k": "x"}]},
+        {"$not": {"k": "v"}},
+    ],
+)
+def test_translate_filters_rejects_operators(filters: Dict[str, Any]) -> None:
+    # Anything beyond equality shorthand is out-of-spec in the unified DSL.
+    with pytest.raises(NotImplementedError, match=r"equality shorthand"):
+        _translate_filters_to_chroma_where(filters)
+
+
+# ---------------------------------------------------------------------------
+# End-to-end filter coverage (against an in-memory ChromaDB).
+# ---------------------------------------------------------------------------
+class _FixedVecEmbeddingModel(MockEmbeddingModel):
+    """Always returns the query vector that matches ``doc1`` exactly —
+    lets the filter tests assert a deterministic score distribution
+    without having to pass vectors manually.
+    """
+
+    def embed(self, text: str, **kwargs: Any) -> list[float]:
+        return [1.0, 0.0, 0.0, 0.0, 0.0]
+
+
+def _filter_test_store() -> ChromaVectorStore:
+    """Build a small ChromaVectorStore populated with three documents
+    spanning enough metadata to exercise each filter shape.
+    """
+    embedding_model = _FixedVecEmbeddingModel(name="mock_embeddings")
+
+    def get_resource(name: str, resource_type: ResourceType) -> Resource:
+        if resource_type == ResourceType.EMBEDDING_MODEL:
+            return embedding_model
+        msg = f"Unknown resource type: {resource_type}"
+        raise ValueError(msg)
+
+    vector_store = ChromaVectorStore(
+        name="chroma_vector_store",
+        embedding_model="mock_embeddings",
+        collection="filter_tests",
+        get_resource=get_resource,
+    )
+    vector_store.open()
+    vector_store.create_collection_if_not_exists(name="filter_tests")
+    vector_store.add(
+        documents=[
+            Document(
+                id="doc1",
+                content="alpha",
+                metadata={"category": "a", "score": 10},
+                embedding=[1.0, 0.0, 0.0, 0.0, 0.0],
+            ),
+            Document(
+                id="doc2",
+                content="beta",
+                metadata={"category": "a", "score": 20},
+                embedding=[0.0, 1.0, 0.0, 0.0, 0.0],
+            ),
+            Document(
+                id="doc3",
+                content="gamma",
+                metadata={"category": "b", "score": 30},
+                embedding=[0.0, 0.0, 1.0, 0.0, 0.0],
+            ),
+        ],
+        collection_name="filter_tests",
+    )
+    return vector_store
+
+
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_query_with_shorthand_equality_filter() -> None:
+    vs = _filter_test_store()
+    result = vs.query(
+        VectorStoreQuery(
+            query_text="x",
+            limit=5,
+            collection_name="filter_tests",
+            filters={"category": "a"},
+        )
+    )
+    assert sorted(d.id for d in result.documents) == ["doc1", "doc2"]
+
+
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_query_with_multi_key_implicit_and_filter() -> None:
+    # Translator must wrap this into $and; raw ChromaDB would reject it.
+    vs = _filter_test_store()
+    result = vs.query(
+        VectorStoreQuery(
+            query_text="x",
+            limit=5,
+            collection_name="filter_tests",
+            filters={"category": "a", "score": 20},
+        )
+    )
+    assert [d.id for d in result.documents] == ["doc2"]
+
+
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_query_with_native_where_kwarg() -> None:
+    # Callers needing ChromaDB-native operators bypass the unified DSL by
+    # passing `where=` through extra_args; the translator leaves it alone.
+    vs = _filter_test_store()
+    result = vs.query(
+        VectorStoreQuery(
+            query_text="x",
+            limit=5,
+            collection_name="filter_tests",
+            extra_args={"where": {"score": {"$gte": 20}}},
+        )
+    )
+    assert sorted(d.id for d in result.documents) == ["doc2", "doc3"]
+
+
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_query_scores_populated() -> None:
+    vs = _filter_test_store()
+    result = vs.query(
+        VectorStoreQuery(
+            query_text="x",
+            limit=3,
+            collection_name="filter_tests",
+        )
+    )
+    # doc1's embedding matches the query exactly → distance 0; the other two
+    # are orthogonal → strictly positive. All three scores must be populated.
+    scores = {d.id: d.score for d in result.documents}
+    assert scores["doc1"] == pytest.approx(0.0, abs=1e-6)
+    assert scores["doc2"] is not None
+    assert scores["doc2"] > 0
+    assert scores["doc3"] is not None
+    assert scores["doc3"] > 0
+
+
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_get_with_filter() -> None:
+    vs = _filter_test_store()
+    got = vs.get(collection_name="filter_tests", filters={"category": "b"})
+    assert [d.id for d in got] == ["doc3"]
+
+
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_get_respects_explicit_limit() -> None:
+    vs = _filter_test_store()
+    got = vs.get(collection_name="filter_tests", limit=2)
+    assert len(got) == 2
+
+
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_get_unbounded_when_limit_is_none() -> None:
+    vs = _filter_test_store()
+    got = vs.get(collection_name="filter_tests", limit=None)
+    # All three test docs come back when the caller opts out of the default.
+    assert len(got) == 3
+
+
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_delete_with_filter() -> None:
+    vs = _filter_test_store()
+    vs.delete(collection_name="filter_tests", filters={"category": "a"})
+    remaining = vs.get(collection_name="filter_tests")
+    assert [d.id for d in remaining] == ["doc3"]
+
+
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_query_raises_on_operator_filter() -> None:
+    vs = _filter_test_store()
+    with pytest.raises(NotImplementedError, match=r"equality shorthand"):
+        vs.query(
+            VectorStoreQuery(
+                query_text="x",
+                limit=5,
+                collection_name="filter_tests",
+                filters={"score": {"$gte": 20}},
+            )
+        )
+
+
+# ---------------------------------------------------------------------------
+# Update + collection discovery (other newly-added surface).
+# ---------------------------------------------------------------------------
+@pytest.mark.skipif(not chromadb_available, reason="ChromaDB is not available")
+def test_update_document() -> None:
+    vs = _filter_test_store()
+    updated = Document(
+        id="doc1",
+        content="alpha-v2",
+        metadata={"category": "a", "score": 99},
+        embedding=[0.5, 0.5, 0.0, 0.0, 0.0],
+    )
+    vs.update(documents=updated, collection_name="filter_tests")
+
+    got = vs.get(ids="doc1", collection_name="filter_tests")
+    assert len(got) == 1
+    assert got[0].content == "alpha-v2"
+    assert got[0].metadata["score"] == 99
 
 
 @pytest.mark.skipif(api_key is None, reason="TEST_API_KEY is not set")

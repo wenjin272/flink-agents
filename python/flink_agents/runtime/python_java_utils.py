@@ -31,7 +31,6 @@ from flink_agents.api.tools.utils import (
     create_model_from_java_tool_schema_str,
 )
 from flink_agents.api.vector_stores.vector_store import (
-    Collection,
     Document,
     VectorStoreQuery,
     VectorStoreQueryMode,
@@ -267,14 +266,6 @@ def from_java_vector_store_query_result(j_query: Any) -> VectorStoreQueryResult:
         documents=[
             from_java_document(j_document) for j_document in j_query.getDocuments()
         ],
-    )
-
-
-def from_java_collection(j_collection: Any) -> Collection:
-    """Convert a Java collection to a Python collection."""
-    return Collection(
-        name=j_collection.getName(),
-        metadata=j_collection.getMetadata(),
     )
 
 

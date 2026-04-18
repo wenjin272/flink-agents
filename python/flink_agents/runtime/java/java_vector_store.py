@@ -24,16 +24,19 @@ from flink_agents.api.vector_stores.java_vector_store import (
     JavaCollectionManageableVectorStore,
 )
 from flink_agents.api.vector_stores.vector_store import (
-    Collection,
     Document,
     VectorStoreQuery,
     VectorStoreQueryResult,
     _maybe_cast_to_list,
 )
 from flink_agents.runtime.python_java_utils import (
-    from_java_collection,
     from_java_document,
     from_java_vector_store_query_result,
+)
+
+_PRIVATE_HOOK_MSG = (
+    "Protected embedding hooks are never called on the Java wrapper; "
+    "public methods forward directly to the Java resource."
 )
 
 
@@ -63,8 +66,8 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
         self._j_resource = j_resource
         self._j_resource_adapter = j_resource_adapter
 
-    @override
     @property
+    @override
     def store_kwargs(self) -> Dict[str, Any]:
         return {}
 
@@ -93,8 +96,12 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
         j_query_result = self._j_resource.query(j_query)
         return from_java_vector_store_query_result(j_query_result)
 
-    @override
     def size(self, collection_name: str | None = None) -> int:
+        """Return document count, forwarded to the underlying Java store.
+
+        Java-side convenience; not part of :class:`BaseVectorStore`'s
+        contract.
+        """
         return self._j_resource.size(collection_name)
 
     @override
@@ -102,9 +109,15 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
         self,
         ids: str | List[str] | None = None,
         collection_name: str | None = None,
+        filters: Dict[str, Any] | None = None,
+        limit: int | None = 100,
         **kwargs: Any,
     ) -> List[Document]:
         ids = _maybe_cast_to_list(ids)
+        if filters is not None:
+            kwargs = {**kwargs, "filters": filters}
+        if limit is not None:
+            kwargs = {**kwargs, "limit": limit}
         j_documents = self._j_resource.get(ids, collection_name, kwargs)
         return [from_java_document(j_document) for j_document in j_documents]
 
@@ -113,27 +126,38 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
         self,
         ids: str | List[str] | None = None,
         collection_name: str | None = None,
+        filters: Dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> List[str]:
         ids = _maybe_cast_to_list(ids)
+        if filters is not None:
+            kwargs = {**kwargs, "filters": filters}
         return self._j_resource.delete(ids, collection_name, kwargs)
 
     @override
-    def get_or_create_collection(
-        self, name: str, metadata: Dict[str, Any] | None = None
-    ) -> Collection:
-        j_collection = self._j_resource.getOrCreateCollection(name, metadata)
-        return from_java_collection(j_collection)
+    def update(
+        self,
+        documents: Document | List[Document],
+        collection_name: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        err_msg = (
+            "Update is not yet supported on the Java VectorStore wrapper. "
+            "Implement it on the Java side first."
+        )
+        raise NotImplementedError(err_msg)
 
     @override
-    def get_collection(self, name: str) -> Collection:
-        j_collection = self._j_resource.getCollection(name)
-        return from_java_collection(j_collection)
+    def create_collection_if_not_exists(self, name: str, **kwargs: Any) -> None:
+        """Forward to the Java side. Currently only ``metadata`` is forwarded;
+        the Java API will be widened in a follow-up PR.
+        """
+        metadata = kwargs.get("metadata")
+        self._j_resource.getOrCreateCollection(name, metadata)
 
     @override
-    def delete_collection(self, name: str) -> Collection:
-        j_collection = self._j_resource.deleteCollection(name)
-        return from_java_collection(j_collection)
+    def delete_collection(self, name: str) -> None:
+        self._j_resource.deleteCollection(name)
 
     @override
     def _add_embedding(
@@ -143,10 +167,20 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
         collection_name: str | None = None,
         **kwargs: Any,
     ) -> List[str]:
-        """Private functions should never be called for the Resource Wrapper."""
+        raise NotImplementedError(_PRIVATE_HOOK_MSG)
 
     @override
     def _query_embedding(
         self, embedding: list[float], limit: int = 10, **kwargs: Any
     ) -> list[Document]:
-        """Private functions should never be called for the Resource Wrapper."""
+        raise NotImplementedError(_PRIVATE_HOOK_MSG)
+
+    @override
+    def _update_embedding(
+        self,
+        *,
+        documents: List[Document],
+        collection_name: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        raise NotImplementedError(_PRIVATE_HOOK_MSG)
