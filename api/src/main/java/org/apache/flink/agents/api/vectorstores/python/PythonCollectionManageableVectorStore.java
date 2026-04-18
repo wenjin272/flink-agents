@@ -25,6 +25,7 @@ import org.apache.flink.agents.api.resource.python.PythonResourceAdapter;
 import org.apache.flink.agents.api.vectorstores.CollectionManageableVectorStore;
 import pemja.core.object.PyObject;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -67,19 +68,25 @@ public class PythonCollectionManageableVectorStore extends PythonVectorStore
             kwargs.put("metadata", metadata);
         }
 
-        Object result = this.adapter.callMethod(vectorStore, "get_or_create_collection", kwargs);
-        return adapter.fromPythonCollection((PyObject) result);
+        this.adapter.callMethod(vectorStore, "create_collection_if_not_exists", kwargs);
+        // TODO: This is a work around for python vector store api has been refactored, but java
+        // hasn't.
+        return new Collection(name, metadata);
     }
 
     @Override
     public Collection getCollection(String name) throws Exception {
-        Object result = this.vectorStore.invokeMethod("get_collection", name);
-        return adapter.fromPythonCollection((PyObject) result);
+        // TODO: This is a work around for python vector store api has been refactored, but java
+        // hasn't.
+        throw new UnsupportedOperationException(
+                "PythonVectorStore doesn't support getCollection()");
     }
 
     @Override
     public Collection deleteCollection(String name) throws Exception {
-        Object result = this.vectorStore.invokeMethod("delete_collection", name);
-        return adapter.fromPythonCollection((PyObject) result);
+        this.vectorStore.invokeMethod("delete_collection", name);
+        // TODO: This is a work around for python vector store api has been refactored, but java
+        // hasn't.
+        return new Collection(name, Collections.emptyMap());
     }
 }

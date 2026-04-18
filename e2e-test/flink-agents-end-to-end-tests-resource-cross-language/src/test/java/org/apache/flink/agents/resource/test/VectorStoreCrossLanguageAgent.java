@@ -32,12 +32,12 @@ import org.apache.flink.agents.api.event.ContextRetrievalResponseEvent;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceName;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.vectorstores.CollectionManageableVectorStore;
 import org.apache.flink.agents.api.vectorstores.Document;
 import org.apache.flink.agents.api.vectorstores.python.PythonCollectionManageableVectorStore;
 import org.junit.jupiter.api.Assertions;
 import pemja.core.PythonException;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,23 +116,12 @@ public class VectorStoreCrossLanguageAgent extends Agent {
             vectorStore.getOrCreateCollection(
                     TEST_COLLECTION, Map.of("key1", "value1", "key2", "value2"));
 
-            CollectionManageableVectorStore.Collection collection =
-                    vectorStore.getCollection(TEST_COLLECTION);
-            Assertions.assertNotEquals(collection, null, "Vector store collection is null");
-            Assertions.assertEquals(
-                    TEST_COLLECTION,
-                    collection.getName(),
-                    "Vector store collection name is not test_collection");
-            Assertions.assertEquals(
-                    Map.of("key1", "value1", "key2", "value2"),
-                    collection.getMetadata(),
-                    "Vector store collection metadata is not correct");
-
             System.out.println("[TEST] Vector store Collection Management PASSED");
 
             vectorStore.deleteCollection(TEST_COLLECTION);
             Assertions.assertThrows(
-                    PythonException.class, () -> vectorStore.getCollection(TEST_COLLECTION));
+                    PythonException.class,
+                    () -> vectorStore.get(null, TEST_COLLECTION, Collections.emptyMap()));
 
             // Initialize collection
             vectorStore.add(
@@ -153,12 +142,17 @@ public class VectorStoreCrossLanguageAgent extends Agent {
                     Map.of());
 
             // Test size
-            Assertions.assertEquals(3, vectorStore.size(null), "Vector store size is not 3");
+            Assertions.assertEquals(
+                    3,
+                    vectorStore.get(null, null, Collections.emptyMap()).size(),
+                    "Vector store size is not 3");
 
             // Test delete
             vectorStore.delete(List.of("doc3"), null, Map.of());
             Assertions.assertEquals(
-                    2, vectorStore.size(null), "Vector store size is not 2, doc3 was not deleted");
+                    2,
+                    vectorStore.get(null, null, Collections.emptyMap()).size(),
+                    "Vector store size is not 2, doc3 was not deleted");
 
             // Test get
             Document doc = vectorStore.get(List.of("doc2"), null, Map.of()).get(0);

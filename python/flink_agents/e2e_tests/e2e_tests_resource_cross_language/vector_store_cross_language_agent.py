@@ -18,8 +18,6 @@
 import os
 import time
 
-import pytest
-
 from flink_agents.api.agents.agent import Agent
 from flink_agents.api.decorators import (
     action,
@@ -116,20 +114,10 @@ class VectorStoreCrossLanguageAgent(Agent):
 
             vector_store = ctx.get_resource("vector_store", ResourceType.VECTOR_STORE)
             if isinstance(vector_store, CollectionManageableVectorStore):
-                vector_store.get_or_create_collection(
+                vector_store.create_collection_if_not_exists(
                     TEST_COLLECTION, metadata={"key1": "value1", "key2": "value2"}
                 )
-
-                collection = vector_store.get_collection(name=TEST_COLLECTION)
-
-                assert collection is not None
-                assert collection.name == TEST_COLLECTION
-                assert collection.metadata == {"key1": "value1", "key2": "value2"}
-
                 vector_store.delete_collection(name=TEST_COLLECTION)
-
-                with pytest.raises(RuntimeError):
-                    vector_store.get_collection(name=TEST_COLLECTION)
 
                 print("[TEST] Vector store Collection Management PASSED")
 

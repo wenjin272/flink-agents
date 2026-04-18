@@ -136,13 +136,12 @@ class MockVectorStore(BaseVectorStore):
     def store_kwargs(self) -> Dict[str, Any]:
         return {"collection_name": self.collection_name}
 
-    def size(self, collection_name: str | None = None) -> int:
-        """For Testing."""
-
     def get(
         self,
         ids: str | List[str] | None = None,
         collection_name: str | None = None,
+        filters: Dict[str, Any] | None = None,
+        limit: int | None = 100,
         **kwargs: Any,
     ) -> List[Document]:
         """For Testing."""
@@ -151,6 +150,7 @@ class MockVectorStore(BaseVectorStore):
         self,
         ids: str | List[str] | None = None,
         collection_name: str | None = None,
+        filters: Dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """For Testing."""
@@ -162,6 +162,15 @@ class MockVectorStore(BaseVectorStore):
         collection_name: str | None = None,
         **kwargs: Any,
     ) -> List[str]:
+        """For Testing."""
+
+    def _update_embedding(
+        self,
+        *,
+        documents: List[Document],
+        collection_name: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         """For Testing."""
 
     def _query_embedding(
