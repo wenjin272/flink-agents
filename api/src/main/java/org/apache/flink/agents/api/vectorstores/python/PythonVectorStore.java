@@ -86,7 +86,7 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
         kwargs.put("documents", pythonDocuments);
 
         if (collection != null) {
-            kwargs.put("collection", collection);
+            kwargs.put("collection_name", collection);
         }
 
         return (List<String>) adapter.callMethod(vectorStore, "add", kwargs);
@@ -115,7 +115,7 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
             kwargs.put("ids", ids);
         }
         if (collection != null) {
-            kwargs.put("collection", collection);
+            kwargs.put("collection_name", collection);
         }
 
         Object pythonDocuments = adapter.callMethod(vectorStore, "get", kwargs);
@@ -132,7 +132,7 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
             kwargs.put("ids", ids);
         }
         if (collection != null) {
-            kwargs.put("collection", collection);
+            kwargs.put("collection_name", collection);
         }
         adapter.callMethod(vectorStore, "delete", kwargs);
     }
