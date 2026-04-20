@@ -22,7 +22,7 @@ The concrete implementation lives in :mod:`flink_agents.runtime.resource_context
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from flink_agents.api.resource import Resource, ResourceType
@@ -34,3 +34,18 @@ class ResourceContext(ABC):
     @abstractmethod
     def get_resource(self, name: str, resource_type: "ResourceType") -> "Resource":
         """Get another resource declared in the same Agent."""
+
+    @abstractmethod
+    def generate_available_skills_prompt(self, *skill_names: str) -> str:
+        """Generate the available skills prompt for the given skill names.
+
+        Returns empty string if no skills are configured.
+        """
+
+    @abstractmethod
+    def get_skill_dirs(self, *skill_names: str) -> List[str]:
+        """Return absolute directory paths for the given skill names.
+
+        Returns an empty list if no skills are configured or none of the
+        requested skills are filesystem-backed.
+        """

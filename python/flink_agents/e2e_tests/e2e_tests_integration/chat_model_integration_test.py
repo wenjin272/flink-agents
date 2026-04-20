@@ -61,19 +61,19 @@ client = pull_model(OLLAMA_MODEL)
         pytest.param(
             "Tongyi",
             marks=pytest.mark.skipif(
-                DASHSCOPE_API_KEY is None, reason="Tongyi api key is not set."
+                not DASHSCOPE_API_KEY, reason="Tongyi api key is not set."
             ),
         ),
         pytest.param(
             "OpenAI",
             marks=pytest.mark.skipif(
-                OPENAI_API_KEY is None, reason="OpenAI api key is not set."
+                not OPENAI_API_KEY, reason="OpenAI api key is not set."
             ),
         ),
         pytest.param(
             "AzureOpenAI",
             marks=pytest.mark.skipif(
-                AZURE_OPENAI_API_KEY is None, reason="Azure OpenAI api key is not set."
+                not AZURE_OPENAI_API_KEY, reason="Azure OpenAI api key is not set."
             ),
         ),
     ],
