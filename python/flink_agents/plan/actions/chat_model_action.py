@@ -164,10 +164,34 @@ def _record_retry_metrics(
         model_group.get_counter("retryWaitSec").inc(total_retry_wait_sec)
 
 
+def _inject_bash_tool_args(
+    tool_calls: List[Dict],
+    chat_model: "BaseChatModelSetup",
+) -> None:
+    """Inject framework-controlled args (allowed_commands, allowed_script_dirs)
+    into bash tool calls so they remain hidden from the LLM.
+    """
+    from flink_agents.api.skills import BASH_TOOL
+
+    script_dirs = list(chat_model.allowed_script_dirs)
+    if chat_model.resource_context is not None and chat_model.skills:
+        script_dirs.extend(
+            chat_model.resource_context.get_skill_dirs(*chat_model.skills)
+        )
+
+    for tool_call in tool_calls:
+        if tool_call["function"]["name"] != BASH_TOOL:
+            continue
+        args = tool_call["function"]["arguments"]
+        args["allowed_commands"] = list(chat_model.allowed_commands)
+        args["allowed_script_dirs"] = script_dirs
+
+
 def _handle_tool_calls(
     response: ChatMessage,
     initial_request_id: UUID,
     model: str,
+    chat_model: "BaseChatModelSetup",
     messages: List[ChatMessage],
     output_schema: OutputSchema | None,
     ctx: RunnerContext,
@@ -176,6 +200,8 @@ def _handle_tool_calls(
     _update_tool_call_context(
         ctx.sensory_memory, initial_request_id, messages, [response]
     )
+
+    _inject_bash_tool_args(response.tool_calls, chat_model)
 
     tool_request_event = ToolRequestEvent(
         model=model,
@@ -320,7 +346,13 @@ async def chat(
         len(response.tool_calls) > 0
     ):  # generate tool request event according tool calls in response
         _handle_tool_calls(
-            response, initial_request_id, model, messages, output_schema, ctx
+            response,
+            initial_request_id,
+            model,
+            chat_model,
+            messages,
+            output_schema,
+            ctx,
         )
     else:  # if there is no tool call generated, return chat response directly
         retry_stats = _get_retry_stats(ctx.sensory_memory, initial_request_id)
