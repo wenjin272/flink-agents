@@ -173,7 +173,7 @@ jobs:
         run: bash tools/start_ollama_server.sh
       - name: Run Python IT
         env:
-          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          ACTION_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         run: tools/ut.sh -p -e -f ${{ matrix.flink-version }}
 
   java_it_tests:

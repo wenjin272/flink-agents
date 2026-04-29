@@ -53,8 +53,8 @@ current_dir = Path(__file__).parent
 
 PYTHON_PATH = sysconfig.get_paths()["purelib"]
 MODEL = "qwen3.6-plus"
-BASE_URL = "https://coding.dashscope.aliyuncs.com/v1"
-API_KEY = os.environ.get("DASHSCOPE_API_KEY")
+BASE_URL = os.environ.get("ACTION_BASE_URL", "https://coding.dashscope.aliyuncs.com/v1")
+API_KEY = os.environ.get("ACTION_API_KEY")
 
 
 @dataclass
