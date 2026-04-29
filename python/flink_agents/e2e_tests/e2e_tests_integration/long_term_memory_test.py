@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List
 
+import pytest
 from pydantic import BaseModel
 from pyflink.common import Configuration, Encoder, Types, WatermarkStrategy
 from pyflink.datastream import (
@@ -59,12 +60,12 @@ from flink_agents.e2e_tests.test_utils import pull_model
 
 current_dir = Path(__file__).parent
 
-os.environ["PYTHONPATH"] = sysconfig.get_paths()["purelib"]
-
-OLLAMA_CHAT_MODEL = "qwen3.5:4b"
 OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
-pull_model(OLLAMA_CHAT_MODEL)
 pull_model(OLLAMA_EMBEDDING_MODEL)
+
+MODEL = "qwen3.6-plus"
+BASE_URL = os.environ.get("ACTION_BASE_URL", "https://coding.dashscope.aliyuncs.com/v1")
+API_KEY = os.environ.get("ACTION_API_KEY", "sk-sp-a8a3342ff47d4dbfb97693cb2397da9e")
 
 # Env var used to hand ``chromadb``'s persist path to the agent-level
 # ``@vector_store`` resource (which is a staticmethod and has no access
@@ -113,10 +114,13 @@ class LongTermMemoryAgent(Agent):
 
     @chat_model_connection
     @staticmethod
-    def ollama_connection() -> ResourceDescriptor:
+    def openai_connection() -> ResourceDescriptor:
         """ChatModelConnection responsible for ollama model service connection."""
         return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.OLLAMA_CONNECTION, request_timeout=480.0
+            clazz=ResourceName.ChatModel.OPENAI_COMPLETIONS_CONNECTION,
+            api_key=API_KEY,
+            api_base_url=BASE_URL,
+            request_timeout=300,
         )
 
     @chat_model_setup
@@ -124,9 +128,9 @@ class LongTermMemoryAgent(Agent):
     def ollama_qwen3() -> ResourceDescriptor:
         """ChatModel which focus on math, and reuse ChatModelConnection."""
         return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.OLLAMA_SETUP,
-            connection="ollama_connection",
-            model=OLLAMA_CHAT_MODEL,
+            clazz=ResourceName.ChatModel.OPENAI_COMPLETIONS_SETUP,
+            connection="openai_connection",
+            model=MODEL,
             extract_reasoning=True,
             think=False,
         )
@@ -202,6 +206,7 @@ class LongTermMemoryAgent(Agent):
         ctx.send_event(OutputEvent(output=record))
 
 
+@pytest.mark.skipif(not API_KEY, reason="openai api key is required.")
 def test_long_term_memory_async_execution_in_action(tmp_path: Path) -> None:
     chromadb_path = str(tmp_path / "chromadb")
     os.environ[_CHROMADB_PATH_ENV] = chromadb_path
