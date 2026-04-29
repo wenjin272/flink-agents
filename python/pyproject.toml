@@ -88,7 +88,7 @@ build = [
 
 # Test dependencies
 test = [
-    "pytest==8.4.0",
+    "pytest==9.0.3",
 ]
 
 # Lint dependencies
