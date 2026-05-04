@@ -47,9 +47,9 @@ import java.util.Map;
  * implementation.
  *
  * <p>This test agent validates: - Python vector store resource registration and creation - Python
- * embedding model integration with vector store - Collection management operations (create, get,
- * delete) - Document CRUD operations (add, get, delete, size) - Context retrieval and similarity
- * search - Cross-language resource dependency (vector store depends on embedding model)
+ * embedding model integration with vector store - Collection management operations (create, delete)
+ * - Document CRUD operations (add, get, delete) - Context retrieval and similarity search -
+ * Cross-language resource dependency (vector store depends on embedding model)
  *
  * <p>Used for e2e testing of the vector store subsystem with cross-language support.
  */
@@ -113,15 +113,18 @@ public class VectorStoreCrossLanguageAgent extends Agent {
                             ctx.getResource("vectorStore", ResourceType.VECTOR_STORE);
 
             // Initialize vector store
-            vectorStore.getOrCreateCollection(
-                    TEST_COLLECTION, Map.of("key1", "value1", "key2", "value2"));
+            vectorStore.createCollectionIfNotExists(
+                    TEST_COLLECTION,
+                    Map.of("metadata", Map.of("key1", "value1", "key2", "value2")));
 
             System.out.println("[TEST] Vector store Collection Management PASSED");
 
             vectorStore.deleteCollection(TEST_COLLECTION);
             Assertions.assertThrows(
                     PythonException.class,
-                    () -> vectorStore.get(null, TEST_COLLECTION, Collections.emptyMap()));
+                    () ->
+                            vectorStore.get(
+                                    null, TEST_COLLECTION, null, null, Collections.emptyMap()));
 
             // Initialize collection
             vectorStore.add(
@@ -139,23 +142,23 @@ public class VectorStoreCrossLanguageAgent extends Agent {
                                     Map.of("category", "utility", "source", "test"),
                                     "doc3")),
                     null,
-                    Map.of());
+                    Collections.emptyMap());
 
-            // Test size
+            // Test get-all (size() was removed from the API)
             Assertions.assertEquals(
                     3,
-                    vectorStore.get(null, null, Collections.emptyMap()).size(),
+                    vectorStore.get(null, null, null, null, Collections.emptyMap()).size(),
                     "Vector store size is not 3");
 
             // Test delete
-            vectorStore.delete(List.of("doc3"), null, Map.of());
+            vectorStore.deleteByIds(List.of("doc3"));
             Assertions.assertEquals(
                     2,
-                    vectorStore.get(null, null, Collections.emptyMap()).size(),
+                    vectorStore.get(null, null, null, null, Collections.emptyMap()).size(),
                     "Vector store size is not 2, doc3 was not deleted");
 
             // Test get
-            Document doc = vectorStore.get(List.of("doc2"), null, Map.of()).get(0);
+            Document doc = vectorStore.getByIds(List.of("doc2")).get(0);
             Assertions.assertEquals(
                     "ChromaDB is a vector database for AI applications", doc.getContent());
             Assertions.assertEquals(
