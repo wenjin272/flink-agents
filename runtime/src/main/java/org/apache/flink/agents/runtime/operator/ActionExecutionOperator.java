@@ -60,6 +60,7 @@ import org.apache.flink.agents.runtime.python.operator.PythonActionTask;
 import org.apache.flink.agents.runtime.python.utils.JavaResourceAdapter;
 import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
 import org.apache.flink.agents.runtime.python.utils.PythonResourceAdapterImpl;
+import org.apache.flink.agents.runtime.resource.ResourceContextImpl;
 import org.apache.flink.agents.runtime.utils.EventUtil;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.operators.MailboxExecutor;
@@ -677,7 +678,9 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                             this.resourceCache,
                             this.jobIdentifier);
 
-            javaResourceAdapter = new JavaResourceAdapter(this::getResource, pythonInterpreter);
+            javaResourceAdapter =
+                    new JavaResourceAdapter(
+                            new ResourceContextImpl(this::getResource), pythonInterpreter);
             if (containPythonResource || mem0Configured) {
                 initPythonResourceAdapter();
             }
@@ -753,13 +756,14 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     private void initPythonResourceAdapter() throws Exception {
         pythonResourceAdapter =
                 new PythonResourceAdapterImpl(
-                        (String anotherName, ResourceType anotherType) -> {
-                            try {
-                                return resourceCache.getResource(anotherName, anotherType);
-                            } catch (Exception e) {
-                                throw new RuntimeException(e);
-                            }
-                        },
+                        new ResourceContextImpl(
+                                (String anotherName, ResourceType anotherType) -> {
+                                    try {
+                                        return resourceCache.getResource(anotherName, anotherType);
+                                    } catch (Exception e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                }),
                         pythonInterpreter,
                         javaResourceAdapter);
         pythonResourceAdapter.open();

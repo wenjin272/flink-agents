@@ -857,8 +857,8 @@ public class MyVectorStore extends BaseVectorStore {
 
     public MyVectorStore(
             ResourceDescriptor descriptor,
-            BiFunction<String, ResourceType, Resource> getResource) {
-        super(descriptor, getResource);
+            ResourceContext resourceContext) {
+        super(descriptor, resourceContext);
     }
 
     @Override
