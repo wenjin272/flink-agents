@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import TYPE_CHECKING, Any, Dict, List, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, cast
 
 from pydantic import BaseModel, field_serializer, model_validator
 
@@ -468,10 +468,18 @@ def _add_skills(
     #  model setup. MCP prompts and tools face the same situation, we can refactor
     #  them as a whole.
     paths: List[str] = []
+    urls: List[str] = []
+    packages: List[Tuple[str, str]] = []
     for skills_obj in skills_objects.values():
         paths.extend(skills_obj.paths)
+        urls.extend(skills_obj.urls)
+        packages.extend(skills_obj.packages)
 
-    merged = Skills.from_local_dir(*dict.fromkeys(paths))
+    merged = Skills(
+        paths=list(dict.fromkeys(paths)),
+        urls=list(dict.fromkeys(urls)),
+        packages=list(dict.fromkeys(packages)),
+    )
 
     resource_providers.append(
         PythonSerializableResourceProvider.from_resource(

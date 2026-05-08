@@ -59,28 +59,44 @@ class FileSystemSkillRepository(SkillRepository):
         """Create a FileSystemSkillRepository.
 
         Args:
-            base_dir: The base directory containing skill subdirectories.
-            skip_dirs: Optional set of directory names to skip.
-            skip_patterns: Optional set of file patterns to skip.
+            base_dir: A path to either:
+
+                * a directory whose immediate subdirectories each contain a
+                  ``SKILL.md`` file, or
+                * a ``.zip`` file whose top-level entries are skill
+                  directories (the zip top level is the baseDir).
+
+                When a zip is provided, it is extracted into a process-local
+                temp directory which is removed at process exit.
 
         Raises:
-            ValueError: If base_dir is None, doesn't exist, or is not a directory.
+            ValueError: If ``base_dir`` is None, doesn't exist, or is neither
+                a directory nor a ``.zip`` file.
         """
         if base_dir is None:
             msg = "Base directory cannot be None"
             raise ValueError(msg)
 
-        # Convert to Path and normalize
-        self._base_dir = Path(base_dir).resolve()
+        path = Path(base_dir).resolve()
 
-        # Validate directory exists
-        if not self._base_dir.exists():
-            msg = f"Base directory does not exist: {self._base_dir}"
+        if not path.exists():
+            msg = f"Path does not exist: {path}"
             raise ValueError(msg)
 
-        # Validate it's a directory
-        if not self._base_dir.is_dir():
-            msg = f"Base directory is not a directory: {self._base_dir}"
+        if path.is_dir():
+            self._base_dir = path
+        elif path.is_file() and path.suffix.lower() == ".zip":
+            # Lazy import keeps _materialize out of the import graph when
+            # FileSystemSkillRepository is used standalone without the rest
+            # of the skill-loading infrastructure (which eagerly imports
+            # _materialize through URLSkillRepository).
+            from flink_agents.runtime.skill.repository._materialize import (
+                extract_zip_safely,
+            )
+
+            self._base_dir = extract_zip_safely(path)
+        else:
+            msg = f"Path must be a directory or a .zip file: {path}"
             raise ValueError(msg)
 
     @property

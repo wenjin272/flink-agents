@@ -23,6 +23,10 @@ from flink_agents.runtime.skill.agent_skill import AgentSkill
 from flink_agents.runtime.skill.repository.filesystem_repository import (
     FileSystemSkillRepository,
 )
+from flink_agents.runtime.skill.repository.package_repository import (
+    PackageSkillRepository,
+)
+from flink_agents.runtime.skill.repository.url_repository import URLSkillRepository
 from flink_agents.runtime.skill.skill_prompt_provider import SkillPromptProvider
 
 if TYPE_CHECKING:
@@ -46,7 +50,7 @@ class SkillManager:
         self._skills: Dict[str, AgentSkill] = {}
         self._repos: Dict[str, SkillRepository] = {}
         self._config = skills_config
-        self._load_skills_from_paths()
+        self._load_skills()
 
     @property
     def size(self) -> int:
@@ -123,12 +127,18 @@ class SkillManager:
                 return resolved
         return None
 
-    def _load_skills_from_paths(self) -> None:
+    def _load_skills(self) -> None:
         for path in self._config.paths:
-            repo = FileSystemSkillRepository(path)
-            for skill in repo.get_skills():
-                skill.set_resource_loader(
-                    lambda name=skill.name, r=repo: r.get_resources(name)
-                )
-                self._skills[skill.name] = skill
-                self._repos[skill.name] = repo
+            self._register_repo(FileSystemSkillRepository(path))
+        for url in self._config.urls:
+            self._register_repo(URLSkillRepository(url))
+        for package, resource in self._config.packages:
+            self._register_repo(PackageSkillRepository(package, resource))
+
+    def _register_repo(self, repo: "SkillRepository") -> None:
+        for skill in repo.get_skills():
+            skill.set_resource_loader(
+                lambda name=skill.name, r=repo: r.get_resources(name)
+            )
+            self._skills[skill.name] = skill
+            self._repos[skill.name] = repo
