@@ -533,10 +533,18 @@ public class AgentPlan implements Serializable {
                         new ResourceDescriptor(BashTool.class.getName(), new HashMap<>())));
 
         LinkedHashSet<String> paths = new LinkedHashSet<>();
+        LinkedHashSet<String> urls = new LinkedHashSet<>();
+        LinkedHashSet<String> classpathResources = new LinkedHashSet<>();
         for (Skills s : skillsObjects.values()) {
             paths.addAll(s.getPaths());
+            urls.addAll(s.getUrls());
+            classpathResources.addAll(s.getClasspathResources());
         }
-        Skills merged = Skills.fromLocalDir(paths.toArray(new String[0]));
+        Skills merged =
+                new Skills(
+                        new ArrayList<>(paths),
+                        new ArrayList<>(urls),
+                        new ArrayList<>(classpathResources));
         addResourceProvider(
                 JavaSerializableResourceProvider.createResourceProvider(
                         Skills.SKILLS_CONFIG, ResourceType.SKILLS, merged));

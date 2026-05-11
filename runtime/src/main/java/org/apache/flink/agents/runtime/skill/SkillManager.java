@@ -19,10 +19,13 @@
 package org.apache.flink.agents.runtime.skill;
 
 import org.apache.flink.agents.api.skills.Skills;
+import org.apache.flink.agents.runtime.skill.repository.ClasspathSkillRepository;
 import org.apache.flink.agents.runtime.skill.repository.FileSystemSkillRepository;
+import org.apache.flink.agents.runtime.skill.repository.URLSkillRepository;
 
 import javax.annotation.Nullable;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -44,7 +47,7 @@ public class SkillManager {
 
     public SkillManager(Skills config) {
         this.config = config;
-        loadFromPaths();
+        loadAll();
     }
 
     public int size() {
@@ -134,15 +137,33 @@ public class SkillManager {
         return null;
     }
 
-    private void loadFromPaths() {
+    private void loadAll() {
         for (String path : config.getPaths()) {
-            FileSystemSkillRepository repo = new FileSystemSkillRepository(path);
-            for (AgentSkill skill : repo.getSkills()) {
-                final String skillName = skill.getName();
-                skill.setResourceLoader(() -> repo.getResources(skillName));
-                skills.put(skillName, skill);
-                repos.put(skillName, repo);
+            registerRepo(new FileSystemSkillRepository(path));
+        }
+        for (String url : config.getUrls()) {
+            try {
+                registerRepo(new URLSkillRepository(url));
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to load skills from URL: " + url, e);
             }
+        }
+        for (String resource : config.getClasspathResources()) {
+            try {
+                registerRepo(new ClasspathSkillRepository(resource));
+            } catch (IOException e) {
+                throw new IllegalStateException(
+                        "Failed to load skills from classpath: " + resource, e);
+            }
+        }
+    }
+
+    private void registerRepo(SkillRepository repo) {
+        for (AgentSkill skill : repo.getSkills()) {
+            final String skillName = skill.getName();
+            skill.setResourceLoader(() -> repo.getResources(skillName));
+            skills.put(skillName, skill);
+            repos.put(skillName, repo);
         }
     }
 }

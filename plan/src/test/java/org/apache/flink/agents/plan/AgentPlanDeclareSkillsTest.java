@@ -26,6 +26,7 @@ import org.apache.flink.agents.plan.resourceprovider.JavaSerializableResourcePro
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -126,6 +127,6 @@ class AgentPlanDeclareSkillsTest {
                                 .provide(
                                         org.apache.flink.agents.api.resource.ResourceContext
                                                 .fromGetResource((n, t) -> null));
-        assertEquals(java.util.List.of("/tmp/skill-d"), merged.getPaths());
+        assertEquals(List.of("/tmp/skill-d"), merged.getPaths());
     }
 }

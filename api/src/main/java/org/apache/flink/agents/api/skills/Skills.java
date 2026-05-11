@@ -32,8 +32,14 @@ import java.util.List;
 /**
  * Configuration resource describing where to load agent skills from.
  *
- * <p>Mirrors the Python {@code flink_agents.api.skills.Skills}. Use {@link
- * #fromLocalDir(String...)} to construct.
+ * <p>Use one of the factory methods to construct:
+ *
+ * <ul>
+ *   <li>{@link #fromLocalDir(String...)} for local directories or {@code .zip} files
+ *   <li>{@link #fromUrl(String...)} for http(s) URLs pointing to a {@code .zip}
+ *   <li>{@link #fromClasspath(String...)} for resources on the classpath (a directory under {@code
+ *       src/main/resources} or a path inside a JAR on the classpath)
+ * </ul>
  *
  * <p>Multiple {@code @Skills} declarations on the same agent are merged at plan-build time.
  */
@@ -51,31 +57,74 @@ public class Skills extends SerializableResource {
     /** Reserved name of the built-in bash tool used to execute skill scripts. */
     public static final String BASH_TOOL = "bash";
 
-    private List<String> paths;
+    private final List<String> paths;
+    private final List<String> urls;
+    private final List<String> classpathResources;
 
     /** Required by Jackson. */
     public Skills() {
         this.paths = Collections.emptyList();
+        this.urls = Collections.emptyList();
+        this.classpathResources = Collections.emptyList();
     }
 
     @JsonCreator
-    public Skills(@JsonProperty("paths") List<String> paths) {
+    public Skills(
+            @JsonProperty("paths") List<String> paths,
+            @JsonProperty("urls") List<String> urls,
+            @JsonProperty("classpathResources") List<String> classpathResources) {
         this.paths = paths == null ? Collections.emptyList() : List.copyOf(paths);
+        this.urls = urls == null ? Collections.emptyList() : List.copyOf(urls);
+        this.classpathResources =
+                classpathResources == null
+                        ? Collections.emptyList()
+                        : List.copyOf(classpathResources);
     }
 
     /**
-     * Create a {@link Skills} resource from one or more local filesystem directories.
+     * Create a {@link Skills} resource from one or more local paths.
      *
-     * <p>Each path points to a directory whose immediate subdirectories each contain a {@code
-     * SKILL.md} file.
+     * <p>Each path may be a directory whose immediate subdirectories each contain a {@code
+     * SKILL.md} file, or a {@code .zip} file whose top-level entries are the skill subdirectories.
      */
     public static Skills fromLocalDir(String... paths) {
-        return new Skills(Arrays.asList(paths));
+        return new Skills(Arrays.asList(paths), Collections.emptyList(), Collections.emptyList());
+    }
+
+    /**
+     * Create a {@link Skills} resource from one or more http(s) URLs.
+     *
+     * <p>Each URL must point to a {@code .zip} whose top level is the baseDir.
+     */
+    public static Skills fromUrl(String... urls) {
+        return new Skills(Collections.emptyList(), Arrays.asList(urls), Collections.emptyList());
+    }
+
+    /**
+     * Create a {@link Skills} resource from one or more classpath resource paths.
+     *
+     * <p>Each resource may be a directory (e.g. under {@code src/main/resources/skills}) or a
+     * {@code .zip} file. When packaged into a JAR, the resource is loaded via the thread context
+     * class loader and materialized to a temp directory at runtime.
+     */
+    public static Skills fromClasspath(String... resources) {
+        return new Skills(
+                Collections.emptyList(), Collections.emptyList(), Arrays.asList(resources));
     }
 
     @JsonProperty("paths")
     public List<String> getPaths() {
         return paths;
+    }
+
+    @JsonProperty("urls")
+    public List<String> getUrls() {
+        return urls;
+    }
+
+    @JsonProperty("classpathResources")
+    public List<String> getClasspathResources() {
+        return classpathResources;
     }
 
     @JsonIgnore

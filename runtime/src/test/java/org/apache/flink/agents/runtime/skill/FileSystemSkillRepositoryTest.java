@@ -28,6 +28,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -85,6 +88,51 @@ class FileSystemSkillRepositoryTest {
                         IllegalArgumentException.class,
                         () -> new FileSystemSkillRepository(missing));
         assertTrue(ex.getMessage().contains("does not exist"));
+    }
+
+    private static void zipDir(Path src, Path dstZip) throws IOException {
+        try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(dstZip));
+                Stream<Path> walk = Files.walk(src)) {
+            walk.filter(Files::isRegularFile)
+                    .forEach(
+                            file -> {
+                                try {
+                                    String name = src.relativize(file).toString();
+                                    zos.putNextEntry(new ZipEntry(name));
+                                    Files.copy(file, zos);
+                                    zos.closeEntry();
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            });
+        }
+    }
+
+    @Test
+    void loadFromZip(@TempDir Path tempDir) throws IOException {
+        Path zip = tempDir.resolve("skills.zip");
+        zipDir(resourcesRoot(), zip);
+
+        FileSystemSkillRepository repo = new FileSystemSkillRepository(zip);
+
+        List<AgentSkill> skills = repo.getSkills();
+        assertEquals(2, skills.size());
+        assertEquals("github", skills.get(0).getName());
+        assertEquals("nano-banana-pro", skills.get(1).getName());
+        // Resources resolve through the materialized base directory.
+        Map<String, String> resources = repo.getResources("nano-banana-pro");
+        assertTrue(resources.containsKey("_meta.json"));
+    }
+
+    @Test
+    void invalidPathKindRaises(@TempDir Path tempDir) throws IOException {
+        Path nonZipFile = tempDir.resolve("data.txt");
+        Files.writeString(nonZipFile, "not a zip");
+        IllegalArgumentException ex =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> new FileSystemSkillRepository(nonZipFile));
+        assertTrue(ex.getMessage().contains("must be a directory or a .zip"));
     }
 
     @Test

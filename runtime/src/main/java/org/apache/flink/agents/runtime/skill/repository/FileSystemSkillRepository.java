@@ -60,12 +60,21 @@ public class FileSystemSkillRepository implements SkillRepository {
         }
         Path resolved = baseDir.toAbsolutePath().normalize();
         if (!Files.exists(resolved)) {
-            throw new IllegalArgumentException("Base directory does not exist: " + resolved);
+            throw new IllegalArgumentException("Path does not exist: " + resolved);
         }
-        if (!Files.isDirectory(resolved)) {
-            throw new IllegalArgumentException("Base directory is not a directory: " + resolved);
+        if (Files.isDirectory(resolved)) {
+            this.baseDir = resolved;
+        } else if (Files.isRegularFile(resolved)
+                && resolved.toString().toLowerCase().endsWith(".zip")) {
+            try {
+                this.baseDir = SkillMaterializer.extractZipSafely(resolved);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to extract zip: " + resolved, e);
+            }
+        } else {
+            throw new IllegalArgumentException(
+                    "Path must be a directory or a .zip file: " + resolved);
         }
-        this.baseDir = resolved;
     }
 
     public FileSystemSkillRepository(String baseDir) {
