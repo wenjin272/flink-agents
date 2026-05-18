@@ -17,3 +17,7 @@ PULL_REQUEST_TEMPLATE.md
 .ruff_cache/*
 .*\.egg-info/*
 licenses/*
+\.bats-cache
+.*\.bats$
+.*\.bash$
+\.gitkeep
