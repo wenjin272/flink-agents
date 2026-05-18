@@ -35,5 +35,6 @@ if [[ $os == "Linux" ]]; then
       sleep 10 # wait for ollama to start
   fi
 
+  echo "ollama pull all"
   ollama pull all-minilm:22m
 fi

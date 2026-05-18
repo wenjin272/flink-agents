@@ -36,12 +36,14 @@ current_dir = Path(__file__).parent
 
 try:
     # only auto setup ollama in ci with python 3.10 to reduce ci cost.
+    print("Testing OllamaEmbeddingModelConnection")
     if "3.10" in sys.version:
         subprocess.run(
             ["bash", f"{current_dir}/start_ollama_server.sh"], timeout=300, check=True
         )
     client = Client()
     models = client.list()
+    print(f"models: {models}")
 
     model_found = False
     for model in models["models"]:
