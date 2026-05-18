@@ -51,7 +51,8 @@ try:
 
     if not model_found:
         client = None  # type: ignore
-except Exception:
+except Exception as e:
+    print(e)
     client = None  # type: ignore
 
 

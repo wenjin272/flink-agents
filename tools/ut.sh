@@ -238,6 +238,7 @@ python_tests() {
                 uv sync --extra test
                 uv pip install apache-flink~=${version}.0
                 uv run --no-sync pytest flink_agents \
+                -s \
                 -k "not e2e_tests" \
                 -o log_cli=true \
                 -o log_cli_level=${LOG_LEVEL:-CRITICAL}            
