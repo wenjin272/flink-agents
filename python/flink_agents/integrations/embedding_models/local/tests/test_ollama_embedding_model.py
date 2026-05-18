@@ -47,12 +47,16 @@ try:
 
     model_found = False
     for model in models["models"]:
+        print(f"model: {model.model}")
+        print(f"test_model: {test_model}")
         if model.model == test_model:
+            print(f"model found: {model}")
             model_found = True
             break
 
     if not model_found:
         client = None  # type: ignore
+    print(f"client found: {client}")
 except Exception as e:
     print(e)
     client = None  # type: ignore
