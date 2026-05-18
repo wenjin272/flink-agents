@@ -31,7 +31,7 @@ from flink_agents.integrations.embedding_models.local.ollama_embedding_model imp
     OllamaEmbeddingModelSetup,
 )
 
-test_model = os.environ.get("OLLAMA_EMBEDDING_MODEL", "all-minilm:22m")
+test_model = "all-minilm:22m"
 current_dir = Path(__file__).parent
 
 try:
