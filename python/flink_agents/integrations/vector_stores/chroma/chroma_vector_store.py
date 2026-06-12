@@ -167,6 +167,12 @@ class ChromaVectorStore(CollectionManageableVectorStore):
         if self.__client is not None:
             return self.__client
 
+        # Disable Chroma's anonymized telemetry by default: it fires a synchronous
+        # PostHog HTTP call on first use, which blocks for ~30s on sandboxed CI runners
+        # with no outbound network and hangs the RAG query. Callers can override by
+        # passing their own client_settings.
+        settings = self.client_settings or Settings(anonymized_telemetry=False)
+
         if self.api_key is not None:
             self.__client = CloudClient(
                 tenant=self.tenant,
@@ -177,20 +183,20 @@ class ChromaVectorStore(CollectionManageableVectorStore):
             self.__client = chromadb.HttpClient(
                 host=self.host,
                 port=self.port,
-                settings=self.client_settings,
+                settings=settings,
                 tenant=self.tenant,
                 database=self.database,
             )
         elif self.persist_directory is not None:
             self.__client = chromadb.PersistentClient(
                 path=self.persist_directory,
-                settings=self.client_settings,
+                settings=settings,
                 tenant=self.tenant,
                 database=self.database,
             )
         else:
             self.__client = chromadb.EphemeralClient(
-                settings=self.client_settings,
+                settings=settings,
                 tenant=self.tenant,
                 database=self.database,
             )
