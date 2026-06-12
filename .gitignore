@@ -10,7 +10,7 @@ python/.idea
 # OS
 .DS_Store
 python/.DS_Store
-
+.flink-agents-venv
 # Build
 target/
 **/dependency-reduced-pom.xml

@@ -15,6 +15,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 ################################################################################
+import logging
 import uuid
 from typing import Any, Dict, Generator, List
 
@@ -315,6 +316,7 @@ class ChromaVectorStore(CollectionManageableVectorStore):
         filters: Dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> List[Document]:
+        logging.info("chroma query embedding")
         collection = self._resolve_collection(collection_name, kwargs)
         results = collection.query(
             query_embeddings=[embedding],
