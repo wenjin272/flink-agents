@@ -322,15 +322,32 @@ class ChromaVectorStore(CollectionManageableVectorStore):
         filters: Dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> List[Document]:
-        logging.info("chroma query embedding")
-        collection = self._resolve_collection(collection_name, kwargs)
-        results = collection.query(
-            query_embeddings=[embedding],
-            n_results=limit,
-            where=self._resolve_where(filters, kwargs),
-            include=["documents", "metadatas", "distances"],
+        import faulthandler
+        import sys
+        import threading
+
+        # If the query stalls, dump every Python thread's stack so we can see
+        # exactly where it is wedged (sqlite, rust binding, telemetry, ...).
+        faulthandler.dump_traceback_later(20, repeat=True, file=sys.stderr)
+        logging.info(
+            "[RAG-DIAG] _query_embedding enter thread=%s dim=%s limit=%s",
+            threading.current_thread().name,
+            len(embedding),
+            limit,
         )
-        return _parse_query_results(results)
+        try:
+            collection = self._resolve_collection(collection_name, kwargs)
+            logging.info("[RAG-DIAG] collection resolved, calling query")
+            results = collection.query(
+                query_embeddings=[embedding],
+                n_results=limit,
+                where=self._resolve_where(filters, kwargs),
+                include=["documents", "metadatas", "distances"],
+            )
+            logging.info("[RAG-DIAG] query returned, parsing")
+            return _parse_query_results(results)
+        finally:
+            faulthandler.cancel_dump_traceback_later()
 
     # -------------------------------------------------------------------------
     # Internal helpers
