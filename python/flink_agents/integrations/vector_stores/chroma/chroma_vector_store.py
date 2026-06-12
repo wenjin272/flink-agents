@@ -20,6 +20,8 @@ import os
 import uuid
 from typing import Any, Dict, Generator, List
 
+from chromadb.api.types import normalize_embeddings
+
 # Pin BLAS thread pools to a single thread and warm numpy on the (main) import
 # thread. chroma's query path converts embeddings via numpy/OpenBLAS, whose
 # thread-pool init deadlocks when first triggered on the async pemja worker
@@ -352,7 +354,7 @@ class ChromaVectorStore(CollectionManageableVectorStore):
             collection = self._resolve_collection(collection_name, kwargs)
             logging.info("[RAG-DIAG] collection resolved, calling query")
             results = collection.query(
-                query_embeddings=[embedding],
+                query_embeddings=normalize_embeddings([embedding]),
                 n_results=limit,
                 where=self._resolve_where(filters, kwargs),
                 include=["documents", "metadatas", "distances"],
