@@ -16,8 +16,19 @@
 #  limitations under the License.
 ################################################################################
 import logging
+import os
 import uuid
 from typing import Any, Dict, Generator, List
+
+# Pin BLAS thread pools to a single thread and warm numpy on the (main) import
+# thread. chroma's query path converts embeddings via numpy/OpenBLAS, whose
+# thread-pool init deadlocks when first triggered on the async pemja worker
+# thread on few-core CI runners. Initializing here keeps RAG queries async-safe.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+import numpy as _np
+
+_np.array([0.0], dtype=_np.float32) @ _np.array([0.0], dtype=_np.float32)
 
 import chromadb
 from chromadb import ClientAPI as ChromaClient
