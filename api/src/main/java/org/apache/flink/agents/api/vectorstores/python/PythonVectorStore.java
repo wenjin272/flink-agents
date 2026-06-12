@@ -24,8 +24,6 @@ import org.apache.flink.agents.api.resource.python.PythonResourceAdapter;
 import org.apache.flink.agents.api.resource.python.PythonResourceWrapper;
 import org.apache.flink.agents.api.vectorstores.BaseVectorStore;
 import org.apache.flink.agents.api.vectorstores.Document;
-import org.apache.flink.agents.api.vectorstores.VectorStoreQuery;
-import org.apache.flink.agents.api.vectorstores.VectorStoreQueryResult;
 import pemja.core.object.PyObject;
 
 import javax.annotation.Nullable;
@@ -46,12 +44,15 @@ import java.util.Map;
  * <p>This class serves as a connection layer between Java and Python vector store environments,
  * enabling seamless integration of Python-based vector stores within Java applications.
  *
- * <p>The {@code *Embedding} hooks ({@link #queryEmbedding}, {@link #addEmbedding}, {@link
- * #updateEmbedding}) are no-ops here: this bridge forwards each public method directly to its
- * Python counterpart, which already handles auto-embedding internally, so the Java auto-embed path
- * in {@link BaseVectorStore} is not used.
+ * <p>Embedding is generated on the Java side via {@link BaseVectorStore}'s public add/update/query;
+ * the {@code *Embedding} hooks then forward the pre-computed vectors to the Python {@code
+ * _add_embedding}/{@code _update_embedding}/{@code _query_embedding}. This keeps each store
+ * operation a single Java->Python crossing, avoiding a Python->Java re-entry that deadlocks when
+ * run on the async pool thread.
  */
 public class PythonVectorStore extends BaseVectorStore implements PythonResourceWrapper {
+    private static final org.slf4j.Logger LOG =
+            org.slf4j.LoggerFactory.getLogger(PythonVectorStore.class);
     protected final PyObject vectorStore;
     protected final PythonResourceAdapter adapter;
 
@@ -75,51 +76,12 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
     }
 
     @Override
-    public void open() {
+    public void open() throws Exception {
+        // Resolve the Java-side embedding model so embeddings are generated on the operator thread
+        // (single Java->Python crossing per op). Without this, add/query would re-embed inside
+        // Python and re-enter Java, which deadlocks when run on the async pool thread.
+        super.open();
         adapter.callMethod(vectorStore, "open", Collections.emptyMap());
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public List<String> add(
-            List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
-            throws IOException {
-        Object pythonDocuments = adapter.toPythonDocuments(documents);
-
-        Map<String, Object> kwargs = new HashMap<>(extraArgs);
-        kwargs.put("documents", pythonDocuments);
-
-        if (collection != null) {
-            kwargs.put("collection_name", collection);
-        }
-
-        return (List<String>) adapter.callMethod(vectorStore, "add", kwargs);
-    }
-
-    @Override
-    public void update(
-            List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
-            throws IOException {
-        Object pythonDocuments = adapter.toPythonDocuments(documents);
-
-        Map<String, Object> kwargs = new HashMap<>(extraArgs);
-        kwargs.put("documents", pythonDocuments);
-
-        if (collection != null) {
-            kwargs.put("collection_name", collection);
-        }
-
-        adapter.callMethod(vectorStore, "update", kwargs);
-    }
-
-    @Override
-    public VectorStoreQueryResult query(VectorStoreQuery query) {
-        Object pythonQuery = adapter.toPythonVectorStoreQuery(query);
-
-        PyObject pythonResult =
-                (PyObject) adapter.callMethod(vectorStore, "query", Map.of("query", pythonQuery));
-
-        return adapter.fromPythonVectorStoreQueryResult(pythonResult);
     }
 
     @Override
@@ -176,13 +138,24 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public List<Document> queryEmbedding(
             float[] embedding,
             int limit,
             @Nullable String collection,
             @Nullable Map<String, Object> filters,
             Map<String, Object> args) {
-        return List.of();
+        Map<String, Object> kwargs = new HashMap<>(args);
+        kwargs.put("embedding", embedding);
+        kwargs.put("limit", limit);
+        if (collection != null) {
+            kwargs.put("collection_name", collection);
+        }
+        if (filters != null) {
+            kwargs.put("filters", filters);
+        }
+        Object pythonDocuments = adapter.callMethod(vectorStore, "_query_embedding", kwargs);
+        return adapter.fromPythonDocuments((List<PyObject>) pythonDocuments);
     }
 
     /** Embed query text via the configured model (no numpy; safe on the async pool). */
@@ -228,16 +201,27 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public List<String> addEmbedding(
             List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
             throws IOException {
-        return List.of();
+        Map<String, Object> kwargs = new HashMap<>(extraArgs);
+        kwargs.put("documents", adapter.toPythonDocuments(documents));
+        if (collection != null) {
+            kwargs.put("collection_name", collection);
+        }
+        return (List<String>) adapter.callMethod(vectorStore, "_add_embedding", kwargs);
     }
 
     @Override
     public void updateEmbedding(
             List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs) {
-        // no-op; Python forwards public update() directly
+        Map<String, Object> kwargs = new HashMap<>(extraArgs);
+        kwargs.put("documents", adapter.toPythonDocuments(documents));
+        if (collection != null) {
+            kwargs.put("collection_name", collection);
+        }
+        adapter.callMethod(vectorStore, "_update_embedding", kwargs);
     }
 
     @Override
