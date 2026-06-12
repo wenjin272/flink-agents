@@ -115,7 +115,8 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
     public VectorStoreQueryResult query(VectorStoreQuery query) {
         Object pythonQuery = adapter.toPythonVectorStoreQuery(query);
 
-        PyObject pythonResult = (PyObject) vectorStore.invokeMethod("query", pythonQuery);
+        PyObject pythonResult =
+                (PyObject) adapter.callMethod(vectorStore, "query", Map.of("query", pythonQuery));
 
         return adapter.fromPythonVectorStoreQueryResult(pythonResult);
     }
