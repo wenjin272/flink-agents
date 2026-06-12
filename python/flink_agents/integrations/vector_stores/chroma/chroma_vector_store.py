@@ -322,24 +322,15 @@ class ChromaVectorStore(CollectionManageableVectorStore):
         filters: Dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> List[Document]:
-        import sys
+        import faulthandler
+        import os
         import threading
-        import traceback
 
-        # If the query stalls, dump every Python thread's stack via logging so we
-        # can see exactly where it is wedged (sqlite, rust binding, ...). pemja's
-        # stderr lacks a fileno, so faulthandler can't be used; walk frames instead.
-        stop = threading.Event()
-
-        def _dump() -> None:
-            while not stop.wait(20):
-                frames = sys._current_frames()
-                for tid, frame in frames.items():
-                    stack = "".join(traceback.format_stack(frame))
-                    logging.warning("[RAG-DIAG] stuck thread %s:\n%s", tid, stack)
-
-        watchdog = threading.Thread(target=_dump, name="chroma-stack-dump", daemon=True)
-        watchdog.start()
+        # faulthandler runs in a C thread (no GIL needed), so it can dump stacks
+        # even when the rust binding holds the GIL. pemja's sys.stderr lacks a
+        # fileno, so dump to the real process stderr fd (2), which CI captures.
+        _stderr = os.fdopen(os.dup(2), "w")
+        faulthandler.dump_traceback_later(20, repeat=True, file=_stderr)
         logging.info(
             "[RAG-DIAG] _query_embedding enter thread=%s dim=%s limit=%s",
             threading.current_thread().name,
@@ -358,7 +349,8 @@ class ChromaVectorStore(CollectionManageableVectorStore):
             logging.info("[RAG-DIAG] query returned, parsing")
             return _parse_query_results(results)
         finally:
-            stop.set()
+            faulthandler.cancel_dump_traceback_later()
+            _stderr.close()
 
     # -------------------------------------------------------------------------
     # Internal helpers
