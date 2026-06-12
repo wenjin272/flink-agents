@@ -6,6 +6,7 @@ python/.idea
 .qwen
 .qoder
 .claude
+.flink-agents-venv
 
 # OS
 .DS_Store
