@@ -146,7 +146,12 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
             @Nullable Map<String, Object> filters,
             Map<String, Object> args) {
         Map<String, Object> kwargs = new HashMap<>(args);
-        kwargs.put("embedding", embedding);
+        // pemja maps float[] to a Python tuple, which Chroma rejects; pass a list instead.
+        List<Float> embeddingList = new ArrayList<>(embedding.length);
+        for (float v : embedding) {
+            embeddingList.add(v);
+        }
+        kwargs.put("embedding", embeddingList);
         kwargs.put("limit", limit);
         if (collection != null) {
             kwargs.put("collection_name", collection);
