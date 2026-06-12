@@ -134,7 +134,7 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
 
     @Override
     public Map<String, Object> getStoreKwargs() {
-        return Map.of();
+        return new HashMap<>();
     }
 
     @Override
