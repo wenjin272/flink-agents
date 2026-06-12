@@ -16,23 +16,11 @@
 #  limitations under the License.
 ################################################################################
 import logging
-import os
 import uuid
 from typing import Any, Dict, Generator, List
 
-from chromadb.api.types import normalize_embeddings
-
-# Pin BLAS thread pools to a single thread and warm numpy on the (main) import
-# thread. chroma's query path converts embeddings via numpy/OpenBLAS, whose
-# thread-pool init deadlocks when first triggered on the async pemja worker
-# thread on few-core CI runners. Initializing here keeps RAG queries async-safe.
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-import numpy as _np
-
-_np.array([0.0], dtype=_np.float32) @ _np.array([0.0], dtype=_np.float32)
-
 import chromadb
+from chromadb.api.types import normalize_embeddings
 from chromadb import ClientAPI as ChromaClient
 from chromadb import CloudClient
 from chromadb.config import Settings
@@ -285,7 +273,12 @@ class ChromaVectorStore(CollectionManageableVectorStore):
                 return
 
         collection.delete(ids=ids, where=where, where_document=where_document)
-
+    
+    @staticmethod
+    @override
+    def _normalize_embeddings(embeddings: list[float]) -> Any:
+        return normalize_embeddings([embeddings])
+    
     # -------------------------------------------------------------------------
     # Protected embedding hooks (pre-computed-embedding paths)
     # -------------------------------------------------------------------------
@@ -335,35 +328,17 @@ class ChromaVectorStore(CollectionManageableVectorStore):
         filters: Dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> List[Document]:
-        import faulthandler
-        import os
-        import threading
-
-        # faulthandler runs in a C thread (no GIL needed), so it can dump stacks
-        # even when the rust binding holds the GIL. pemja's sys.stderr lacks a
-        # fileno, so dump to the real process stderr fd (2), which CI captures.
-        _stderr = os.fdopen(os.dup(2), "w")
-        faulthandler.dump_traceback_later(20, repeat=True, file=_stderr)
-        logging.info(
-            "[RAG-DIAG] _query_embedding enter thread=%s dim=%s limit=%s",
-            threading.current_thread().name,
-            len(embedding),
-            limit,
+        # ``embedding`` is already normalized to numpy via _normalize_embeddings on
+        # the operator thread, so chroma takes the ndarray branch and never calls
+        # np.array here — keeping this async-pool call free of numpy.
+        collection = self._resolve_collection(collection_name, kwargs)
+        results = collection.query(
+            query_embeddings=embedding,
+            n_results=limit,
+            where=self._resolve_where(filters, kwargs),
+            include=["documents", "metadatas", "distances"],
         )
-        try:
-            collection = self._resolve_collection(collection_name, kwargs)
-            logging.info("[RAG-DIAG] collection resolved, calling query")
-            results = collection.query(
-                query_embeddings=normalize_embeddings([embedding]),
-                n_results=limit,
-                where=self._resolve_where(filters, kwargs),
-                include=["documents", "metadatas", "distances"],
-            )
-            logging.info("[RAG-DIAG] query returned, parsing")
-            return _parse_query_results(results)
-        finally:
-            faulthandler.cancel_dump_traceback_later()
-            _stderr.close()
+        return _parse_query_results(results)
 
     # -------------------------------------------------------------------------
     # Internal helpers

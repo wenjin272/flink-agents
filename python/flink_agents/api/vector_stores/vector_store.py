@@ -341,6 +341,10 @@ class BaseVectorStore(Resource, ABC):
             collection_name=collection_name,
             **merged_kwargs,
         )
+        
+    @staticmethod
+    def _normalize_embeddings(embeddings: list[float]) -> Any:
+        return embeddings
 
     def _ensure_embeddings(self, documents: List[Document]) -> None:
         """Auto-embed any documents whose ``embedding`` field is ``None``."""

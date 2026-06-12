@@ -26,6 +26,7 @@ import org.apache.flink.agents.api.event.ContextRetrievalRequestEvent;
 import org.apache.flink.agents.api.event.ContextRetrievalResponseEvent;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.vectorstores.BaseVectorStore;
+import org.apache.flink.agents.api.vectorstores.Document;
 import org.apache.flink.agents.api.vectorstores.VectorStoreQuery;
 import org.apache.flink.agents.api.vectorstores.VectorStoreQueryResult;
 import org.apache.flink.agents.api.vectorstores.python.PythonVectorStore;
@@ -71,26 +72,32 @@ public class ContextRetrievalAction {
                             contextRetrievalRequestEvent.getQuery(),
                             contextRetrievalRequestEvent.getMaxResults());
 
-            DurableCallable<VectorStoreQueryResult> callable =
-                    new DurableCallable<VectorStoreQueryResult>() {
-                        @Override
-                        public String getId() {
-                            return "rag-async";
-                        }
+            final VectorStoreQueryResult result;
+            if (ragAsync && vectorStore instanceof PythonVectorStore) {
+                // Async RAG for a Python store: only the numpy embedding-normalization must stay
+                // on the operator thread (pemja's single PyThreadState deadlocks numpy's GIL
+                // release on a worker). Embed and query carry no numpy, so they run async.
+                result = queryPythonAsync((PythonVectorStore) vectorStore, vectorStoreQuery, ctx);
+            } else {
+                DurableCallable<VectorStoreQueryResult> callable =
+                        new DurableCallable<VectorStoreQueryResult>() {
+                            @Override
+                            public String getId() {
+                                return "rag-async";
+                            }
 
-                        @Override
-                        public Class<VectorStoreQueryResult> getResultClass() {
-                            return VectorStoreQueryResult.class;
-                        }
+                            @Override
+                            public Class<VectorStoreQueryResult> getResultClass() {
+                                return VectorStoreQueryResult.class;
+                            }
 
-                        @Override
-                        public VectorStoreQueryResult call() throws Exception {
-                            return vectorStore.query(vectorStoreQuery);
-                        }
-                    };
-
-            VectorStoreQueryResult result =
-                    ragAsync ? ctx.durableExecuteAsync(callable) : ctx.durableExecute(callable);
+                            @Override
+                            public VectorStoreQueryResult call() throws Exception {
+                                return vectorStore.query(vectorStoreQuery);
+                            }
+                        };
+                result = ragAsync ? ctx.durableExecuteAsync(callable) : ctx.durableExecute(callable);
+            }
 
             ctx.sendEvent(
                     new ContextRetrievalResponseEvent(
@@ -98,5 +105,61 @@ public class ContextRetrievalAction {
                             contextRetrievalRequestEvent.getQuery(),
                             result.getDocuments()));
         }
+    }
+
+    /**
+     * Run a Python vector-store RAG query while keeping numpy off the async pool: embed async,
+     * normalize the embedding synchronously (numpy must stay on the operator thread), then query
+     * async with the pre-normalized vector.
+     */
+    private static VectorStoreQueryResult queryPythonAsync(
+            PythonVectorStore store, VectorStoreQuery query, RunnerContext ctx) throws Exception {
+        final float[] embedding =
+                ctx.durableExecuteAsync(
+                        new DurableCallable<float[]>() {
+                            @Override
+                            public String getId() {
+                                return "rag-embed";
+                            }
+
+                            @Override
+                            public Class<float[]> getResultClass() {
+                                return float[].class;
+                            }
+
+                            @Override
+                            public float[] call() {
+                                return store.embedQuery(query.getQueryText());
+                            }
+                        });
+
+        final Object normalized = store.normalizeEmbedding(embedding);
+
+        final List<Document> documents =
+                ctx.durableExecuteAsync(
+                        new DurableCallable<List<Document>>() {
+                            @Override
+                            public String getId() {
+                                return "rag-query";
+                            }
+
+                            @SuppressWarnings("unchecked")
+                            @Override
+                            public Class<List<Document>> getResultClass() {
+                                return (Class<List<Document>>) (Class<?>) List.class;
+                            }
+
+                            @Override
+                            public List<Document> call() {
+                                return store.queryNormalized(
+                                        normalized,
+                                        query.getLimit(),
+                                        query.getCollection(),
+                                        query.getFilters(),
+                                        store.getStoreKwargs());
+                            }
+                        });
+
+        return new VectorStoreQueryResult(documents);
     }
 }

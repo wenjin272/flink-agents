@@ -184,6 +184,48 @@ public class PythonVectorStore extends BaseVectorStore implements PythonResource
         return List.of();
     }
 
+    /** Embed query text via the configured model (no numpy; safe on the async pool). */
+    public float[] embedQuery(String text) {
+        return getEmbeddingModel().embed(text);
+    }
+
+    /**
+     * Convert the raw embedding to the Python store's native vector form. This runs the numpy
+     * conversion, which must stay on the operator thread — pemja keeps a single PyThreadState, and
+     * numpy releases/re-acquires the GIL during the copy, which deadlocks on a worker thread. The
+     * returned Python object is forwarded back into {@link #queryNormalized}.
+     */
+    public Object normalizeEmbedding(float[] embedding) {
+        List<Float> embeddingList = new ArrayList<>(embedding.length);
+        for (float v : embedding) {
+            embeddingList.add(v);
+        }
+        Map<String, Object> kwargs = new HashMap<>();
+        kwargs.put("embeddings", embeddingList);
+        return adapter.callMethod(vectorStore, "_normalize_embeddings", kwargs);
+    }
+
+    /** Query with a pre-normalized embedding; numpy-free, so safe to run on the async pool. */
+    @SuppressWarnings("unchecked")
+    public List<Document> queryNormalized(
+            Object normalizedEmbedding,
+            int limit,
+            @Nullable String collection,
+            @Nullable Map<String, Object> filters,
+            Map<String, Object> args) {
+        Map<String, Object> kwargs = new HashMap<>(args);
+        kwargs.put("embedding", normalizedEmbedding);
+        kwargs.put("limit", limit);
+        if (collection != null) {
+            kwargs.put("collection_name", collection);
+        }
+        if (filters != null) {
+            kwargs.put("filters", filters);
+        }
+        Object pythonDocuments = adapter.callMethod(vectorStore, "_query_embedding", kwargs);
+        return adapter.fromPythonDocuments((List<PyObject>) pythonDocuments);
+    }
+
     @Override
     public List<String> addEmbedding(
             List<Document> documents, @Nullable String collection, Map<String, Object> extraArgs)
