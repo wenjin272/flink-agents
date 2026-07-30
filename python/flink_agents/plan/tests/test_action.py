@@ -136,7 +136,7 @@ def test_action_deserialize_python_config_propagates_reconstruction_error() -> N
                 "module": "flink_agents.plan.tests.test_action",
                 "qualname": "legal_signature",
             },
-            "trigger_conditions": ["_input_event"],
+            "listen_event_types": ["_input_event"],
             "config": {
                 "__config_type__": "python",
                 "broken": {
@@ -162,7 +162,7 @@ def test_action_deserialize_python_config_preserves_plain_list() -> None:
                 "module": "flink_agents.plan.tests.test_action",
                 "qualname": "legal_signature",
             },
-            "trigger_conditions": ["_input_event"],
+            "listen_event_types": ["_input_event"],
             "config": {
                 "__config_type__": "python",
                 "hosts": ["host-a", "host-b", "host-c"],
