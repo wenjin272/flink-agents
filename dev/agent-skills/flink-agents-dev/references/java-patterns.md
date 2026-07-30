@@ -41,18 +41,19 @@ another Resource type.
 
 Java custom Actions use a public static method with the fixed Event and
 `RunnerContext` parameters. YAML supplies those parameter types automatically; do
-not add `parameter_types` to an Action. When business behavior is not supplied,
-generate compilable skeletons rather than inventing event transformations:
+not add `parameter_types` to an Action. When the contract classification in
+`SKILL.md` leaves required behavior unresolved, generate compilable skeletons rather
+than inventing event transformations:
 
 ```java
 public static void processInput(Event event, RunnerContext ctx) throws Exception {
     throw new UnsupportedOperationException(
-            "TODO: implement the application-specific input Action");
+            "TODO: define and implement the application-specific Action contract");
 }
 
 public static void processChatResponse(Event event, RunnerContext ctx) throws Exception {
     throw new UnsupportedOperationException(
-            "TODO: implement the application-specific response Action");
+            "TODO: define and implement the application-specific Action contract");
 }
 ```
 

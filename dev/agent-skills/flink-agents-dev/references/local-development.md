@@ -51,11 +51,26 @@ minor line. Older patches such as `0.2.0` and `0.1.0` remain valid when an exist
 project pins them or the user explicitly requests one, but they add no useful
 choice to the default new-project menu.
 
-Render the Flink Agents row through the interaction adapter selected by `SKILL.md`.
-If the native tool limits the number of options, use the adapter's hierarchy or
-paging rule so every version remains selectable. First satisfy any mode prerequisite
-defined by that adapter. If the native tool remains unavailable afterward, use a
-numbered fallback instead of asking the user to type a version string:
+Version selection also constrains the later API gate. Use
+[yaml-contracts.yaml](../assets/yaml-contracts.yaml) as the offline YAML capability
+index:
+
+- `0.3.0` supports YAML with its bundled release schema;
+- `0.2.x` and `0.1.x` do not expose the YAML API, so offer only direct Python and
+  direct Java after one of those releases is selected;
+- a source checkout targeting `main` uses that checkout's
+  `docs/yaml-schema.json`, falling back to the bundled main schema only when they
+  describe the same revision;
+- an unlisted release or development version requires its exact schema before YAML
+  can be offered.
+
+The selected schema is the entire YAML structural contract. Do not maintain
+individual compatibility guesses for `listen_to`, `trigger_conditions`,
+`injected_args`, or future fields outside that schema.
+
+Render the Flink Agents row through the adapter selected by the authoritative
+[Interaction Discipline](../SKILL.md#interaction-discipline); capability detection
+and fallback behavior are defined only there. The complete default option set is:
 
 ```text
 Select the Flink Agents version:

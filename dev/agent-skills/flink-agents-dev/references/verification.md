@@ -19,14 +19,17 @@ Verify in layers. A later layer does not replace an earlier one.
   dependency metadata or installed packages.
 - For a new project, record the user's explicit Flink Agents and Flink choices. A
   bundled recommended version without user confirmation is not valid evidence.
-- Record the user's explicit YAML, direct Python, or direct Java API choice after
-  the version pair. A combined recommended baseline is not evidence for any of
-  these independent decisions.
-- Confirm the workflow selected one matching host adapter before the first closed
-  gate. Each gate must use its available native single-select tool or the generic
-  numbered fallback; an unavailable native tool must not be retried in a loop.
-  Reject open-ended version/API/language questions when the valid options were
-  known, and reject a preselected recommended value without a user response.
+- Record the user's explicit API choice from the surfaces supported by the confirmed
+  version pair. A combined recommended baseline is not evidence for any of these
+  independent decisions.
+- Confirm Preflight resolved explicit user choices and existing project evidence
+  before constructing the unresolved gate list. A host adapter is valid only when
+  that list contains a closed decision.
+- Confirm each unresolved gate followed the authoritative
+  [Interaction Discipline](../SKILL.md#interaction-discipline); platform references
+  must not redefine its capability, fallback, retry, or mode policy. Reject
+  open-ended version/API/language questions when the valid options were known, and
+  reject a preselected recommended value without a user response.
 - For a new YAML project, record the user's explicit Python or Java implementation
   choice after the YAML selection. An omitted YAML `type` default is not evidence
   of user intent. Record a Python/JDK choice only after the implementation language
@@ -37,24 +40,26 @@ Verify in layers. A later layer does not replace an earlier one.
 - Require one resolved version set across the Maven Flink Agents modules and
   integrations or Python package, the selected Flink patch release, and the local
   Java/Python runtime.
-- Use a matching target-version schema and API contract when available. Otherwise,
-  use the [bundled YAML schema](../assets/yaml-schema.json) as the offline baseline
-  and record that compatibility assumption.
+- For YAML, resolve an exact target-version schema through
+  [yaml-contracts.yaml](../assets/yaml-contracts.yaml) or target-version artifacts.
+  Reject YAML for versions marked unsupported, and stop when no exact schema exists.
+  Do not validate a release against the bundled main schema as a compatibility
+  assumption.
 - Record any API assumption that could not be confirmed. Do not generate a guessed
   version merely to make a dependency file look complete.
 
 ## 2. YAML Schema
 
-Validate every generated or modified YAML file against the matching schema. If
-`check-jsonschema` is already available:
+Validate every generated or modified YAML file against the exact selected schema.
+Record the contract key and schema path. If `check-jsonschema` is already available:
 
 ```bash
-check-jsonschema --schemafile <skill-dir>/assets/yaml-schema.json path/to/agent.yaml
+check-jsonschema --schemafile <selected-schema> path/to/agent.yaml
 ```
 
-Resolve `<skill-dir>` from the installed `SKILL.md` location. Do not assume the
-current working directory is a Flink Agents source checkout. Replace the bundled
-schema path with a target-version schema when one is available.
+Resolve a bundled `<selected-schema>` relative to the installed `SKILL.md`. Do not
+assume the current working directory is a Flink Agents source checkout, and do not
+substitute a different version's schema when the selected one is unavailable.
 
 Otherwise use another real JSON Schema validator that accepts YAML. A YAML parser,
 formatter, or linter only proves syntax and is not a schema substitute.
@@ -114,11 +119,15 @@ custom event type strings, error paths, and whether any input can terminate with
 an output. Verify event constructor arguments against the installed API rather than
 memory.
 
-For scaffolding, distinguish intended edges from implemented edges. Verify every
-custom callable exists with the right signature, list each TODO business body, and
-do not claim the path emits an event until that body is implemented. Reject invented
-domain logic, service calls, prompts, runtime Skill instructions, and tests that
-assert behavior the user did not specify.
+For scaffolding, distinguish intended edges from implemented edges. Verify that each
+custom component classified input, output, transformation, side effects, and errors
+as supplied or unresolved from explicit requirements, existing code, and tests.
+Every custom callable must exist with the right signature, list each unresolved
+contract element, and fail explicitly before performing behavior that depends on
+one. Do not claim the path emits an event until that output contract is supplied and
+implemented. Reject invented domain logic, payload transformations, message
+construction, service calls, prompts, runtime Skill instructions, business results,
+and tests that assert behavior the user did not specify.
 
 ## 5. Language Checks
 
@@ -192,6 +201,11 @@ All Resources:
   documented alias. Its declaration contains every mandatory target-version
   argument as a typed/commented `TODO_REQUIRED_*` placeholder; reject additional
   configuration interviews or invented optional values.
+- If the implementation class, dependency coordinate, constructor, descriptor, or
+  mandatory arguments cannot be verified, confirm that dependent integration work
+  stopped without changing working configuration. The report must name sources
+  checked, the missing contract, and the minimum external artifact needed to
+  continue; a speculative wrapper or `TODO_VERIFY_*` runnable claim is invalid.
 - New-project Resource names are deterministic and all references use them
   consistently. Do not require user confirmation for an unambiguous generated name;
   require naming input only for collisions, external contracts, or an explicit
@@ -211,9 +225,14 @@ All Resources:
 
 Custom Tools, Actions, and domain clients:
 
-- Preserve supplied names/signatures/types/descriptions. When they are absent,
-  verify that capability-derived neutral signatures compile or import and their
-  bodies fail explicitly; missing business contracts are TODOs, not failed gates.
+- Preserve supplied names/signatures/types/descriptions. Verify the supplied versus
+  unresolved classification for input, output, transformation, side effects, and
+  errors. When details are absent, capability-derived neutral signatures must
+  compile or import and fail explicitly before emitting Events, transforming data,
+  composing messages, calling a backend, or returning business data; missing
+  business contracts are TODOs, not failed gates.
+- Permit tests for imports, compilation, signatures, references, and explicit
+  failure. Reject tests that assert invented business transformations or results.
 - Reject guessed Flink REST endpoints, service protocols, domain transformations,
   and mock/test implementations unless the user explicitly requested and specified
   them.
@@ -304,6 +323,9 @@ Selected versions:
 Selected API:
 - <user-confirmed YAML, direct Python, or direct Java>
 
+YAML contract, when selected:
+- <target contract key and exact schema path>
+
 Implementation language:
 - <user-confirmed custom Action/Tool and entry-point language>
 
@@ -313,13 +335,16 @@ Python environment, when required:
 Selected Resource implementations:
 - <name: implementation class/alias and implementation language; bridge form and mandatory TODO fields generated>
 
+Blocked integrations:
+- <sources checked, exact missing Provider contract, and minimum input needed; or none>
+
 Runtime Skill source:
 - <preserved existing source, user-fillable TODO, or not used>
 - <supported source forms and deployment requirements for the user to fill>
 
 User must provide:
 - <custom Action/Tool/Skill business behavior>
-- <business input and result contracts>
+- <unresolved input, output, transformation, side-effect, and error contracts>
 - <platform client, authentication, query, and response mapping>
 - <secrets, endpoints, and external data>
 

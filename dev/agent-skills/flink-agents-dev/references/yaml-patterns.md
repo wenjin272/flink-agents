@@ -3,18 +3,28 @@
 ## Contents
 
 - [Contract First](#contract-first)
-- [Canonical Workflow Shape](#canonical-workflow-shape)
+- [Versioned Workflow Shape](#versioned-workflow-shape)
 - [Section Rules](#section-rules)
 - [Language Selection](#language-selection)
 - [Name-resolution Pass](#name-resolution-pass)
 
 ## Contract First
 
-Use the [bundled YAML schema](../assets/yaml-schema.json) as the offline contract
-before generating YAML. If the target application provides a schema for its pinned
-Flink Agents version, use that matching schema instead. The schema defines structure;
-target-version provider metadata defines the additional arguments forwarded by
-Resource descriptors.
+Resolve the target Flink Agents version before generating YAML. Select its complete
+schema through the [YAML contract manifest](../assets/yaml-contracts.yaml), or use a
+matching schema from the target application, installed distribution, or source
+checkout. Never substitute the bundled main schema for a released version.
+
+The complete selected schema controls every structural capability, not only the
+Action trigger field. For example, `0.3.0` uses `listen_to` and has no Tool
+`injected_args`, while the bundled main schema uses `trigger_conditions` and
+supports `injected_args`. Do not copy a field merely because it appears in another
+version's example. Target-version provider metadata separately defines additional
+arguments forwarded by Resource descriptors.
+
+If the manifest marks the selected version as lacking a YAML API, do not offer YAML
+at the API gate. If a requested version has no exact schema, stop YAML generation
+and report the missing contract.
 
 The valid top-level sections are:
 
@@ -28,12 +38,27 @@ Top-level Resources and Actions are shared. The same sections nested under an
 `agents[]` entry belong to that Agent. There is no `resources:` wrapper and no Agent
 `type` field.
 
-## Canonical Workflow Shape
+## Versioned Workflow Shape
 
-This example deliberately shows only the Action structure. It contains no model,
+These examples deliberately show only the Action structure. They contain no model,
 Prompt, Tool, Skill, MCP server, or vector store because those Resources must come
 from the staged user interview. Generate `app.actions` with matching skeletons; do
-not infer what either Action emits.
+not infer what the Action emits.
+
+Flink Agents `0.3.0`:
+
+```yaml
+agents:
+  - name: application_agent
+
+    actions:
+      - name: process_input
+        function: app.actions:process_input
+        listen_to: [input]
+        type: python
+```
+
+Bundled `main` snapshot:
 
 ```yaml
 agents:
@@ -54,9 +79,24 @@ is emitted.
 
 ### Actions
 
-An inline Action requires `name`, non-empty `trigger_conditions`, and a valid
-`function` for custom behavior. `config` is optional. An Agent may also reference a
-top-level shared Action by a bare string.
+An inline Action requires `name`, the selected schema's non-empty trigger field, and
+a valid `function` for custom behavior. `config` is optional. An Agent may also
+reference a top-level shared Action by a bare string.
+
+Flink Agents `0.3.0` shared Action:
+
+```yaml
+actions:
+  - name: shared_input
+    function: app.actions:shared_input
+    listen_to: [input]
+
+agents:
+  - name: first_agent
+    actions: [shared_input]
+```
+
+Bundled `main` snapshot:
 
 ```yaml
 actions:
@@ -124,8 +164,11 @@ arguments documented for the selected provider and language. Resolve one Resourc
 at a time: ask for `clazz` first, inspect that target-version implementation, then
 generate its required arguments as `TODO_REQUIRED_*` fields. Do not ask the user for
 those values, and do not copy a model, endpoint, or authentication setting from this
-or another example. If target-version metadata does not reveal the full constructor
-contract, add `TODO_VERIFY_REQUIRED_PROVIDER_ARGUMENTS` and report the gap.
+or another example. If target-version artifacts do not reveal the implementation
+class, dependency coordinate, constructor, descriptor, or mandatory arguments,
+preserve existing working configuration and stop YAML work that depends on that
+Provider. Report the sources checked, exact missing contract, and minimum artifact
+needed to continue; do not generate a speculative descriptor.
 
 For chat-model connections/setups, embedding-model connections/setups, and vector
 stores, the descriptor's `type` is independent of the custom Action/Tool and Flink
@@ -242,14 +285,15 @@ that another Resource type bridges languages.
 The schema default is not a product decision. For a new application, first confirm
 the Flink Agents/Flink pair and then the YAML API choice. Only then ask the user to
 choose Python or Java before generating functions, Resources, dependencies, or the
-Flink entry point. Present Python and Java as native single-select options or a
-numbered fallback, not an open-ended language question. Treat them as equal peer
-options: use parallel descriptions, label neither one `(Recommended)`, and preselect
-neither one. Apply the user's choice to custom Action/Tool implementations and the
-Flink entry point, and do not mention a Python/JDK version before it. Preserve
-explicit language choices in existing YAML. Do not require a separate cross-language
-confirmation when the user selects a bridge-supported Resource implementation; that
-Resource's selector already records the choice.
+Flink entry point. Use the interaction path selected by
+[Interaction Discipline](../SKILL.md#interaction-discipline), not an open-ended
+language question. Treat Python and Java as equal peer options: use parallel
+descriptions, label neither one `(Recommended)`, and preselect neither one. Apply
+the user's choice to custom Action/Tool implementations and the Flink entry point,
+and do not mention a Python/JDK version before it. Preserve explicit language
+choices in existing YAML. Do not require a separate cross-language confirmation
+when the user selects a bridge-supported Resource implementation; that Resource's
+selector already records the choice.
 
 In the current source, Java `AgentPlan` rejects MCP servers added through
 `Agent.addResource`; Java `YamlLoader` represents YAML `mcp_servers` through that

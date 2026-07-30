@@ -1,17 +1,18 @@
 # Generic Interaction Adapter
 
-Use this adapter when the host is unknown, no dedicated adapter exists, or a
-dedicated adapter's native question tool is unavailable.
+Use this adapter only when selected by the authoritative
+[Interaction Discipline](../../SKILL.md#interaction-discipline). That policy
+supplies either an exposed generic structured-question contract or the decision to
+render the numbered fallback; do not redetect capabilities or change that selection
+here.
 
 ## Closed Choices
 
-When this adapter was selected directly, use a structured single-select question
-tool only if the current tool catalog explicitly exposes it and its argument
-contract is available. Do not guess a tool name or argument shape. When another
-adapter reached this file because its native tool failed, skip native discovery and
-go directly to the numbered list; do not retry the failed tool.
-
-Otherwise render all valid choices as a numbered list:
+When [Interaction Discipline](../../SKILL.md#interaction-discipline) supplied a
+generic structured-question contract, use its live argument schema for one
+single-select gate and wait. When it selected the numbered fallback, render all
+valid choices as a numbered list without trying a tool first. For example, when the
+selected Flink Agents version supports all three API surfaces:
 
 ```text
 Select the API:

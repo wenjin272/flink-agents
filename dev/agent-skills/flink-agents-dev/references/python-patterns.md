@@ -42,8 +42,9 @@ verify the wrapper map in the target version.
 ## YAML-referenced Implementations
 
 Custom Actions use the fixed `(Event, RunnerContext) -> None` contract. When the
-user has not supplied their business behavior, generate importable skeletons rather
-than inferring event transformations or domain policy:
+contract classification in `SKILL.md` leaves any required behavior unresolved,
+generate importable skeletons rather than inferring event transformations or domain
+policy:
 
 ```python
 from flink_agents.api.events.event import Event
@@ -51,14 +52,14 @@ from flink_agents.api.runner_context import RunnerContext
 
 
 def process_input(event: Event, ctx: RunnerContext) -> None:
-    """TODO: Map an InputEvent to the application's first event."""
+    """TODO: Define and implement the application-specific Action contract."""
     raise NotImplementedError(
         "Implement the application-specific input Action"
     )
 
 
 def process_chat_response(event: Event, ctx: RunnerContext) -> None:
-    """TODO: Validate the model response and emit the application output."""
+    """TODO: Define and implement the application-specific Action contract."""
     raise NotImplementedError(
         "Implement the application-specific response Action"
     )
@@ -68,7 +69,7 @@ Implement an event transformation only when the user explicitly requests it and 
 input/output behavior is known. Then adapt each event constructor only after reading
 its signature in the target version. For custom event types, emit
 `Event(type="...", attributes={...})` and use the same type string in YAML
-`trigger_conditions`.
+under the selected schema's Action trigger field.
 
 Treat each constructor keyword and property as a versioned contract. Import or
 compile the generated module against the target environment before describing it as
