@@ -275,6 +275,53 @@ public class ActionExecutionOperatorTest {
     }
 
     @Test
+    void pendingActionConfigSurvivesRestore() throws Exception {
+        final long key = 7L;
+        Action configuredAction =
+                new Action(
+                        "configuredAction",
+                        new JavaFunction(
+                                TestAgent.class,
+                                "action1",
+                                new Class<?>[] {Event.class, RunnerContext.class}),
+                        Collections.singletonList(InputEvent.EVENT_TYPE),
+                        Collections.singletonMap("mode", "strict"));
+        AgentPlan agentPlan =
+                new AgentPlan(
+                        Collections.singletonMap(configuredAction.getName(), configuredAction));
+
+        OperatorSubtaskState snapshot;
+        try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> testHarness =
+                new KeyedOneInputStreamOperatorTestHarness<>(
+                        new ActionExecutionOperatorFactory(agentPlan, true),
+                        (KeySelector<Long, Long>) value -> value,
+                        TypeInformation.of(Long.class))) {
+            testHarness.open();
+            testHarness.processElement(new StreamRecord<>(key));
+            assertThat(testHarness.getTaskMailbox().size()).isEqualTo(1);
+            snapshot = testHarness.snapshot(1L, 1L);
+        }
+
+        try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> restoredHarness =
+                new KeyedOneInputStreamOperatorTestHarness<>(
+                        new ActionExecutionOperatorFactory(agentPlan, true),
+                        (KeySelector<Long, Long>) value -> value,
+                        TypeInformation.of(Long.class))) {
+            restoredHarness.initializeState(snapshot);
+            restoredHarness.open();
+
+            ActionExecutionOperator<Long, Object> restoredOperator =
+                    (ActionExecutionOperator<Long, Object>) restoredHarness.getOperator();
+            restoredOperator.setCurrentKey(key);
+            ActionTask restoredTask =
+                    restoredOperator.getOperatorStateManager().pollNextActionTask();
+
+            assertThat(restoredTask).isNotNull();
+            assertThat(restoredTask.action.getConfig()).containsEntry("mode", "strict");
+        }
+    }
+
+    @Test
     void testMemoryAccessProhibitedOutsideMailboxThread() throws Exception {
         try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> testHarness =
                 new KeyedOneInputStreamOperatorTestHarness<>(
@@ -1935,7 +1982,7 @@ public class ActionExecutionOperatorTest {
                     actions.put(action3.getName(), action3);
                 }
 
-                return new AgentPlan(actions, actionsByEvent, new HashMap<>(), config);
+                return new AgentPlan(actions, new HashMap<>(), config);
             } catch (Exception e) {
                 ExceptionUtils.rethrow(e);
             }
@@ -1993,7 +2040,7 @@ public class ActionExecutionOperatorTest {
                     actions.put(action2.getName(), action2);
                 }
 
-                return new AgentPlan(actions, actionsByEvent, new HashMap<>());
+                return new AgentPlan(actions, new HashMap<>());
             } catch (Exception e) {
                 ExceptionUtils.rethrow(e);
             }
@@ -2017,7 +2064,7 @@ public class ActionExecutionOperatorTest {
                         InputEvent.EVENT_TYPE, Collections.singletonList(durableSyncAction));
                 actions.put(durableSyncAction.getName(), durableSyncAction);
 
-                return new AgentPlan(actions, actionsByEvent, new HashMap<>());
+                return new AgentPlan(actions, new HashMap<>());
             } catch (Exception e) {
                 ExceptionUtils.rethrow(e);
             }
@@ -2041,7 +2088,7 @@ public class ActionExecutionOperatorTest {
                         InputEvent.EVENT_TYPE, Collections.singletonList(reconcilableAction));
                 actions.put(reconcilableAction.getName(), reconcilableAction);
 
-                return new AgentPlan(actions, actionsByEvent, new HashMap<>());
+                return new AgentPlan(actions, new HashMap<>());
             } catch (Exception e) {
                 ExceptionUtils.rethrow(e);
             }
@@ -2065,7 +2112,7 @@ public class ActionExecutionOperatorTest {
                         InputEvent.EVENT_TYPE, Collections.singletonList(mixedRecoveryAction));
                 actions.put(mixedRecoveryAction.getName(), mixedRecoveryAction);
 
-                return new AgentPlan(actions, actionsByEvent, new HashMap<>());
+                return new AgentPlan(actions, new HashMap<>());
             } catch (Exception e) {
                 ExceptionUtils.rethrow(e);
             }
@@ -2089,7 +2136,7 @@ public class ActionExecutionOperatorTest {
                         InputEvent.EVENT_TYPE, Collections.singletonList(exceptionAction));
                 actions.put(exceptionAction.getName(), exceptionAction);
 
-                return new AgentPlan(actions, actionsByEvent, new HashMap<>());
+                return new AgentPlan(actions, new HashMap<>());
             } catch (Exception e) {
                 ExceptionUtils.rethrow(e);
             }
@@ -2098,7 +2145,6 @@ public class ActionExecutionOperatorTest {
 
         public static AgentPlan getLinkageErrorAgentPlan() {
             try {
-                Map<String, List<Action>> actionsByEvent = new HashMap<>();
                 Map<String, Action> actions = new HashMap<>();
 
                 Action errorAction =
@@ -2109,10 +2155,9 @@ public class ActionExecutionOperatorTest {
                                         "action",
                                         new Class<?>[] {Event.class, RunnerContext.class}),
                                 Collections.singletonList(InputEvent.EVENT_TYPE));
-                actionsByEvent.put(InputEvent.EVENT_TYPE, Collections.singletonList(errorAction));
                 actions.put(errorAction.getName(), errorAction);
 
-                return new AgentPlan(actions, actionsByEvent, new HashMap<>());
+                return new AgentPlan(actions);
             } catch (Exception e) {
                 ExceptionUtils.rethrow(e);
             }
@@ -2192,7 +2237,7 @@ public class ActionExecutionOperatorTest {
                         InputEvent.EVENT_TYPE, Collections.singletonList(exceptionAction));
                 actions.put(exceptionAction.getName(), exceptionAction);
 
-                return new AgentPlan(actions, actionsByEvent, new HashMap<>());
+                return new AgentPlan(actions, new HashMap<>());
             } catch (Exception e) {
                 ExceptionUtils.rethrow(e);
             }
@@ -2216,7 +2261,7 @@ public class ActionExecutionOperatorTest {
                         InputEvent.EVENT_TYPE, Collections.singletonList(exceptionAction));
                 actions.put(exceptionAction.getName(), exceptionAction);
 
-                return new AgentPlan(actions, actionsByEvent, new HashMap<>());
+                return new AgentPlan(actions, new HashMap<>());
             } catch (Exception e) {
                 ExceptionUtils.rethrow(e);
             }
