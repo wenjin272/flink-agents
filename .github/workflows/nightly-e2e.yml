@@ -23,9 +23,9 @@ on:
   workflow_dispatch:
     inputs:
       flink-version:
-        description: 'Flink version to test (e.g., 2.2.0, 2.1.1)'
+        description: 'Flink version to test (e.g., 2.3.0, 2.2.1)'
         required: false
-        default: '2.2.0'
+        default: '2.3.0'
         type: string
   pull_request:
     branches: [main]
@@ -47,14 +47,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flink-version: ['2.2.0']
+        flink-version: ['2.3.0']
     steps:
       - uses: actions/checkout@v4
       - name: Install java
         uses: actions/setup-java@v4
         with:
           java-version: '11'
-          distribution: 'adopt'
+          distribution: 'temurin'
       - name: Install python
         uses: actions/setup-python@v4
         with:
@@ -66,9 +66,10 @@ jobs:
       - name: Run submit-examples E2E test
         env:
           FLINK_VERSION: ${{ github.event.inputs.flink-version || matrix.flink-version }}
-          # Use a lightweight chat model on GitHub-hosted runners (CPU only,
-          # ~7GB RAM). The script aliases this to the names examples hardcode.
-          OLLAMA_CHAT_MODEL: 'qwen3:0.6b'
+          # Use a compact model that reliably follows the examples' structured
+          # output prompts. The script aliases it to the names examples hardcode.
+          OLLAMA_CHAT_MODEL: 'qwen3.5:4b'
+          OLLAMA_CONTEXT_LENGTH: '2048'
           OLLAMA_EMBED_MODEL: 'nomic-embed-text'
         run: bash e2e-test/test-scripts/test_submit_examples_to_flink.sh
       - name: Upload Flink logs on failure
