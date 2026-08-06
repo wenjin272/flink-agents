@@ -6,6 +6,7 @@ python/.idea
 .qwen
 .qoder
 .claude
+.codex
 
 # OS
 .DS_Store
