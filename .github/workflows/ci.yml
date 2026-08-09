@@ -49,6 +49,9 @@ jobs:
         run: ./tools/lint.sh -c
       - name: Check AGENTS.md freshness
         run: python3 tools/check-agents-md.py
+      - name: Check bundled YAML schema freshness
+        if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+        run: python3 tools/check-skill-schema.py
 
   install_sh_tests:
     name: install.sh tests (${{ matrix.os }})
