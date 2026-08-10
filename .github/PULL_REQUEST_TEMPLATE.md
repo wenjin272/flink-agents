@@ -33,4 +33,4 @@ Linked issue: #xxx
 - [ ] Yes
 - [ ] No
 
-If yes, include a `Generated-by: <tool name and version>` line in the commit message so it reaches Git history, and repeat it here for reviewer visibility. See the [ASF generative tooling guidance](https://www.apache.org/legal/generative-tooling.html).
+If yes, include a `Generated-by: <tool name and version> (<model name and version>)` line, for example `Generated-by: Claude Code 2.1.226 (Claude Opus 4.6)`, in the commit message so it reaches Git history. Repeat the same line here for reviewer visibility. See the [ASF generative tooling guidance](https://www.apache.org/legal/generative-tooling.html).
