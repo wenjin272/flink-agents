@@ -66,7 +66,22 @@ FLINK_MAJOR_MINOR="${FLINK_VERSION%.*}"
 REST_URL="${REST_URL:-http://localhost:8081}"
 
 JOB_MODULE="flink_agents/e2e_tests/e2e_tests_integration/checkpoint_recovery_job.py"
-EXPECTED_AGENTS_VERSION="${EXPECTED_AGENTS_VERSION:-0.3.dev0}"
+
+read_agents_project_version() {
+    local pyproject="$ROOT_DIR/python/pyproject.toml"
+    local version
+    version=$(sed -n 's/^version = "\([^"]*\)"$/\1/p' "$pyproject" | head -n 1)
+    if [[ -z "$version" ]]; then
+        log_error "Could not read the project version from $pyproject"
+        return 1
+    fi
+    printf '%s' "$version"
+}
+
+# Read the expected version from the checkout rather than pinning a release-line
+# value here. The assertion below then proves that the distribution metadata the
+# TaskManager imported belongs to the same source tree this run built.
+EXPECTED_AGENTS_VERSION="${EXPECTED_AGENTS_VERSION:-$(read_agents_project_version)}"
 
 # Checkpoint interval is deliberately short: the run is parked while we wait for two
 # checkpoints to complete, and that wait is charged against the tool's own deadline.
@@ -1034,9 +1049,9 @@ assert_runtime_identity() {
     fi
 
     # The version alone comes from distribution metadata and cannot tell two trees
-    # apart that both call themselves 0.3.dev0 — an installed wheel and this working
-    # tree would report the same string. The api-file probe is what identifies the
-    # tree, so assert it points inside the checkout -pypath was pointed at.
+    # apart when they declare the same project version — an installed wheel and this
+    # working tree would report the same string. The api-file probe is what identifies
+    # the tree, so assert it points inside the checkout -pypath was pointed at.
     local expected_prefix="$ROOT_DIR/python/flink_agents/api/"
     if [[ "$module_file" != "$expected_prefix"* ]]; then
         log_error "runtime-identity: the TaskManager imported flink_agents.api from '$module_file', which is not under '$expected_prefix'. The job exercised a different copy of the code than the one in this checkout, so a pass would not be evidence about these sources."
