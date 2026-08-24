@@ -20,8 +20,20 @@ bats_require_minimum_version 1.5.0
 
 setup() {
     load '../helpers/recovery'
+    # The production script supports an explicit override, but unit tests must
+    # exercise its default: deriving the expectation from this checkout.
+    unset EXPECTED_AGENTS_VERSION
     load_recovery_sh
     reset_recovery_sh_state
+}
+
+@test "runtime identity: expected version follows the current Python project" {
+    local declared_version
+    declared_version=$(sed -n 's/^version = "\([^"]*\)"$/\1/p' \
+        "$REPO_ROOT/python/pyproject.toml" | head -n 1)
+
+    [ -n "$declared_version" ]
+    [ "$EXPECTED_AGENTS_VERSION" = "$declared_version" ]
 }
 
 # ---------------------------------------------------------------------------

@@ -49,7 +49,6 @@ reset_recovery_sh_state() {
     CHECKPOINT_INTERVAL_MS="5000"
     RESTART_ATTEMPTS="3"
     STANDALONE_STARTUP_TIME="600s"
-    EXPECTED_AGENTS_VERSION="0.3.dev0"
     # Keep the polls short; every wait under test is given a small budget.
     POLL_INTERVAL=1
 }
