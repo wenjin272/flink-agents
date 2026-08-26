@@ -73,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.IntPredicate;
 
 import static org.apache.flink.agents.api.configuration.AgentConfigOptions.JOB_IDENTIFIER;
 import static org.apache.flink.util.Preconditions.checkState;
@@ -193,7 +194,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
         eventRouter.open(builtInMetrics);
 
-        durableExecManager.maybeInitActionStateStore(agentPlan.getConfig());
+        int maxParallelism = getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks();
+        durableExecManager.maybeInitActionStateStore(agentPlan.getConfig(), maxParallelism);
         durableExecManager.initRecoveryMarkerState(getOperatorStateBackend());
         durableExecManager.initializeKeyedStates(getRuntimeContext());
 
@@ -613,10 +615,26 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
 
-        durableExecManager.maybeInitActionStateStore(agentPlan.getConfig());
-        durableExecManager.handleRecovery(getOperatorStateBackend());
+        int maxParallelism = getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks();
+        durableExecManager.maybeInitActionStateStore(agentPlan.getConfig(), maxParallelism);
 
         stateManager = new OperatorStateManager();
+
+        // Drop action-state records owned by other subtasks during rebuild. UnionListState
+        // broadcasts every subtask's recovery marker, so a naive replay would load all keys into
+        // every subtask's cache, where the foreign ones are never pruned (orphan-state leak).
+        //
+        // The ownership filter operates on the key-group embedded in the action-state record key.
+        // The key-group was computed from the original typed key via
+        // KeyGroupRangeAssignment.assignToKeyGroup, which matches how Flink assigns keyed-state
+        // ownership. This avoids the type-dependent hashing mismatch that would occur if ownership
+        // were reconstructed from the string form of the business key (e.g., Long(1) hashes to
+        // key-group 86 while String("1") hashes to 54).
+        KeyGroupRange currentSubtaskKeyGroupRange =
+                stateManager.getCurrentSubtaskKeyGroupRange(maxParallelism, getRuntimeContext());
+        IntPredicate ownershipFilter = currentSubtaskKeyGroupRange::contains;
+
+        durableExecManager.handleRecovery(getOperatorStateBackend(), ownershipFilter);
 
         // Resolve the agent's stable job identifier:
         //  - If the user set it via AgentConfigOptions.JOB_IDENTIFIER, use that.
