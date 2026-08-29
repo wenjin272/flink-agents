@@ -81,7 +81,7 @@ class ActionTaskContextManager implements AutoCloseable {
     private final Map<ActionTask, String> pythonAwaitableRefs;
     private final Map<String, Map<ReportedExecutionKey, ExecutionTraceContext>>
             activeReportedExecutionsByActionExecutionId;
-    private ContinuationActionExecutor continuationActionExecutor;
+    private final ContinuationActionExecutor continuationActionExecutor;
 
     ActionTaskContextManager(int numAsyncThreads) {
         this.actionTaskMemoryContexts = new HashMap<>();
