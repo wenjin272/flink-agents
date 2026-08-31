@@ -467,7 +467,7 @@ class AnthropicChatModelConnection(BaseChatModelConnection):
                 self._client = None
 
 
-DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_MAX_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.1
 DEFAULT_JSON_PREFILL = False
@@ -481,7 +481,7 @@ class AnthropicChatModelSetup(BaseChatModelSetup):
     connection : str
         Name of the referenced connection. (Inherited from BaseChatModelSetup)
     model : str
-        Specifies the Anthropic model to use. Defaults to claude-sonnet-4-20250514
+        Specifies the Anthropic model to use. Defaults to ``DEFAULT_ANTHROPIC_MODEL``
         when omitted via ``__init__``. (Inherited from BaseChatModelSetup)
     prompt : Optional[Union[Prompt, str]
         Prompt template or string for the model. (Inherited from BaseChatModelSetup)
