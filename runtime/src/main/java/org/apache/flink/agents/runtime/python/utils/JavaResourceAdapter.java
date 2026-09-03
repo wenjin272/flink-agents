@@ -41,8 +41,6 @@ import java.util.Map;
 public class JavaResourceAdapter {
     private final ResourceContext resourceContext;
 
-    private final transient PythonInterpreterManager interpreterManager;
-
     /**
      * Class loader used to resolve Java tool methods declared by name. Captured at construction
      * (the operator passes its {@code RuntimeContext.getUserCodeClassLoader()}) because pemja
@@ -51,12 +49,8 @@ public class JavaResourceAdapter {
      */
     private final transient ClassLoader userCodeClassLoader;
 
-    public JavaResourceAdapter(
-            ResourceContext resourceContext,
-            PythonInterpreterManager interpreterManager,
-            ClassLoader userCodeClassLoader) {
+    public JavaResourceAdapter(ResourceContext resourceContext, ClassLoader userCodeClassLoader) {
         this.resourceContext = resourceContext;
-        this.interpreterManager = interpreterManager;
         this.userCodeClassLoader = userCodeClassLoader;
     }
 
@@ -91,23 +85,23 @@ public class JavaResourceAdapter {
      * Convert a Python chat message to a Java chat message. This method is intended for use by the
      * Python interpreter.
      *
-     * @param pythonChatMessage the Python chat message
+     * <p>The Python caller extracts the message fields before crossing into Java. Keeping this
+     * method Java-only avoids an unnecessary Python→Java→Python callback while constructing the
+     * Java value.
+     *
+     * @param roleValue the Python message role value
+     * @param content the message content
+     * @param toolCalls the normalized tool calls
+     * @param extraArgs additional message arguments
      * @return the Java chat message
      */
-    public ChatMessage fromPythonChatMessage(Object pythonChatMessage) {
+    public ChatMessage fromPythonChatMessage(
+            String roleValue,
+            String content,
+            List<Map<String, Object>> toolCalls,
+            Map<String, Object> extraArgs) {
         // TODO: Delete this method after the pemja findClass method is fixed.
-        ChatMessage chatMessage = new ChatMessage();
-        if (interpreterManager == null) {
-            throw new IllegalStateException("Python interpreter manager is not set.");
-        }
-        String roleValue =
-                (String)
-                        interpreterManager.invoke(
-                                "python_java_utils.update_java_chat_message",
-                                pythonChatMessage,
-                                chatMessage);
-        chatMessage.setRole(MessageRole.fromValue(roleValue));
-        return chatMessage;
+        return new ChatMessage(MessageRole.fromValue(roleValue), content, toolCalls, extraArgs);
     }
 
     /**

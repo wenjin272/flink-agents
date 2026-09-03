@@ -198,9 +198,7 @@ class PythonBridgeManager implements AutoCloseable {
 
             javaResourceAdapter =
                     new JavaResourceAdapter(
-                            resourceCache.getResourceContext(),
-                            pythonInterpreterManager,
-                            userCodeClassLoader);
+                            resourceCache.getResourceContext(), userCodeClassLoader);
             if (containPythonResource || mem0Configured) {
                 initPythonResourceAdapter(agentPlan, resourceCache);
             }
