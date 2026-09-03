@@ -32,6 +32,7 @@ import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
 import org.apache.flink.agents.runtime.python.context.PythonRunnerContextImpl;
 import org.apache.flink.agents.runtime.python.utils.JavaResourceAdapter;
 import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
+import org.apache.flink.agents.runtime.python.utils.PythonInterpreterManager;
 import org.apache.flink.agents.runtime.python.utils.PythonResourceAdapterImpl;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
@@ -57,7 +58,7 @@ import static org.apache.flink.agents.plan.actions.Utils.supportAsync;
  *
  * <ul>
  *   <li>The {@link PythonEnvironmentManager} that prepares dependencies and the Pemja runtime.
- *   <li>The {@link PythonInterpreter} obtained from that environment.
+ *   <li>The thread-confined Python interpreters obtained from that environment.
  *   <li>The {@link PythonActionExecutor} (when the plan contains Python actions or Mem0).
  *   <li>The {@link PythonRunnerContextImpl} consumed by Python actions.
  *   <li>The Java/Python resource adapters that bridge resource lookups across languages.
@@ -70,7 +71,7 @@ import static org.apache.flink.agents.plan.actions.Utils.supportAsync;
  * in that case all accessors return {@code null} and {@link #isInitialized()} returns {@code
  * false}. {@link #close()} closes the owned resources in the reverse order of creation: {@code
  * longTermMemory} → {@code pythonActionExecutor} → {@code pythonResourceAdapter} → {@code
- * pythonInterpreter} → {@code pythonEnvironmentManager}.
+ * pythonInterpreterManager} → {@code pythonEnvironmentManager}.
  *
  * <p>Design constraint: package-private; no manager-to-manager held references. Other managers
  * receive what they need (e.g. the Python runner context, the action executor) via method
@@ -81,7 +82,8 @@ class PythonBridgeManager implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(PythonBridgeManager.class);
 
     private PythonEnvironmentManager pythonEnvironmentManager;
-    private PythonInterpreter pythonInterpreter;
+    private PythonInterpreter initializingPythonInterpreter;
+    private PythonInterpreterManager pythonInterpreterManager;
     private PythonActionExecutor pythonActionExecutor;
     private PythonRunnerContextImpl pythonRunnerContext;
     private PythonResourceAdapterImpl pythonResourceAdapter;
@@ -99,12 +101,14 @@ class PythonBridgeManager implements AutoCloseable {
      * <p>Scans the agent plan for any {@link PythonFunction} action or {@link
      * PythonResourceProvider}. If neither is present, this method is a no-op and {@link
      * #isInitialized()} stays {@code false}. Otherwise it builds the {@link
-     * PythonEnvironmentManager}, opens an embedded {@link PythonInterpreter}, refreshes the shared
-     * import state for the current dependency generation, constructs the shared {@link
-     * PythonRunnerContextImpl}, wires the Java/Python resource adapters, and conditionally
-     * initializes the Python action executor and the Python resource adapter (each only when the
-     * corresponding component is present in the plan). The generation guard runs immediately after
-     * interpreter construction and before any user module import.
+     * PythonEnvironmentManager}, opens an owner {@link PythonInterpreter}, refreshes the shared
+     * import state for the current dependency generation, and creates a {@link
+     * PythonInterpreterManager} that lazily binds a separate interpreter to every calling thread.
+     * It then constructs the shared {@link PythonRunnerContextImpl}, wires the Java/Python resource
+     * adapters, and conditionally initializes the Python action executor and the Python resource
+     * adapter (each only when the corresponding component is present in the plan). The generation
+     * guard runs immediately after owner-interpreter construction and before any user module
+     * import.
      *
      * @param agentPlan the agent plan describing actions and resources.
      * @param resourceCache the resource cache visible to both languages.
@@ -158,12 +162,13 @@ class PythonBridgeManager implements AutoCloseable {
                             dependencyInfo, tmpDirs, new HashMap<>(System.getenv()), jobId);
             pythonEnvironmentManager.open();
             EmbeddedPythonEnvironment env = pythonEnvironmentManager.createEnvironment();
-            pythonInterpreter = env.getInterpreter();
+            PythonInterpreter ownerInterpreter = env.getInterpreter();
+            initializingPythonInterpreter = ownerInterpreter;
             String dependencyGeneration = pythonEnvironmentManager.getBaseDirectory();
             String pythonPath = env.getEnv().get("PYTHONPATH");
             boolean dependencyGenerationChanged =
                     PythonDependencyGenerationManager.ensurePythonDependencyGeneration(
-                            pythonInterpreter,
+                            ownerInterpreter,
                             jobId,
                             dependencyGeneration,
                             pythonPath == null ? "" : pythonPath);
@@ -173,6 +178,12 @@ class PythonBridgeManager implements AutoCloseable {
                         dependencyGeneration,
                         jobId);
             }
+            // Transfer ownership only after dependency generation is active. If generation setup
+            // fails, close() can still release initializingPythonInterpreter; if manager
+            // construction fails, its constructor releases the owner itself.
+            initializingPythonInterpreter = null;
+            pythonInterpreterManager =
+                    new PythonInterpreterManager(ownerInterpreter, env::getInterpreter);
             pythonRunnerContext =
                     new PythonRunnerContextImpl(
                             metricGroup,
@@ -184,7 +195,7 @@ class PythonBridgeManager implements AutoCloseable {
             javaResourceAdapter =
                     new JavaResourceAdapter(
                             resourceCache.getResourceContext(),
-                            pythonInterpreter,
+                            pythonInterpreterManager,
                             userCodeClassLoader);
             if (containPythonResource || mem0Configured) {
                 initPythonResourceAdapter(agentPlan, resourceCache);
@@ -242,7 +253,8 @@ class PythonBridgeManager implements AutoCloseable {
      */
     private void wireLongTermMemory(AgentPlan agentPlan, Runnable mailboxThreadChecker) {
         PyObject pyCtx = pythonActionExecutor.getPythonRunnerContext();
-        Object pyLtm = pythonInterpreter.invoke("python_java_utils.get_long_term_memory", pyCtx);
+        Object pyLtm =
+                pythonInterpreterManager.invoke("python_java_utils.get_long_term_memory", pyCtx);
         if (pyLtm == null) {
             throw new IllegalStateException(
                     String.format(
@@ -270,7 +282,7 @@ class PythonBridgeManager implements AutoCloseable {
             throws Exception {
         pythonActionExecutor =
                 new PythonActionExecutor(
-                        pythonInterpreter,
+                        pythonInterpreterManager,
                         agentPlan,
                         javaResourceAdapter,
                         pythonRunnerContext,
@@ -282,7 +294,9 @@ class PythonBridgeManager implements AutoCloseable {
             throws Exception {
         pythonResourceAdapter =
                 new PythonResourceAdapterImpl(
-                        resourceCache.getResourceContext(), pythonInterpreter, javaResourceAdapter);
+                        resourceCache.getResourceContext(),
+                        pythonInterpreterManager,
+                        javaResourceAdapter);
         pythonResourceAdapter.open();
         PythonMCPResourceDiscovery.discoverPythonMCPResources(
                 agentPlan.getResourceProviders(), pythonResourceAdapter, resourceCache);
@@ -333,7 +347,8 @@ class PythonBridgeManager implements AutoCloseable {
                     longTermMemory,
                     pythonActionExecutor,
                     pythonResourceAdapter,
-                    pythonInterpreter,
+                    pythonInterpreterManager,
+                    initializingPythonInterpreter,
                     pythonEnvironmentManager
                 }) {
             if (closeable == null) {

@@ -22,15 +22,68 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
+import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.tools.ToolParameterSource;
 import org.junit.jupiter.api.Test;
+import pemja.core.PythonInterpreter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class JavaResourceAdapterTest {
+
+    @Test
+    void convertsPythonChatMessageWithCallingThreadsInterpreter() throws Exception {
+        PythonInterpreter owner = mock(PythonInterpreter.class);
+        PythonInterpreter worker = mock(PythonInterpreter.class);
+        PythonInterpreterManager manager =
+                new PythonInterpreterManager(owner, () -> worker, ignored -> {});
+        JavaResourceAdapter adapter =
+                new JavaResourceAdapter(
+                        null, manager, Thread.currentThread().getContextClassLoader());
+        Object pythonChatMessage = new Object();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        when(worker.invoke(
+                        eq("python_java_utils.update_java_chat_message"),
+                        eq(pythonChatMessage),
+                        any(ChatMessage.class)))
+                .thenAnswer(
+                        invocation -> {
+                            invocation.<ChatMessage>getArgument(2).setContent("hello");
+                            return "user";
+                        });
+
+        try {
+            ChatMessage converted =
+                    executor.submit(() -> adapter.fromPythonChatMessage(pythonChatMessage))
+                            .get(5, TimeUnit.SECONDS);
+
+            assertThat(converted.getRole()).isEqualTo(MessageRole.USER);
+            assertThat(converted.getContent()).isEqualTo("hello");
+            verify(worker)
+                    .invoke(
+                            eq("python_java_utils.update_java_chat_message"),
+                            eq(pythonChatMessage),
+                            any(ChatMessage.class));
+            verifyNoInteractions(owner);
+        } finally {
+            executor.shutdownNow();
+            manager.close();
+        }
+    }
 
     @Test
     void getJavaToolMetadataHidesInjectedArgsAndReturnsAnnotatedDeclaration() throws Exception {
