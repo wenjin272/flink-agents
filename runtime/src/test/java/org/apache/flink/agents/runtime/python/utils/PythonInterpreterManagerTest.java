@@ -17,6 +17,7 @@
  */
 package org.apache.flink.agents.runtime.python.utils;
 
+import org.apache.flink.agents.runtime.async.AsyncExecutorThreadFactory;
 import org.junit.jupiter.api.Test;
 import pemja.core.PythonInterpreter;
 
@@ -27,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +41,180 @@ import static org.mockito.Mockito.verify;
 
 /** Defect-oriented concurrency tests for {@link PythonInterpreterManager}. */
 class PythonInterpreterManagerTest {
+
+    @Test
+    void routesUnmanagedThreadCallsAwayFromTheCallerThread() throws Exception {
+        PythonInterpreter owner = mock(PythonInterpreter.class);
+        AtomicReference<Thread> callerThread = new AtomicReference<>();
+        AtomicReference<Thread> interpreterCreationThread = new AtomicReference<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try (PythonInterpreterManager manager =
+                new PythonInterpreterManager(
+                        owner,
+                        () -> {
+                            interpreterCreationThread.set(Thread.currentThread());
+                            return mock(PythonInterpreter.class);
+                        },
+                        ignored -> {})) {
+            executor.submit(
+                            () -> {
+                                callerThread.set(Thread.currentThread());
+                                manager.invoke("callback");
+                            })
+                    .get(5, TimeUnit.SECONDS);
+
+            assertThat(interpreterCreationThread.get())
+                    .as("an unmanaged caller must not create a Pemja thread state on itself")
+                    .isNotSameAs(callerThread.get());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void boundsInterpretersCreatedForTransientUnmanagedThreads() throws Exception {
+        PythonInterpreter owner = mock(PythonInterpreter.class);
+        AtomicInteger created = new AtomicInteger();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+
+        try (PythonInterpreterManager manager =
+                new PythonInterpreterManager(
+                        owner,
+                        () -> {
+                            created.incrementAndGet();
+                            return mock(PythonInterpreter.class);
+                        },
+                        ignored -> {})) {
+            for (int i = 0; i < 20; i++) {
+                Thread caller =
+                        new Thread(
+                                () -> {
+                                    try {
+                                        manager.invoke("callback");
+                                    } catch (Throwable t) {
+                                        failure.set(t);
+                                    }
+                                });
+                caller.start();
+                caller.join(5000);
+                assertThat(caller.isAlive()).isFalse();
+            }
+
+            assertThat(failure.get()).isNull();
+            assertThat(created.get())
+                    .as("transient Python-originated callers must reuse bounded callback workers")
+                    .isBetween(1, 2);
+        }
+    }
+
+    @Test
+    void managedJavaAsyncWorkerCreatesUsesAndClosesInterpreterOnItself() throws Exception {
+        PythonInterpreter owner = mock(PythonInterpreter.class);
+        PythonInterpreter worker = mock(PythonInterpreter.class);
+        AtomicReference<Thread> creationThread = new AtomicReference<>();
+        AtomicReference<Thread> invocationThread = new AtomicReference<>();
+        AtomicReference<Thread> closeThread = new AtomicReference<>();
+
+        doAnswer(
+                        invocation -> {
+                            invocationThread.set(Thread.currentThread());
+                            return null;
+                        })
+                .when(worker)
+                .invoke("worker-call");
+        doAnswer(
+                        invocation -> {
+                            closeThread.set(Thread.currentThread());
+                            return null;
+                        })
+                .when(worker)
+                .close();
+
+        try (PythonInterpreterManager manager =
+                new PythonInterpreterManager(
+                        owner,
+                        () -> {
+                            creationThread.set(Thread.currentThread());
+                            return worker;
+                        },
+                        ignored -> {})) {
+            AsyncExecutorThreadFactory threadFactory =
+                    new AsyncExecutorThreadFactory(manager::releaseCurrentThreadInterpreter);
+            ExecutorService executor = Executors.newSingleThreadExecutor(threadFactory);
+            try {
+                executor.submit(() -> manager.invoke("worker-call")).get(5, TimeUnit.SECONDS);
+            } finally {
+                executor.shutdownNow();
+                assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+                threadFactory.awaitThreadExit();
+            }
+
+            assertThat(invocationThread.get()).isSameAs(creationThread.get());
+            verify(worker).close();
+            assertThat(closeThread.get()).isSameAs(creationThread.get());
+        }
+    }
+
+    @Test
+    void callbackInterpreterIsClosedByItsOwningWorker() throws Exception {
+        PythonInterpreter owner = mock(PythonInterpreter.class);
+        PythonInterpreter callback = mock(PythonInterpreter.class);
+        AtomicReference<Thread> creationThread = new AtomicReference<>();
+        AtomicReference<Thread> closeThread = new AtomicReference<>();
+        ExecutorService caller = Executors.newSingleThreadExecutor();
+
+        doAnswer(
+                        invocation -> {
+                            closeThread.set(Thread.currentThread());
+                            return null;
+                        })
+                .when(callback)
+                .close();
+
+        PythonInterpreterManager manager =
+                new PythonInterpreterManager(
+                        owner,
+                        () -> {
+                            creationThread.set(Thread.currentThread());
+                            return callback;
+                        },
+                        ignored -> {});
+        try {
+            caller.submit(() -> manager.invoke("callback")).get(5, TimeUnit.SECONDS);
+            manager.close();
+
+            verify(callback).close();
+            assertThat(closeThread.get()).isSameAs(creationThread.get());
+        } finally {
+            manager.close();
+            caller.shutdownNow();
+        }
+    }
+
+    @Test
+    void rejectsCloseFromANonOwnerThread() throws Exception {
+        PythonInterpreter owner = mock(PythonInterpreter.class);
+        ExecutorService caller = Executors.newSingleThreadExecutor();
+
+        try (PythonInterpreterManager manager =
+                new PythonInterpreterManager(owner, () -> mock(PythonInterpreter.class))) {
+            Future<?> close =
+                    caller.submit(
+                            () -> {
+                                manager.close();
+                                return null;
+                            });
+
+            assertThatThrownBy(() -> close.get(5, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(IllegalStateException.class)
+                    .hasRootCauseMessage(
+                            "Python interpreter manager must be closed by its owner thread.");
+            assertThatCode(() -> manager.invoke("still-open")).doesNotThrowAnyException();
+        } finally {
+            caller.shutdownNow();
+        }
+    }
 
     @Test
     void reusesOwnerInterpreterOnCreatingThread() throws Exception {
@@ -181,6 +357,26 @@ class PythonInterpreterManagerTest {
 
             assertThatCode(() -> manager.invoke("outer")).doesNotThrowAnyException();
             verify(owner).invoke("inner");
+        }
+    }
+
+    @Test
+    void reentrantCallbackCallUsesSameInterpreter() throws Exception {
+        PythonInterpreter owner = mock(PythonInterpreter.class);
+        PythonInterpreter callback = mock(PythonInterpreter.class);
+        AtomicReference<PythonInterpreterManager> managerRef = new AtomicReference<>();
+        ExecutorService caller = Executors.newSingleThreadExecutor();
+        doAnswer(invocation -> managerRef.get().invoke("inner")).when(callback).invoke("outer");
+
+        try (PythonInterpreterManager manager =
+                new PythonInterpreterManager(owner, () -> callback, ignored -> {})) {
+            managerRef.set(manager);
+
+            caller.submit(() -> manager.invoke("outer")).get(5, TimeUnit.SECONDS);
+            verify(callback).invoke("inner");
+            verify(owner, never()).invoke("inner");
+        } finally {
+            caller.shutdownNow();
         }
     }
 

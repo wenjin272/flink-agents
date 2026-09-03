@@ -16,6 +16,7 @@
 # limitations under the License.
 #################################################################################
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, List, Sequence
 
 from pydantic import PrivateAttr
@@ -57,9 +58,22 @@ class OverlappingPythonChatModelConnection(BaseChatModelConnection):
             message = "Timed out waiting for concurrent cross-language chat request."
             raise RuntimeError(message) from error
 
+        # Run a Python -> Java -> Python conversion from a Python-created thread. This
+        # mirrors Mem0's callback path and verifies that the Java bridge routes the
+        # reverse Python invocation to a bounded callback worker instead of creating a
+        # second Pemja thread state on this CPython thread.
+        if self.resource_context is None:
+            message = "The Python chat connection has no resource context."
+            raise RuntimeError(message)
+        java_adapter = self.resource_context._j_resource_adapter
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            java_message = executor.submit(
+                java_adapter.fromPythonChatMessage, messages[-1]
+            ).result(timeout=30)
+
         return ChatMessage(
             role=MessageRole.ASSISTANT,
-            content=f"python-connection:{messages[-1].content}",
+            content=f"python-connection:{java_message.getContent()}",
         )
 
 

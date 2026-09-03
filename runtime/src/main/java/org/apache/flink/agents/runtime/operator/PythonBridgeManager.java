@@ -17,6 +17,7 @@
  */
 package org.apache.flink.agents.runtime.operator;
 
+import org.apache.flink.agents.api.agents.AgentExecutionOptions;
 import org.apache.flink.agents.api.memory.LongTermMemoryOptions;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.plan.JavaFunction;
@@ -103,12 +104,12 @@ class PythonBridgeManager implements AutoCloseable {
      * #isInitialized()} stays {@code false}. Otherwise it builds the {@link
      * PythonEnvironmentManager}, opens an owner {@link PythonInterpreter}, refreshes the shared
      * import state for the current dependency generation, and creates a {@link
-     * PythonInterpreterManager} that lazily binds a separate interpreter to every calling thread.
-     * It then constructs the shared {@link PythonRunnerContextImpl}, wires the Java/Python resource
-     * adapters, and conditionally initializes the Python action executor and the Python resource
-     * adapter (each only when the corresponding component is present in the plan). The generation
-     * guard runs immediately after owner-interpreter construction and before any user module
-     * import.
+     * PythonInterpreterManager} that binds interpreters to managed Java workers and routes other
+     * callers through bounded callback workers. It then constructs the shared {@link
+     * PythonRunnerContextImpl}, wires the Java/Python resource adapters, and conditionally
+     * initializes the Python action executor and the Python resource adapter (each only when the
+     * corresponding component is present in the plan). The generation guard runs immediately after
+     * owner-interpreter construction and before any user module import.
      *
      * @param agentPlan the agent plan describing actions and resources.
      * @param resourceCache the resource cache visible to both languages.
@@ -183,7 +184,10 @@ class PythonBridgeManager implements AutoCloseable {
             // construction fails, its constructor releases the owner itself.
             initializingPythonInterpreter = null;
             pythonInterpreterManager =
-                    new PythonInterpreterManager(ownerInterpreter, env::getInterpreter);
+                    new PythonInterpreterManager(
+                            ownerInterpreter,
+                            env::getInterpreter,
+                            agentPlan.getConfig().get(AgentExecutionOptions.NUM_ASYNC_THREADS));
             pythonRunnerContext =
                     new PythonRunnerContextImpl(
                             metricGroup,
@@ -330,6 +334,13 @@ class PythonBridgeManager implements AutoCloseable {
 
     boolean isInitialized() {
         return initialized;
+    }
+
+    /** Releases a Python interpreter bound to the current managed Java async worker. */
+    void releaseCurrentThreadInterpreter() {
+        if (pythonInterpreterManager != null) {
+            pythonInterpreterManager.releaseCurrentThreadInterpreter();
+        }
     }
 
     @Override
