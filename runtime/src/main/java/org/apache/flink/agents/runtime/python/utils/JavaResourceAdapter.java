@@ -30,7 +30,6 @@ import org.apache.flink.agents.api.tools.ToolResponse;
 import org.apache.flink.agents.api.vectorstores.Document;
 import org.apache.flink.agents.plan.tools.FunctionTool;
 import org.apache.flink.agents.plan.tools.ToolMetadataFactory;
-import pemja.core.PythonInterpreter;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -44,7 +43,7 @@ public class JavaResourceAdapter {
 
     private final ResourceContext resourceContext;
 
-    private final transient PythonInterpreter interpreter;
+    private final transient PythonInterpreterManager interpreterManager;
 
     /**
      * Class loader used to resolve Java tool methods declared by name. Captured at construction
@@ -56,10 +55,10 @@ public class JavaResourceAdapter {
 
     public JavaResourceAdapter(
             ResourceContext resourceContext,
-            PythonInterpreter interpreter,
+            PythonInterpreterManager interpreterManager,
             ClassLoader userCodeClassLoader) {
         this.resourceContext = resourceContext;
-        this.interpreter = interpreter;
+        this.interpreterManager = interpreterManager;
         this.userCodeClassLoader = userCodeClassLoader;
     }
 
@@ -100,12 +99,12 @@ public class JavaResourceAdapter {
     public ChatMessage fromPythonChatMessage(Object pythonChatMessage) {
         // TODO: Delete this method after the pemja findClass method is fixed.
         ChatMessage chatMessage = new ChatMessage();
-        if (interpreter == null) {
-            throw new IllegalStateException("Python interpreter is not set.");
+        if (interpreterManager == null) {
+            throw new IllegalStateException("Python interpreter manager is not set.");
         }
         String roleValue =
                 (String)
-                        interpreter.invoke(
+                        interpreterManager.invoke(
                                 "python_java_utils.update_java_chat_message",
                                 pythonChatMessage,
                                 chatMessage);

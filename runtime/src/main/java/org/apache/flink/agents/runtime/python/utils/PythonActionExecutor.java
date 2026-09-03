@@ -31,7 +31,6 @@ import org.apache.flink.agents.runtime.python.context.PythonRunnerContextImpl;
 import org.apache.flink.agents.runtime.python.resource.PythonRuntimeResource;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.ExceptionUtils;
-import pemja.core.PythonInterpreter;
 import pemja.core.object.PyObject;
 
 import java.io.IOException;
@@ -44,11 +43,6 @@ import static org.apache.flink.util.Preconditions.checkState;
 
 /** Execute the corresponding Python action in the agent. */
 public class PythonActionExecutor implements AutoCloseable {
-
-    private static final String PYTHON_IMPORTS =
-            "from flink_agents.plan import function\n"
-                    + "from flink_agents.runtime import flink_runner_context\n"
-                    + "from flink_agents.runtime import python_java_utils";
 
     // =========== RUNNER CONTEXT ===========
     private static final String CREATE_FLINK_RUNNER_CONTEXT =
@@ -87,6 +81,7 @@ public class PythonActionExecutor implements AutoCloseable {
 
     // =========== PYTHON AWAITABLE ===========
     private static final String CALL_PYTHON_AWAITABLE = "function.call_python_awaitable";
+    private static final String CALL_PYTHON_FUNCTION = "function.call_python_function";
     private static final String PYTHON_AWAITABLE_VAR_NAME_PREFIX = "python_awaitable_";
     private static final AtomicLong PYTHON_AWAITABLE_VAR_ID = new AtomicLong(0);
 
@@ -101,7 +96,7 @@ public class PythonActionExecutor implements AutoCloseable {
     private static final String GET_OUTPUT_FROM_OUTPUT_EVENT =
             "python_java_utils.get_output_from_output_event";
 
-    private final PythonInterpreter interpreter;
+    private final PythonInterpreterManager interpreterManager;
     private final AgentPlan agentPlan;
     private final PythonRunnerContextImpl runnerContext;
     private final JavaResourceAdapter javaResourceAdapter;
@@ -110,13 +105,13 @@ public class PythonActionExecutor implements AutoCloseable {
     private PyObject pythonRunnerContext;
 
     public PythonActionExecutor(
-            PythonInterpreter interpreter,
+            PythonInterpreterManager interpreterManager,
             AgentPlan agentPlan,
             JavaResourceAdapter javaResourceAdapter,
             PythonRunnerContextImpl runnerContext,
             String jobIdentifier)
             throws JsonProcessingException {
-        this.interpreter = interpreter;
+        this.interpreterManager = interpreterManager;
         this.agentPlan = agentPlan;
         this.runnerContext = runnerContext;
         this.javaResourceAdapter = javaResourceAdapter;
@@ -136,7 +131,7 @@ public class PythonActionExecutor implements AutoCloseable {
     @SuppressWarnings("unchecked")
     public Map<String, Resource> eagerMaterialize(ResourceType type) {
         Object pythonResources =
-                interpreter.invoke(EAGER_MATERIALIZE, pythonRunnerContext, type.getValue());
+                interpreterManager.invoke(EAGER_MATERIALIZE, pythonRunnerContext, type.getValue());
         if (pythonResources == null) {
             return Collections.emptyMap();
         }
@@ -158,68 +153,66 @@ public class PythonActionExecutor implements AutoCloseable {
      */
     public boolean addTaskLifecycleListener(PyObject pythonListener) {
         Object registered =
-                interpreter.invoke(
+                interpreterManager.invoke(
                         ADD_TASK_LIFECYCLE_LISTENER, pythonRunnerContext, pythonListener);
         return Boolean.TRUE.equals(registered);
     }
 
     /** Forwards {@code onRecordStart} to the Python runtime lifecycle listeners. */
     public void notifyRecordStart(Object key) {
-        interpreter.invoke(NOTIFY_RECORD_START, pythonRunnerContext, key);
+        interpreterManager.invoke(NOTIFY_RECORD_START, pythonRunnerContext, key);
     }
 
     /** Forwards {@code onActionPrepared} to the Python runtime lifecycle listeners. */
     public void notifyActionPrepared(ActionTask task) {
-        interpreter.invoke(NOTIFY_ACTION_PREPARED, pythonRunnerContext, task);
+        interpreterManager.invoke(NOTIFY_ACTION_PREPARED, pythonRunnerContext, task);
     }
 
     /** Forwards {@code onActionStarted} to the Python runtime lifecycle listeners. */
     public void notifyActionStarted(ActionTask task) {
-        interpreter.invoke(NOTIFY_ACTION_STARTED, pythonRunnerContext, task);
+        interpreterManager.invoke(NOTIFY_ACTION_STARTED, pythonRunnerContext, task);
     }
 
     /** Forwards {@code onActionTransferred} to the Python runtime lifecycle listeners. */
     public void notifyActionTransferred(ActionTask fromTask, ActionTask toTask) {
-        interpreter.invoke(NOTIFY_ACTION_TRANSFERRED, pythonRunnerContext, fromTask, toTask);
+        interpreterManager.invoke(NOTIFY_ACTION_TRANSFERRED, pythonRunnerContext, fromTask, toTask);
     }
 
     /** Forwards {@code onActionFinishing} to the Python runtime lifecycle listeners. */
     public void notifyActionFinishing(ActionTask task) {
-        interpreter.invoke(NOTIFY_ACTION_FINISHING, pythonRunnerContext, task);
+        interpreterManager.invoke(NOTIFY_ACTION_FINISHING, pythonRunnerContext, task);
     }
 
     /** Forwards {@code onActionFinished} to the Python runtime lifecycle listeners. */
     public void notifyActionFinished(ActionTask task) {
-        interpreter.invoke(NOTIFY_ACTION_FINISHED, pythonRunnerContext, task);
+        interpreterManager.invoke(NOTIFY_ACTION_FINISHED, pythonRunnerContext, task);
     }
 
     /** Forwards {@code onActionReused} to the Python runtime lifecycle listeners. */
     public void notifyActionReused(ActionTask task) {
-        interpreter.invoke(NOTIFY_ACTION_REUSED, pythonRunnerContext, task);
+        interpreterManager.invoke(NOTIFY_ACTION_REUSED, pythonRunnerContext, task);
     }
 
     /** Forwards {@code onActionFailed} to the Python runtime lifecycle listeners. */
     public void notifyActionFailed(ActionTask task, Throwable error) {
-        interpreter.invoke(NOTIFY_ACTION_FAILED, pythonRunnerContext, task, error);
+        interpreterManager.invoke(NOTIFY_ACTION_FAILED, pythonRunnerContext, task, error);
     }
 
     /** Forwards {@code onRecordFinished} to the Python runtime lifecycle listeners. */
     public void notifyRecordFinished(Object key) {
-        interpreter.invoke(NOTIFY_RECORD_FINISHED, pythonRunnerContext, key);
+        interpreterManager.invoke(NOTIFY_RECORD_FINISHED, pythonRunnerContext, key);
     }
 
     public void open() throws Exception {
-        interpreter.exec(PYTHON_IMPORTS);
-
         pythonAsyncThreadPool =
                 (PyObject)
-                        interpreter.invoke(
+                        interpreterManager.invoke(
                                 CREATE_ASYNC_THREAD_POOL,
                                 agentPlan.getConfig().get(AgentExecutionOptions.NUM_ASYNC_THREADS));
 
         pythonRunnerContext =
                 (PyObject)
-                        interpreter.invoke(
+                        interpreterManager.invoke(
                                 CREATE_FLINK_RUNNER_CONTEXT,
                                 runnerContext,
                                 new ObjectMapper().writeValueAsString(agentPlan),
@@ -240,23 +233,42 @@ public class PythonActionExecutor implements AutoCloseable {
      */
     public String executePythonFunction(PythonFunction function, Event event) throws Exception {
         runnerContext.checkNoPendingEvents();
-        function.setInterpreter(interpreter);
-
         String eventJson = new ObjectMapper().writeValueAsString(event);
-        try (PyObject pythonEventObject =
-                        (PyObject) interpreter.invoke(CONVERT_JSON_TO_PYTHON_EVENT, eventJson);
-                PyObject calledResult =
-                        (PyObject) function.call(pythonEventObject, pythonRunnerContext)) {
-            if (calledResult == null) {
-                return null;
-            } else {
-                // must be a coroutine (awaitable)
-                String pythonAwaitableRef =
-                        PYTHON_AWAITABLE_VAR_NAME_PREFIX
-                                + PYTHON_AWAITABLE_VAR_ID.incrementAndGet();
-                interpreter.set(pythonAwaitableRef, calledResult);
-                return pythonAwaitableRef;
-            }
+        try {
+            return interpreterManager.withInterpreter(
+                    interpreter -> {
+                        try (PythonObjectScope scope = new PythonObjectScope()) {
+                            PyObject pythonEventObject =
+                                    scope.own(
+                                            (PyObject)
+                                                    interpreter.invoke(
+                                                            CONVERT_JSON_TO_PYTHON_EVENT,
+                                                            eventJson));
+                            PyObject calledResult =
+                                    scope.own(
+                                            (PyObject)
+                                                    interpreter.invoke(
+                                                            CALL_PYTHON_FUNCTION,
+                                                            function.getModule(),
+                                                            function.getQualName(),
+                                                            new Object[] {
+                                                                pythonEventObject,
+                                                                pythonRunnerContext
+                                                            }));
+                            if (calledResult == null) {
+                                return null;
+                            }
+
+                            // The result must be a coroutine (awaitable). Keep conversion,
+                            // invocation, reference retention, and temporary reference cleanup on
+                            // the same thread-confined interpreter.
+                            String pythonAwaitableRef =
+                                    PYTHON_AWAITABLE_VAR_NAME_PREFIX
+                                            + PYTHON_AWAITABLE_VAR_ID.incrementAndGet();
+                            interpreter.set(pythonAwaitableRef, calledResult);
+                            return pythonAwaitableRef;
+                        }
+                    });
         } catch (Exception e) {
             runnerContext.drainEvents(null);
             throw new PythonActionExecutionException("Failed to execute Python action", e);
@@ -266,7 +278,7 @@ public class PythonActionExecutor implements AutoCloseable {
     public Event wrapToInputEvent(Object eventData) throws IOException {
         checkState(eventData instanceof byte[]);
         // wrap_to_input_event returns a JSON string
-        Object result = interpreter.invoke(WRAP_TO_INPUT_EVENT, eventData);
+        Object result = interpreterManager.invoke(WRAP_TO_INPUT_EVENT, eventData);
         checkState(result instanceof String);
         return Event.fromJson((String) result);
     }
@@ -281,14 +293,14 @@ public class PythonActionExecutor implements AutoCloseable {
             String keySerialization =
                     pythonKeyIsPickled ? PICKLED_KEY_SERIALIZATION : EXPLICIT_KEY_SERIALIZATION;
             return (String)
-                    interpreter.invoke(
+                    interpreterManager.invoke(
                             CONVERT_TO_PYTHON_KEY_TEXT, (byte[]) logicalKey, keySerialization);
         }
         return String.valueOf(logicalKey);
     }
 
     public Object getOutputFromOutputEvent(String eventJson) {
-        return interpreter.invoke(GET_OUTPUT_FROM_OUTPUT_EVENT, eventJson);
+        return interpreterManager.invoke(GET_OUTPUT_FROM_OUTPUT_EVENT, eventJson);
     }
 
     /**
@@ -302,23 +314,33 @@ public class PythonActionExecutor implements AutoCloseable {
      * @return true if the awaitable has completed; false otherwise
      */
     public boolean callPythonAwaitable(String pythonAwaitableRef) {
-        try (PythonObjectScope scope = new PythonObjectScope()) {
-            PyObject pythonAwaitable = scope.own((PyObject) interpreter.get(pythonAwaitableRef));
-            checkState(
-                    pythonAwaitable != null,
-                    "Python awaitable '%s' not found in interpreter.",
-                    pythonAwaitableRef);
-            // Actions communicate through Events, so this caller consumes only the completion flag.
-            Object invokeResult =
-                    scope.own(interpreter.invoke(CALL_PYTHON_AWAITABLE, pythonAwaitable));
-            checkState(invokeResult instanceof Object[] && ((Object[]) invokeResult).length == 2);
-            Object[] result = (Object[]) invokeResult;
-            boolean finished = (boolean) result[0];
-            if (finished) {
-                interpreter.exec("del " + pythonAwaitableRef);
-            }
-            return finished;
-        }
+        // Calling awaitable.send(None) in Python returns a tuple of (finished, output).
+        return interpreterManager.withInterpreter(
+                interpreter -> {
+                    try (PythonObjectScope scope = new PythonObjectScope()) {
+                        PyObject pythonAwaitable =
+                                scope.own((PyObject) interpreter.get(pythonAwaitableRef));
+                        checkState(
+                                pythonAwaitable != null,
+                                "Python awaitable '%s' not found in interpreter.",
+                                pythonAwaitableRef);
+                        // Actions communicate through Events, so this caller consumes only the
+                        // completion flag.
+                        Object invokeResult =
+                                scope.own(
+                                        interpreter.invoke(
+                                                CALL_PYTHON_AWAITABLE, pythonAwaitable));
+                        checkState(
+                                invokeResult instanceof Object[]
+                                        && ((Object[]) invokeResult).length == 2);
+                        Object[] result = (Object[]) invokeResult;
+                        boolean finished = (boolean) result[0];
+                        if (finished) {
+                            interpreter.exec("del " + pythonAwaitableRef);
+                        }
+                        return finished;
+                    }
+                });
     }
 
     @Override
@@ -328,7 +350,7 @@ public class PythonActionExecutor implements AutoCloseable {
         // resource cache unreleased, and PythonBridgeManager closes the interpreter right behind
         // us, so there is no later chance to run it. The first failure is rethrown with the later
         // one suppressed, matching the ladders in the managers above.
-        if (interpreter == null) {
+        if (interpreterManager == null) {
             return;
         }
 
@@ -359,7 +381,7 @@ public class PythonActionExecutor implements AutoCloseable {
     private void closePythonObject(String closeFunction, PyObject pythonObject) throws Exception {
         if (pythonObject != null) {
             try (pythonObject) {
-                interpreter.invoke(closeFunction, pythonObject);
+                interpreterManager.invoke(closeFunction, pythonObject);
             }
         }
     }
