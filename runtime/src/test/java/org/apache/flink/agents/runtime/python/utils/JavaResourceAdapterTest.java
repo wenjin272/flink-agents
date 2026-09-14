@@ -79,7 +79,7 @@ public class JavaResourceAdapterTest {
     @Test
     void invokeJavaToolPreservesSuccessResponseForPythonCaller() throws Exception {
         JavaResourceAdapter adapter =
-                new JavaResourceAdapter(null, null, Thread.currentThread().getContextClassLoader());
+                new JavaResourceAdapter(null, Thread.currentThread().getContextClassLoader());
 
         Map<String, Object> result =
                 adapter.invokeJavaTool(
@@ -105,7 +105,7 @@ public class JavaResourceAdapterTest {
     @Test
     void invokeJavaToolPreservesErrorResponseForPythonCaller() throws Exception {
         JavaResourceAdapter adapter =
-                new JavaResourceAdapter(null, null, Thread.currentThread().getContextClassLoader());
+                new JavaResourceAdapter(null, Thread.currentThread().getContextClassLoader());
 
         Map<String, Object> result =
                 adapter.invokeJavaTool(

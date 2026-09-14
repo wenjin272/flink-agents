@@ -328,8 +328,7 @@ public class PythonActionExecutor implements AutoCloseable {
                         // completion flag.
                         Object invokeResult =
                                 scope.own(
-                                        interpreter.invoke(
-                                                CALL_PYTHON_AWAITABLE, pythonAwaitable));
+                                        interpreter.invoke(CALL_PYTHON_AWAITABLE, pythonAwaitable));
                         checkState(
                                 invokeResult instanceof Object[]
                                         && ((Object[]) invokeResult).length == 2);

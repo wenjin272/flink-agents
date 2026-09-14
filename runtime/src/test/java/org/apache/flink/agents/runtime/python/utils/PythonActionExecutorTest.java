@@ -363,10 +363,12 @@ class PythonActionExecutorTest {
         assertThat(pythonAwaitableRef)
                 .isEqualTo(refCaptor.getValue())
                 .startsWith("python_awaitable_");
-        InOrder closeOrder = inOrder(interpreter, pythonAwaitable, pythonEvent);
-        closeOrder.verify(interpreter).set(pythonAwaitableRef, pythonAwaitable);
-        closeOrder.verify(pythonAwaitable).close();
-        closeOrder.verify(pythonEvent).close();
+        InOrder awaitableCloseOrder = inOrder(interpreter, pythonAwaitable);
+        awaitableCloseOrder.verify(interpreter).set(pythonAwaitableRef, pythonAwaitable);
+        awaitableCloseOrder.verify(pythonAwaitable).close();
+        InOrder eventCloseOrder = inOrder(interpreter, pythonEvent);
+        eventCloseOrder.verify(interpreter).set(pythonAwaitableRef, pythonAwaitable);
+        eventCloseOrder.verify(pythonEvent).close();
     }
 
     @Test
