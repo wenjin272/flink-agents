@@ -15,45 +15,22 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-
-try:
-    import dotenv
-
-    dotenv.load_dotenv()
-except ImportError:
-    # dotenv is optional for this test server
-    pass
-
-from mcp.server.fastmcp import FastMCP
-
-# Create MCP server
-mcp = FastMCP("BasicServer")
+from flink_agents.api.tools import ToolResponse
 
 
-@mcp.prompt()
-def ask_sum(a: int, b: int) -> str:
-    """Prompt of add tool."""
-    return f"Can you please calculate the sum of {a} and {b}?"
+def test_tool_response_represents_success() -> None:
+    response = ToolResponse.success({"answer": 42}, tool_name="calculator")
+
+    assert response.is_success()
+    assert not response.is_error()
+    assert response.result == {"answer": 42}
+    assert str(response) == "{'answer': 42}"
 
 
-@mcp.tool()
-async def add(a: int, b: int) -> int:
-    """Get the detailed information of a specified IP address.
+def test_tool_response_represents_failure() -> None:
+    response = ToolResponse.error("not found", tool_name="lookup")
 
-    Args:
-        a: The first operand.
-        b: The second operand.
-
-    Returns:
-        int: The sum of a and b.
-    """
-    return a + b
-
-
-@mcp.tool()
-async def fail_with_recovery_hint(query: str) -> str:
-    """Return a protocol-level tool error with a model-facing recovery hint."""
-    raise ValueError(f"retry with a narrower query than '{query}'")
-
-
-mcp.run("streamable-http")
+    assert response.is_error()
+    assert not response.is_success()
+    assert response.error_message == "not found"
+    assert str(response) == "not found"
