@@ -41,6 +41,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class PythonCollectionManageableVectorStoreTest {
@@ -157,7 +158,9 @@ public class PythonCollectionManageableVectorStoreTest {
 
         vectorStore.deleteCollection(collectionName);
 
-        verify(mockVectorStore).invokeMethod("delete_collection", collectionName);
+        verify(mockAdapter)
+                .callMethod(mockVectorStore, "delete_collection", Map.of("name", collectionName));
+        verifyNoInteractions(mockVectorStore);
     }
 
     @Test
