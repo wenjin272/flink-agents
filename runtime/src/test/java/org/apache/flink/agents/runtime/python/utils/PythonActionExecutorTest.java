@@ -18,6 +18,7 @@
 package org.apache.flink.agents.runtime.python.utils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.agents.AgentExecutionOptions;
 import org.apache.flink.agents.plan.AgentPlan;
@@ -34,11 +35,14 @@ import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
@@ -63,6 +67,65 @@ class PythonActionExecutorTest {
     private static final String CONVERT_JSON_TO_PYTHON_EVENT =
             "python_java_utils.convert_json_to_python_event";
     private static final String CALL_PYTHON_AWAITABLE = "function.call_python_awaitable";
+    private static final String CALL_PYTHON_FUNCTION = "function.call_python_function";
+
+    @Test
+    void keepsActionConversionInvocationAndAwaitableOnCallingThreadsInterpreter() throws Exception {
+        PythonInterpreter owner = mock(PythonInterpreter.class);
+        PythonInterpreter worker = mock(PythonInterpreter.class);
+        PythonInterpreterManager manager =
+                new PythonInterpreterManager(owner, () -> worker, ignored -> {});
+        PythonRunnerContextImpl runnerContext = mock(PythonRunnerContextImpl.class);
+        PyObject pythonRunnerContext = mock(PyObject.class);
+        PyObject pythonEvent = mock(PyObject.class);
+        PyObject createdAwaitable = mock(PyObject.class);
+        PyObject retrievedAwaitable = mock(PyObject.class);
+        PythonFunction function = new PythonFunction("test_module", "test_action");
+        Event event = new Event("test_event");
+        String eventJson = new ObjectMapper().writeValueAsString(event);
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        AtomicReference<String> awaitableRef = new AtomicReference<>();
+
+        when(worker.invoke("python_java_utils.convert_json_to_python_event", eventJson))
+                .thenReturn(pythonEvent);
+        when(worker.invoke(
+                        "function.call_python_function",
+                        "test_module",
+                        "test_action",
+                        new Object[] {pythonEvent, pythonRunnerContext}))
+                .thenReturn(createdAwaitable);
+        when(worker.get(org.mockito.ArgumentMatchers.anyString())).thenReturn(retrievedAwaitable);
+        when(worker.invoke("function.call_python_awaitable", retrievedAwaitable))
+                .thenReturn(new Object[] {false, null});
+
+        PythonActionExecutor actionExecutor =
+                new PythonActionExecutor(manager, null, null, runnerContext, "test-job");
+        setField(actionExecutor, "pythonRunnerContext", pythonRunnerContext);
+        try {
+            boolean finished =
+                    executorService
+                            .submit(
+                                    () -> {
+                                        String ref =
+                                                actionExecutor.executePythonFunction(
+                                                        function, event);
+                                        awaitableRef.set(ref);
+                                        return actionExecutor.callPythonAwaitable(ref);
+                                    })
+                            .get(5, TimeUnit.SECONDS);
+
+            assertThat(finished).isFalse();
+            assertThat(awaitableRef.get()).startsWith("python_awaitable_");
+            verify(worker).set(awaitableRef.get(), createdAwaitable);
+            verify(pythonEvent).close();
+            verify(createdAwaitable).close();
+            verify(retrievedAwaitable).close();
+            verifyNoInteractions(owner);
+        } finally {
+            executorService.shutdownNow();
+            manager.close();
+        }
+    }
 
     @Test
     void resolvesPickledPythonKeyTextFromPyFlinkKeyRow() throws Exception {
@@ -260,15 +323,19 @@ class PythonActionExecutorTest {
         PythonInterpreter interpreter = mock(PythonInterpreter.class);
         PythonRunnerContextImpl runnerContext = mock(PythonRunnerContextImpl.class);
         PythonActionExecutor executor = newExecutor(interpreter, runnerContext);
-        PythonFunction function = mock(PythonFunction.class);
+        PythonFunction function = new PythonFunction("test_module", "test_action");
         PyObject pythonEvent = mock(PyObject.class);
         when(interpreter.invoke(same(CONVERT_JSON_TO_PYTHON_EVENT), anyString()))
                 .thenReturn(pythonEvent);
-        when(function.call(same(pythonEvent), isNull())).thenReturn(null);
+        when(interpreter.invoke(
+                        CALL_PYTHON_FUNCTION,
+                        "test_module",
+                        "test_action",
+                        new Object[] {pythonEvent, null}))
+                .thenReturn(null);
 
         assertThat(executor.executePythonFunction(function, new InputEvent(1L))).isNull();
 
-        verify(function).setInterpreter(interpreter);
         verify(pythonEvent).close();
     }
 
@@ -277,12 +344,17 @@ class PythonActionExecutorTest {
         PythonInterpreter interpreter = mock(PythonInterpreter.class);
         PythonRunnerContextImpl runnerContext = mock(PythonRunnerContextImpl.class);
         PythonActionExecutor executor = newExecutor(interpreter, runnerContext);
-        PythonFunction function = mock(PythonFunction.class);
+        PythonFunction function = new PythonFunction("test_module", "test_action");
         PyObject pythonEvent = mock(PyObject.class);
         PyObject pythonAwaitable = mock(PyObject.class);
         when(interpreter.invoke(same(CONVERT_JSON_TO_PYTHON_EVENT), anyString()))
                 .thenReturn(pythonEvent);
-        when(function.call(same(pythonEvent), isNull())).thenReturn(pythonAwaitable);
+        when(interpreter.invoke(
+                        CALL_PYTHON_FUNCTION,
+                        "test_module",
+                        "test_action",
+                        new Object[] {pythonEvent, null}))
+                .thenReturn(pythonAwaitable);
 
         String pythonAwaitableRef = executor.executePythonFunction(function, new InputEvent(1L));
 
@@ -291,10 +363,12 @@ class PythonActionExecutorTest {
         assertThat(pythonAwaitableRef)
                 .isEqualTo(refCaptor.getValue())
                 .startsWith("python_awaitable_");
-        InOrder closeOrder = inOrder(interpreter, pythonAwaitable, pythonEvent);
-        closeOrder.verify(interpreter).set(pythonAwaitableRef, pythonAwaitable);
-        closeOrder.verify(pythonAwaitable).close();
-        closeOrder.verify(pythonEvent).close();
+        InOrder awaitableCloseOrder = inOrder(interpreter, pythonAwaitable);
+        awaitableCloseOrder.verify(interpreter).set(pythonAwaitableRef, pythonAwaitable);
+        awaitableCloseOrder.verify(pythonAwaitable).close();
+        InOrder eventCloseOrder = inOrder(interpreter, pythonEvent);
+        eventCloseOrder.verify(interpreter).set(pythonAwaitableRef, pythonAwaitable);
+        eventCloseOrder.verify(pythonEvent).close();
     }
 
     @Test
@@ -343,7 +417,8 @@ class PythonActionExecutorTest {
 
     private static PythonActionExecutor newExecutor(
             PythonInterpreter interpreter, PythonRunnerContextImpl runnerContext) throws Exception {
-        return new PythonActionExecutor(interpreter, null, null, runnerContext, "test-job");
+        return new PythonActionExecutor(
+                newInterpreterManager(interpreter), null, null, runnerContext, "test-job");
     }
 
     private static TestFixture createOpenedExecutor() throws Exception {
@@ -371,9 +446,22 @@ class PythonActionExecutorTest {
 
         PythonActionExecutor executor =
                 new PythonActionExecutor(
-                        interpreter, plan, resourceAdapter, runnerContext, jobIdentifier);
+                        newInterpreterManager(interpreter),
+                        plan,
+                        resourceAdapter,
+                        runnerContext,
+                        jobIdentifier);
         executor.open();
         return new TestFixture(interpreter, asyncThreadPool, runnerContextObject, executor);
+    }
+
+    private static PythonInterpreterManager newInterpreterManager(PythonInterpreter interpreter) {
+        return new PythonInterpreterManager(
+                interpreter,
+                () -> {
+                    throw new AssertionError("unexpected worker interpreter");
+                },
+                ignored -> {});
     }
 
     private static final class TestFixture {
