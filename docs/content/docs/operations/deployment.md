@@ -116,6 +116,10 @@ The business-key component stored in the backend is a SHA-256 digest rather than
 
 See [Action State Store Configuration]({{< ref "docs/operations/configuration#action-state-store" >}}) for configuration options.
 
+{{< hint warning >}}
+**Note**: Enabling Kafka action-state tombstones can invalidate checkpoints or savepoints older than the prune and cause completed actions to execute again. See [Action State Store Configuration]({{< ref "docs/operations/configuration#action-state-store" >}}) for the recovery trade-off.
+{{< /hint >}}
+
 {{< hint info >}}
 **Note**: Exactly-once action consistency is guaranteed only if, after recovering from the same checkpoint, inputs for each key arrive in the same order as before recovery. If this ordering requirement is not met, the system falls back to exactly-once output consistency.
 {{< /hint >}}
