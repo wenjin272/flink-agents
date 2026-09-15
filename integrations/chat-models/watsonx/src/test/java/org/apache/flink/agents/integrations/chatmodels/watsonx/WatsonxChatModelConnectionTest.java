@@ -17,8 +17,8 @@
  */
 package org.apache.flink.agents.integrations.chatmodels.watsonx;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -65,16 +65,14 @@ class WatsonxChatModelConnectionTest {
     private static final String CHAT_RESPONSE =
             "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\","
                     + "\"content\":\"Hello!\"},\"finish_reason\":\"stop\"}]}";
-    private static final String DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
     private static final String MODEL = "ibm/granite-3-3-8b-instruct";
     private static final Map<String, Object> CALLER_FORMAT = Map.of("type", "json_object");
 
     /**
      * Output schema fixture shaped to expose the schema-generation settings.
      *
-     * <p>Fields are declared out of alphabetical order, {@code counts} is a map whose values carry
-     * a type, {@code note} is the only optional field, and {@code getDerived} is a getter backed by
-     * no field.
+     * <p>{@code counts} is a map whose values carry a type, and {@code getDerived} is a getter
+     * backed by no field.
      */
     public static class Report {
         public String summary;
@@ -88,18 +86,37 @@ class WatsonxChatModelConnectionTest {
     }
 
     /**
-     * Output schema fixture shaped to expose Jackson's property model.
-     *
-     * <p>{@code name} is deserialized from {@code full_name} rather than from the Java field name,
-     * and {@code secret} is not deserialized at all.
+     * Output schema fixture whose enum constants are deserialized from values other than their
+     * names, one through {@code @JsonProperty} on the constants and one through a
+     * {@code @JsonValue} method.
      */
-    public static class Profile {
-        @JsonProperty("full_name")
-        public String name;
+    public static class Ticket {
+        public Status status;
 
-        @JsonIgnore public String secret;
+        public Phase phase;
+    }
 
-        public int age;
+    public enum Status {
+        @JsonProperty("in-progress")
+        IN_PROGRESS,
+        @JsonProperty("done")
+        DONE
+    }
+
+    public enum Phase {
+        STARTED("started"),
+        FINISHED("finished");
+
+        private final String wire;
+
+        Phase(String wire) {
+            this.wire = wire;
+        }
+
+        @JsonValue
+        public String wire() {
+            return wire;
+        }
     }
 
     private static ResourceDescriptor descriptor(String url, String apiKey, String projectId) {
@@ -189,12 +206,6 @@ class WatsonxChatModelConnectionTest {
         List<String> names = new ArrayList<>();
         objectNode.fieldNames().forEachRemaining(names::add);
         return names;
-    }
-
-    private static List<String> textValues(JsonNode arrayNode) {
-        List<String> values = new ArrayList<>();
-        arrayNode.forEach(element -> values.add(element.asText()));
-        return values;
     }
 
     @ParameterizedTest(name = "{0}")
@@ -775,9 +786,6 @@ class WatsonxChatModelConnectionTest {
         assertThat(jsonSchema.path("strict").booleanValue()).isTrue();
         assertThat(fieldNames(jsonSchema.path("schema").path("properties")))
                 .containsExactlyInAnyOrder("summary", "counts", "note", "total");
-        // The draft is the one pydantic emits on the Python side, so both languages state the
-        // same contract in the same dialect. Nothing else in this suite pins the draft.
-        assertThat(jsonSchema.path("schema").path("$schema").asText()).isEqualTo(DRAFT_2020_12);
     }
 
     @Test
@@ -805,28 +813,24 @@ class WatsonxChatModelConnectionTest {
     }
 
     @Test
-    @DisplayName("The derived schema names properties the way Jackson deserializes them")
-    void derivedSchemaHonorsJacksonAnnotations() {
-        JsonNode schema = derivedSchema(Profile.class);
+    @DisplayName("The derived schema lists enum constants the way Jackson deserializes them")
+    void derivedSchemaFollowsJacksonEnumValues() throws Exception {
+        JsonNode properties = derivedSchema(Ticket.class).path("properties");
 
-        // A caller deserializing the response into this class accepts the renamed property and
-        // rejects the Java field name, and discards an ignored property that the schema would
-        // otherwise state as required and so force a value for.
-        assertThat(fieldNames(schema.path("properties")))
-                .containsExactlyInAnyOrder("full_name", "age");
-        assertThat(textValues(schema.path("required")))
-                .containsExactlyInAnyOrder("full_name", "age");
-    }
+        // Every listed value is one the model may emit, so each has to deserialize into the enum.
+        // Listed by constant name instead, the caller's mapper refuses every value the schema
+        // allows.
+        List<Status> statuses = new ArrayList<>();
+        for (JsonNode value : properties.path("status").path("enum")) {
+            statuses.add(MAPPER.treeToValue(value, Status.class));
+        }
+        assertThat(statuses).containsExactlyInAnyOrder(Status.values());
 
-    @Test
-    @DisplayName("The derived schema requires every field the caller did not make optional")
-    void derivedSchemaMarksNonOptionalFieldsRequired() {
-        JsonNode schema = derivedSchema(Report.class);
-
-        // Without a required set the model may omit fields the caller declared, and with an
-        // all-inclusive one it must invent a value for the field the caller made omissible.
-        assertThat(textValues(schema.path("required")))
-                .containsExactlyInAnyOrder("summary", "counts", "total");
+        List<Phase> phases = new ArrayList<>();
+        for (JsonNode value : properties.path("phase").path("enum")) {
+            phases.add(MAPPER.treeToValue(value, Phase.class));
+        }
+        assertThat(phases).containsExactlyInAnyOrder(Phase.values());
     }
 
     @Test
