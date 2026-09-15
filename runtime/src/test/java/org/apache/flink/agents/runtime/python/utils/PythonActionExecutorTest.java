@@ -18,24 +18,33 @@
 package org.apache.flink.agents.runtime.python.utils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.agents.AgentExecutionOptions;
 import org.apache.flink.agents.plan.AgentPlan;
+import org.apache.flink.agents.plan.PythonFunction;
 import org.apache.flink.agents.runtime.python.context.PythonRunnerContextImpl;
 import org.apache.flink.types.Row;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import pemja.core.PythonInterpreter;
 import pemja.core.object.PyObject;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -51,6 +60,9 @@ class PythonActionExecutorTest {
             "flink_runner_context.create_flink_runner_context";
     private static final String CLOSE_FLINK_RUNNER_CONTEXT =
             "flink_runner_context.close_flink_runner_context";
+    private static final String CONVERT_JSON_TO_PYTHON_EVENT =
+            "python_java_utils.convert_json_to_python_event";
+    private static final String CALL_PYTHON_AWAITABLE = "function.call_python_awaitable";
 
     @Test
     void resolvesPickledPythonKeyTextFromPyFlinkKeyRow() throws Exception {
@@ -243,9 +255,95 @@ class PythonActionExecutorTest {
                 fixture.interpreter, fixture.asyncThreadPool, fixture.runnerContextObject);
     }
 
+    @Test
+    void closesPythonEventAfterSynchronousAction() throws Exception {
+        PythonInterpreter interpreter = mock(PythonInterpreter.class);
+        PythonRunnerContextImpl runnerContext = mock(PythonRunnerContextImpl.class);
+        PythonActionExecutor executor = newExecutor(interpreter, runnerContext);
+        PythonFunction function = mock(PythonFunction.class);
+        PyObject pythonEvent = mock(PyObject.class);
+        when(interpreter.invoke(same(CONVERT_JSON_TO_PYTHON_EVENT), anyString()))
+                .thenReturn(pythonEvent);
+        when(function.call(same(pythonEvent), isNull())).thenReturn(null);
+
+        assertThat(executor.executePythonFunction(function, new InputEvent(1L))).isNull();
+
+        verify(function).setInterpreter(interpreter);
+        verify(pythonEvent).close();
+    }
+
+    @Test
+    void closesTemporaryWrappersAfterStoringAwaitable() throws Exception {
+        PythonInterpreter interpreter = mock(PythonInterpreter.class);
+        PythonRunnerContextImpl runnerContext = mock(PythonRunnerContextImpl.class);
+        PythonActionExecutor executor = newExecutor(interpreter, runnerContext);
+        PythonFunction function = mock(PythonFunction.class);
+        PyObject pythonEvent = mock(PyObject.class);
+        PyObject pythonAwaitable = mock(PyObject.class);
+        when(interpreter.invoke(same(CONVERT_JSON_TO_PYTHON_EVENT), anyString()))
+                .thenReturn(pythonEvent);
+        when(function.call(same(pythonEvent), isNull())).thenReturn(pythonAwaitable);
+
+        String pythonAwaitableRef = executor.executePythonFunction(function, new InputEvent(1L));
+
+        ArgumentCaptor<String> refCaptor = ArgumentCaptor.forClass(String.class);
+        verify(interpreter).set(refCaptor.capture(), same(pythonAwaitable));
+        assertThat(pythonAwaitableRef)
+                .isEqualTo(refCaptor.getValue())
+                .startsWith("python_awaitable_");
+        InOrder closeOrder = inOrder(interpreter, pythonAwaitable, pythonEvent);
+        closeOrder.verify(interpreter).set(pythonAwaitableRef, pythonAwaitable);
+        closeOrder.verify(pythonAwaitable).close();
+        closeOrder.verify(pythonEvent).close();
+    }
+
+    @Test
+    void closesRetrievedAwaitableWhileItIsPending() throws Exception {
+        PythonInterpreter interpreter = mock(PythonInterpreter.class);
+        PythonActionExecutor executor = newExecutor(interpreter);
+        PyObject pythonAwaitable = mock(PyObject.class);
+        PyObject yieldedValue = mock(PyObject.class);
+        String pythonAwaitableRef = "python_awaitable_1";
+        when(interpreter.get(pythonAwaitableRef)).thenReturn(pythonAwaitable);
+        when(interpreter.invoke(CALL_PYTHON_AWAITABLE, pythonAwaitable))
+                .thenReturn(
+                        new Object[] {false, Map.of("items", List.of(yieldedValue, yieldedValue))});
+
+        assertThat(executor.callPythonAwaitable(pythonAwaitableRef)).isFalse();
+
+        verify(pythonAwaitable).close();
+        verify(yieldedValue).close();
+        verify(interpreter, never()).exec(anyString());
+    }
+
+    @Test
+    void deletesCompletedAwaitableAndClosesRetrievedWrapper() throws Exception {
+        PythonInterpreter interpreter = mock(PythonInterpreter.class);
+        PythonActionExecutor executor = newExecutor(interpreter);
+        PyObject pythonAwaitable = mock(PyObject.class);
+        PyObject returnedValue = mock(PyObject.class);
+        String pythonAwaitableRef = "python_awaitable_1";
+        when(interpreter.get(pythonAwaitableRef)).thenReturn(pythonAwaitable);
+        when(interpreter.invoke(CALL_PYTHON_AWAITABLE, pythonAwaitable))
+                .thenReturn(new Object[] {true, new Object[] {returnedValue}});
+
+        assertThat(executor.callPythonAwaitable(pythonAwaitableRef)).isTrue();
+
+        InOrder interpreterOrder = inOrder(interpreter);
+        interpreterOrder.verify(interpreter).invoke(CALL_PYTHON_AWAITABLE, pythonAwaitable);
+        interpreterOrder.verify(interpreter).exec("del " + pythonAwaitableRef);
+        verify(returnedValue).close();
+        verify(pythonAwaitable).close();
+    }
+
     private static PythonActionExecutor newExecutor(PythonInterpreter interpreter)
             throws Exception {
-        return new PythonActionExecutor(interpreter, null, null, null, "test-job");
+        return newExecutor(interpreter, null);
+    }
+
+    private static PythonActionExecutor newExecutor(
+            PythonInterpreter interpreter, PythonRunnerContextImpl runnerContext) throws Exception {
+        return new PythonActionExecutor(interpreter, null, null, runnerContext, "test-job");
     }
 
     private static TestFixture createOpenedExecutor() throws Exception {

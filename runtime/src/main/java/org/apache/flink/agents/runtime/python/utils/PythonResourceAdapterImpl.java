@@ -24,6 +24,7 @@ import org.apache.flink.agents.api.prompt.Prompt;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceContext;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.resource.python.PythonObjectScope;
 import org.apache.flink.agents.api.resource.python.PythonResourceAdapter;
 import org.apache.flink.agents.api.resource.python.PythonResourceWrapper;
 import org.apache.flink.agents.api.tools.Tool;
@@ -194,9 +195,13 @@ public class PythonResourceAdapterImpl implements PythonResourceAdapter, AutoClo
     @Override
     public VectorStoreQueryResult fromPythonVectorStoreQueryResult(
             PyObject pythonVectorStoreQueryResult) {
-        List<PyObject> pythonDocuments =
-                (List<PyObject>) pythonVectorStoreQueryResult.getAttr("documents", List.class);
-        return new VectorStoreQueryResult(fromPythonDocuments(pythonDocuments));
+        try (PythonObjectScope scope = new PythonObjectScope()) {
+            List<PyObject> pythonDocuments =
+                    scope.own(
+                            (List<PyObject>)
+                                    pythonVectorStoreQueryResult.getAttr("documents", List.class));
+            return new VectorStoreQueryResult(fromPythonDocuments(pythonDocuments));
+        }
     }
 
     @Override
