@@ -27,7 +27,7 @@ from flink_agents.api.events.event import Event
 from flink_agents.api.events.tool_event import ToolRequestEvent, ToolResponseEvent
 from flink_agents.api.memory_object import MemoryObject
 from flink_agents.api.resource import ResourceType
-from flink_agents.api.runner_context import DurableCall, Outcome, RunnerContext
+from flink_agents.api.runner_context import Outcome, RunnerContext
 from flink_agents.api.tools import ToolExecutionMetadataProvider, ToolResponse
 from flink_agents.api.tools.tool_parameter_injection import (
     InjectedArg,
@@ -102,7 +102,9 @@ class _ToolCallOccurrence:
 class _ToolCallExecution:
     id: str
     name: str
-    durable_call: DurableCall
+    func: Any
+    args: tuple[Any, ...]
+    kwargs: dict[str, Any]
     entity_metadata: dict[str, Any]
     occurrence: _ToolCallOccurrence
 
@@ -219,10 +221,9 @@ def _build_tool_call_executions(
             _ToolCallExecution(
                 id=call_id,
                 name=name,
-                durable_call=DurableCall(
-                    func=occurrence.wrap(tool.call),
-                    kwargs=call_kwargs,
-                ),
+                func=occurrence.wrap(tool.call),
+                args=(),
+                kwargs=call_kwargs,
                 entity_metadata=entity_metadata,
                 occurrence=occurrence,
             )
@@ -240,9 +241,13 @@ async def _execute_parallel(
     outcomes: list[Outcome] = []
     result_observed_at = None
     try:
-        outcomes = await ctx.durable_execute_all_async(
-            [execution.durable_call for execution in executions]
-        )
+        futures = [
+            ctx.durable_execute_async(
+                execution.func, *execution.args, **execution.kwargs
+            )
+            for execution in executions
+        ]
+        outcomes = await ctx.gather(*futures)
         result_observed_at = datetime.now(timezone.utc)
         for execution, outcome in zip(executions, outcomes, strict=True):
             _record_outcome(execution, outcome, responses, success, error)
@@ -274,18 +279,17 @@ async def _execute_sequentially(
         outcome = None
         result_observed_at = None
         try:
-            call = execution.durable_call
             if tool_call_async:
                 response = await ctx.durable_execute_async(
-                    call.func,
-                    *call.args,
-                    **(call.kwargs or {}),
+                    execution.func,
+                    *execution.args,
+                    **execution.kwargs,
                 )
             else:
                 response = ctx.durable_execute(
-                    call.func,
-                    *call.args,
-                    **(call.kwargs or {}),
+                    execution.func,
+                    *execution.args,
+                    **execution.kwargs,
                 )
             result_observed_at = datetime.now(timezone.utc)
             outcome = Outcome.success(response)

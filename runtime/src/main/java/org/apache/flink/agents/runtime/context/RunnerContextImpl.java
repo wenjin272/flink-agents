@@ -25,6 +25,7 @@ import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.EventContext;
 import org.apache.flink.agents.api.configuration.ReadableConfiguration;
 import org.apache.flink.agents.api.context.DurableCallable;
+import org.apache.flink.agents.api.context.DurableFuture;
 import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.MemoryUpdate;
 import org.apache.flink.agents.api.context.Outcome;
@@ -561,15 +562,27 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
     }
 
     @Override
-    public <T> T durableExecuteAsync(DurableCallable<T> callable) throws Exception {
+    public <T> DurableFuture<T> durableExecuteAsync(DurableCallable<T> callable) {
+        return new SingleDurableFuture<>(this, Preconditions.checkNotNull(callable));
+    }
+
+    @Override
+    public <T> DurableFuture<List<Outcome<T>>> gather(List<? extends DurableFuture<T>> futures) {
+        return new GatherDurableFuture<>(this, futures);
+    }
+
+    /**
+     * Resolves one deferred durable call. Java contexts override this with Continuation support.
+     */
+    protected <T> T resolveDurableAsync(DurableCallable<T> callable) throws Exception {
         LOG.debug(
                 "Async durable execution is not supported in RunnerContextImpl; falling back to durableExecute for {}",
                 callable.getId());
         return durableExecute(callable);
     }
 
-    @Override
-    public <T> List<Outcome<T>> durableExecuteAllAsync(List<DurableCallable<T>> callables)
+    /** Resolves a durable batch. Java contexts override this with Continuation support. */
+    protected <T> List<Outcome<T>> resolveDurableBatch(List<DurableCallable<T>> callables)
             throws Exception {
         List<Outcome<T>> outcomes = new ArrayList<>(callables.size());
         for (DurableCallable<T> callable : callables) {

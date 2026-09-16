@@ -131,29 +131,29 @@ public class TaskLifecycleListenerNotificationTest {
             Long input = (Long) InputEvent.fromEvent(event).getInput();
             Long result =
                     context.durableExecuteAsync(
-                            new DurableCallable<Long>() {
-                                @Override
-                                public String getId() {
-                                    return "lifecycle-notification";
-                                }
+                                    new DurableCallable<Long>() {
+                                        @Override
+                                        public String getId() {
+                                            return "lifecycle-notification";
+                                        }
 
-                                @Override
-                                public Class<Long> getResultClass() {
-                                    return Long.class;
-                                }
+                                        @Override
+                                        public Class<Long> getResultClass() {
+                                            return Long.class;
+                                        }
 
-                                @Override
-                                public Long call() {
-                                    try {
-                                        // Force the action to yield before the call completes,
-                                        // so the task is suspended and transferred.
-                                        Thread.sleep(50);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                    }
-                                    return input * 2;
-                                }
-                            });
+                                        @Override
+                                        public Long call() {
+                                            try {
+                                                // Force the action to yield, suspend, and transfer.
+                                                Thread.sleep(50);
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
+                                            }
+                                            return input * 2;
+                                        }
+                                    })
+                            .await();
             context.sendEvent(new OutputEvent(result));
         }
     }

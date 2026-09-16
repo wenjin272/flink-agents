@@ -176,7 +176,7 @@ public final class ChatModelInvoker {
                 try {
                     response =
                             chatAsync
-                                    ? ctx.durableExecuteAsync(callable)
+                                    ? ctx.durableExecuteAsync(callable).await()
                                     : ctx.durableExecute(callable);
                     Objects.requireNonNull(response, "ChatModel returned a null response.");
                 } catch (Throwable modelError) {
