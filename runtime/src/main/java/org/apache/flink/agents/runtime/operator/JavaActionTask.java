@@ -22,7 +22,9 @@ import org.apache.flink.agents.api.trace.ExecutionTraceContext;
 import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.runtime.context.JavaRunnerContextImpl;
+import org.apache.flink.agents.runtime.memory.EventAttachmentUtils;
 import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 
 import java.util.Collections;
 
@@ -39,7 +41,10 @@ import static org.apache.flink.util.Preconditions.checkState;
  */
 public class JavaActionTask extends ActionTask {
 
-    private boolean executionStarted = false;
+    /** Event passed to the action, copied when attachment references need resolution. */
+    private transient Event invocationEvent;
+
+    private transient TypeSerializer<Event> eventSerializer;
 
     public JavaActionTask(Object key, Event event, Action action, long sequenceNumber) {
         super(key, event, action, sequenceNumber);
@@ -56,6 +61,10 @@ public class JavaActionTask extends ActionTask {
         checkState(action.getExec() instanceof JavaFunction);
     }
 
+    void setEventSerializer(TypeSerializer<Event> eventSerializer) {
+        this.eventSerializer = eventSerializer;
+    }
+
     @Override
     public ActionTaskResult invoke(ClassLoader userCodeClassLoader, PythonActionExecutor executor)
             throws Exception {
@@ -65,12 +74,15 @@ public class JavaActionTask extends ActionTask {
                 event,
                 key);
 
-        if (!executionStarted) {
+        if (invocationEvent == null) {
             runnerContext.checkNoPendingEvents();
-            executionStarted = true;
+            invocationEvent =
+                    EventAttachmentUtils.loadEventAttachments(
+                            event, runnerContext, eventSerializer);
         }
 
         JavaRunnerContextImpl javaRunnerContext = (JavaRunnerContextImpl) runnerContext;
+        Event actionEvent = invocationEvent;
 
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         boolean finished;
@@ -83,7 +95,7 @@ public class JavaActionTask extends ActionTask {
                                     javaRunnerContext.getContinuationContext(),
                                     () -> {
                                         try {
-                                            action.getExec().call(event, runnerContext);
+                                            action.getExec().call(actionEvent, runnerContext);
                                         } catch (Exception e) {
                                             throw new RuntimeException(e);
                                         }

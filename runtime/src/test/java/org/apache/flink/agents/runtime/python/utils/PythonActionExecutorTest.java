@@ -128,6 +128,42 @@ class PythonActionExecutorTest {
     }
 
     @Test
+    void loadsEventAttachmentsBeforeCallingPythonFunction() throws Exception {
+        PythonInterpreter interpreter = mock(PythonInterpreter.class);
+        PythonActionExecutor executor =
+                newExecutor(interpreter, mock(PythonRunnerContextImpl.class));
+        PythonFunction function = new PythonFunction("test_module", "test_action");
+        PyObject runnerContext = mock(PyObject.class);
+        PyObject pythonEvent = mock(PyObject.class);
+        setField(executor, "pythonRunnerContext", runnerContext);
+        when(interpreter.invoke(same(CONVERT_JSON_TO_PYTHON_EVENT), anyString()))
+                .thenReturn(pythonEvent);
+        when(interpreter.invoke(
+                        CALL_PYTHON_FUNCTION,
+                        "test_module",
+                        "test_action",
+                        new Object[] {pythonEvent, runnerContext}))
+                .thenReturn(null);
+
+        executor.executePythonFunction(function, new Event("test-event"));
+
+        InOrder invocationOrder = inOrder(interpreter);
+        invocationOrder
+                .verify(interpreter)
+                .invoke(
+                        "python_java_utils.load_event_attachments_for_action",
+                        pythonEvent,
+                        runnerContext);
+        invocationOrder
+                .verify(interpreter)
+                .invoke(
+                        CALL_PYTHON_FUNCTION,
+                        "test_module",
+                        "test_action",
+                        new Object[] {pythonEvent, runnerContext});
+    }
+
+    @Test
     void resolvesPickledPythonKeyTextFromPyFlinkKeyRow() throws Exception {
         PythonInterpreter interpreter = mock(PythonInterpreter.class);
         PythonActionExecutor executor = newExecutor(interpreter);

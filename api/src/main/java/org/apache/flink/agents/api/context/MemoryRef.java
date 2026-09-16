@@ -17,16 +17,37 @@
  */
 package org.apache.flink.agents.api.context;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+
+import java.io.IOException;
 import java.io.Serializable;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
- * A serializable, persistent reference to a specific data item in Short-Term Memory. It acts as a
- * lightweight pointer, containing the path of the data, allowing for efficient passing of large
- * objects between Actions.
+ * A serializable, persistent reference to a specific data item in a {@link MemoryObject}. It acts
+ * as a lightweight pointer, containing the path of the data, allowing for efficient passing of
+ * large objects between Actions.
  */
+@JsonSerialize(using = MemoryRef.Serializer.class)
+@JsonDeserialize(using = MemoryRef.Deserializer.class)
 public final class MemoryRef implements Serializable {
     private static final long serialVersionUID = 1L;
+
+    public static final String TYPE_FIELD = "@type";
+    public static final String TYPE_VALUE = "memory_ref";
+    public static final String MEMORY_TYPE_FIELD = "memory_type";
+    public static final String PATH_FIELD = "path";
 
     private final MemoryObject.MemoryType type;
     private final String path;
@@ -39,7 +60,7 @@ public final class MemoryRef implements Serializable {
     /**
      * Creates a new MemoryRef instance with the given path.
      *
-     * @param path The absolute path of the data in Short-Term Memory.
+     * @param path The absolute path of the data in memory.
      * @return A new MemoryRef instance.
      */
     public static MemoryRef create(MemoryObject.MemoryType type, String path) {
@@ -49,7 +70,7 @@ public final class MemoryRef implements Serializable {
     /**
      * Resolves the reference using the provided RunnerContext to get the actual data.
      *
-     * @param ctx The current execution context, used to access Short-Term Memory.
+     * @param ctx The current execution context, used to access memory.
      * @return The deserialized, original data object.
      * @throws Exception if the memory cannot be accessed or the data cannot be resolved.
      */
@@ -65,6 +86,55 @@ public final class MemoryRef implements Serializable {
 
     public String getPath() {
         return path;
+    }
+
+    public MemoryObject.MemoryType getType() {
+        return type;
+    }
+
+    /** Serializes a {@link MemoryRef} to JSON. */
+    public static final class Serializer extends StdSerializer<MemoryRef> {
+
+        public Serializer() {
+            super(MemoryRef.class);
+        }
+
+        @Override
+        public void serialize(MemoryRef value, JsonGenerator generator, SerializerProvider provider)
+                throws IOException {
+            Map<String, String> serialized = new LinkedHashMap<>();
+            serialized.put(TYPE_FIELD, TYPE_VALUE);
+            serialized.put(MEMORY_TYPE_FIELD, value.getType().name().toLowerCase(Locale.ROOT));
+            serialized.put(PATH_FIELD, value.getPath());
+            generator.writeObject(serialized);
+        }
+    }
+
+    /** Deserializes a {@link MemoryRef} from JSON. */
+    public static final class Deserializer extends StdDeserializer<MemoryRef> {
+
+        public Deserializer() {
+            super(MemoryRef.class);
+        }
+
+        @Override
+        public MemoryRef deserialize(JsonParser parser, DeserializationContext context)
+                throws IOException {
+            JsonNode node = parser.getCodec().readTree(parser);
+            JsonNode typeNode = node.get(MEMORY_TYPE_FIELD);
+            JsonNode pathNode = node.get(PATH_FIELD);
+            if (typeNode == null || typeNode.isNull() || pathNode == null || pathNode.isNull()) {
+                throw new IllegalArgumentException(
+                        "MemoryRef JSON must contain non-null '"
+                                + MEMORY_TYPE_FIELD
+                                + "' and '"
+                                + PATH_FIELD
+                                + "' fields.");
+            }
+            MemoryObject.MemoryType memoryType =
+                    MemoryObject.MemoryType.valueOf(typeNode.asText().toUpperCase(Locale.ROOT));
+            return create(memoryType, pathNode.asText());
+        }
     }
 
     @Override
