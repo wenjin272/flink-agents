@@ -17,6 +17,7 @@
  */
 package org.apache.flink.agents.resource.test;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.EventType;
@@ -72,6 +73,8 @@ public class Mem0LongTermMemoryAgent extends Agent {
     private static final String DEFAULT_BASE_URL = "https://coding.dashscope.aliyuncs.com/v1";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> RECORD_TYPE =
+            new TypeReference<Map<String, Object>>() {};
 
     public static final String MyEvent = "MyEvent";
 
@@ -213,10 +216,9 @@ public class Mem0LongTermMemoryAgent extends Agent {
         ctx.sendEvent(new Event(MyEvent, Map.of("value", record)));
     }
 
-    @SuppressWarnings("unchecked")
     @Action(MyEvent)
     public static void retrieveItems(Event event, RunnerContext ctx) throws Exception {
-        Map<String, Object> record = (Map<String, Object>) event.getAttr("value");
+        Map<String, Object> record = MAPPER.convertValue(event.getAttr("value"), RECORD_TYPE);
         record.put("timestamp_second_action", Instant.now().toString());
 
         MemorySet memorySet = ctx.getLongTermMemory().getMemorySet(MEMORY_SET_NAME);
