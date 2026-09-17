@@ -61,6 +61,7 @@ import org.apache.flink.agents.runtime.eventlog.EventLogWriter;
 import org.apache.flink.agents.runtime.eventlog.FileEventLogger;
 import org.apache.flink.agents.runtime.eventlog.Slf4jEventLogger;
 import org.apache.flink.agents.runtime.memory.Mem0LongTermMemory;
+import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
 import org.apache.flink.api.common.serialization.SerializerConfigImpl;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.base.LongSerializer;
@@ -225,6 +226,29 @@ public class ActionExecutionOperatorTest {
                     (List<StreamRecord<Object>>) testHarness.getRecordOutput();
             assertThat(recordOutput).hasSize(1);
             assertThat(recordOutput.get(0).getValue()).isEqualTo(Map.of("value", 1L));
+        }
+    }
+
+    @Test
+    void contextKeyResolutionFailureMarksInputEventFailed() throws Exception {
+        try (KeyedOneInputStreamOperatorTestHarness<FailingContextKey, Long, Object> testHarness =
+                new KeyedOneInputStreamOperatorTestHarness<>(
+                        new ActionExecutionOperatorFactory(TestAgent.getAgentPlan(false), true),
+                        (KeySelector<Long, FailingContextKey>) value -> FailingContextKey.INSTANCE,
+                        TypeInformation.of(FailingContextKey.class))) {
+            testHarness.open();
+            ActionExecutionOperator<Long, Object> operator =
+                    (ActionExecutionOperator<Long, Object>) testHarness.getOperator();
+
+            assertThatThrownBy(() -> testHarness.processElement(new StreamRecord<>(1L)))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("context key conversion failed");
+
+            Field metricGroupField = ActionExecutionOperator.class.getDeclaredField("metricGroup");
+            metricGroupField.setAccessible(true);
+            FlinkAgentsMetricGroupImpl metricGroup =
+                    (FlinkAgentsMetricGroupImpl) metricGroupField.get(operator);
+            assertThat(metricGroup.getCounter("numOfInputRunsFailed").getCount()).isEqualTo(1L);
         }
     }
 
@@ -547,7 +571,7 @@ public class ActionExecutionOperatorTest {
     }
 
     @Test
-    void testToolLinkageErrorEmitsFailedLifecycleBeforeActionFailure() throws Exception {
+    void testToolLinkageErrorReportsFailedExecutionAndPropagates() throws Exception {
         AgentPlan basePlan = TestAgent.getLinkageErrorToolAgentPlan();
         AgentPlan agentPlan =
                 new AgentPlan(
@@ -578,17 +602,37 @@ public class ActionExecutionOperatorTest {
                         ExecutionLifecycleEvents.EXECUTION_STARTED_EVENT_TYPE,
                         "linkageErrorTool",
                         ExecutionLifecycleEvents.STATUS_STARTED);
-        RecordedEvent failed =
+        RecordedEvent toolFailed =
                 findRecordedLifecycleEvent(
                         ExecutionLifecycleEvents.EXECUTION_FAILED_EVENT_TYPE,
                         "linkageErrorTool",
                         ExecutionLifecycleEvents.STATUS_FAILED);
+        RecordedEvent actionFailed =
+                findRecordedLifecycleEvent(
+                        ExecutionLifecycleEvents.EXECUTION_FAILED_EVENT_TYPE,
+                        "tool_call_action",
+                        ExecutionLifecycleEvents.STATUS_FAILED);
         assertThat(started.traceContext().getEntityType())
                 .isEqualTo(ExecutionReporter.EntityTypes.TOOL);
-        assertThat(failed.traceContext().getExecutionId())
+        assertThat(toolFailed.traceContext().getExecutionId())
                 .isEqualTo(started.traceContext().getExecutionId());
-        assertThat(failed.event.getAttr("errorType"))
+        assertThat(actionFailed.traceContext().getExecutionId())
+                .isEqualTo(started.traceContext().getParentExecutionId());
+        assertThat(toolFailed.event.getAttr("errorType"))
                 .isEqualTo(NoClassDefFoundError.class.getName());
+        assertThat(actionFailed.event.getAttr("errorType"))
+                .isEqualTo(NoClassDefFoundError.class.getName());
+        assertThat(RecordingEventLogger.events())
+                .filteredOn(
+                        record ->
+                                started.traceContext()
+                                        .getExecutionId()
+                                        .equals(record.traceContext().getExecutionId()))
+                .extracting(record -> record.event.getType())
+                .containsExactly(
+                        ExecutionLifecycleEvents.EXECUTION_CREATED_EVENT_TYPE,
+                        ExecutionLifecycleEvents.EXECUTION_STARTED_EVENT_TYPE,
+                        ExecutionLifecycleEvents.EXECUTION_FAILED_EVENT_TYPE);
     }
 
     @Test
@@ -1519,6 +1563,23 @@ public class ActionExecutionOperatorTest {
                                             .isEqualTo(
                                                     ExecutionLifecycleEvents
                                                             .EXECUTION_STARTED_EVENT_TYPE));
+
+            Field metricGroupField = ActionExecutionOperator.class.getDeclaredField("metricGroup");
+            metricGroupField.setAccessible(true);
+            FlinkAgentsMetricGroupImpl metricGroup =
+                    (FlinkAgentsMetricGroupImpl) metricGroupField.get(operator);
+            assertThat(
+                            metricGroup
+                                    .getSubGroup("action", "action1")
+                                    .getHistogram("actionExecutionLatencyMs")
+                                    .getCount())
+                    .isEqualTo(1L);
+            assertThat(
+                            metricGroup
+                                    .getSubGroup("action", "action2")
+                                    .getHistogram("actionExecutionLatencyMs")
+                                    .getCount())
+                    .isEqualTo(1L);
         }
 
         assertThat(RecordingEventLogger.closeCount()).isEqualTo(1);
@@ -3975,6 +4036,15 @@ public class ActionExecutionOperatorTest {
 
         private Map<String, byte[]> getCompletedStateBytes() {
             return completedStateBytes;
+        }
+    }
+
+    private enum FailingContextKey {
+        INSTANCE;
+
+        @Override
+        public String toString() {
+            throw new IllegalStateException("context key conversion failed");
         }
     }
 

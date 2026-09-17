@@ -16,8 +16,13 @@
 # limitations under the License.
 #################################################################################
 import asyncio
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from flink_agents.api.core_options import AgentExecutionOptions
 from flink_agents.api.events.tool_event import ToolRequestEvent, ToolResponseEvent
@@ -36,6 +41,7 @@ from flink_agents.api.trace import (
     ExecutionReporter,
     ToolExecutionMetadataKeys,
 )
+from flink_agents.plan.actions import tool_call_action
 from flink_agents.plan.actions.tool_call_action import process_tool_request
 from flink_agents.plan.configuration import AgentConfiguration
 from flink_agents.plan.function import PythonFunction
@@ -369,6 +375,507 @@ def test_tool_call_action_uses_parallel_batch_for_multiple_tools() -> None:
     assert ctx.durable_execute_async_calls == []
 
 
+def test_parallel_tool_calls_report_independent_occurrences() -> None:
+    config = AgentConfiguration({"tenant_id": "tenant-1"})
+    config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, True)
+    config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 4)
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+
+    def call_tool(**kwargs: Any) -> str | ToolResponse:
+        query = kwargs["query"]
+        if query == "call-2":
+            message = "call-2 failed"
+            raise RuntimeError(message)
+        if query == "call-3":
+            return ToolResponse.error("call-3 rejected")
+        return "ok"
+
+    tool.call = MagicMock(side_effect=call_tool)
+    ctx = MagicMock(spec=ExecutionReporter)
+    ctx.config = config
+    ctx.get_resource = MagicMock(return_value=tool)
+    sent_events = []
+    ctx.send_event = MagicMock(side_effect=sent_events.append)
+
+    async def execute_all(callables: list[Any]) -> list[Outcome]:
+        outcomes = []
+        for durable_call in callables:
+            try:
+                outcomes.append(
+                    Outcome.success(
+                        durable_call.func(
+                            *durable_call.args, **(durable_call.kwargs or {})
+                        )
+                    )
+                )
+            except Exception as error:  # noqa: PERF203
+                outcomes.append(Outcome.failure(error))
+        return outcomes
+
+    ctx.durable_execute_all_async = execute_all
+
+    request = ToolRequestEvent(
+        model="model-a",
+        tool_calls=[
+            {
+                "id": call_id,
+                "function": {
+                    "name": "search",
+                    "arguments": {"query": call_id},
+                },
+            }
+            for call_id in ("call-1", "call-2", "call-3")
+        ],
+    )
+
+    asyncio.run(process_tool_request(request, ctx))
+
+    assert ctx.report_execution_created.call_count == 3
+    assert ctx.report_execution_started_at.call_count == 3
+    assert ctx.report_execution_succeeded_at.call_count == 1
+    assert ctx.report_execution_failed_at.call_count == 2
+    terminal_call_ids = {
+        report.args[2][ToolExecutionMetadataKeys.TOOL_CALL_ID]
+        for report in (
+            ctx.report_execution_succeeded_at.call_args_list
+            + ctx.report_execution_failed_at.call_args_list
+        )
+    }
+    assert terminal_call_ids == {"call-1", "call-2", "call-3"}
+
+    response = ToolResponseEvent.from_event(sent_events[0])
+    assert response.success == {
+        "call-1": True,
+        "call-2": False,
+        "call-3": False,
+    }
+    assert response.error == {
+        "call-2": "call-2 failed",
+        "call-3": "call-3 rejected",
+    }
+
+
+def test_parallel_tool_calls_report_their_own_completion_timestamps() -> None:
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    first_finished_at = base + timedelta(milliseconds=20)
+    second_finished_at = base + timedelta(milliseconds=150)
+    clock = [base]
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+
+    def call_tool(**kwargs: Any) -> str:
+        clock[0] = (
+            first_finished_at if kwargs["query"] == "call-1" else second_finished_at
+        )
+        return "ok"
+
+    tool.call.side_effect = call_tool
+    ctx, _ = trace_context(tool)
+    ctx.config = AgentConfiguration({})
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, True)
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 2)
+
+    async def execute_all(callables: list[Any]) -> list[Outcome]:
+        clock[0] = base
+        first = callables[0].func(*callables[0].args, **(callables[0].kwargs or {}))
+        clock[0] = base + timedelta(milliseconds=100)
+        second = callables[1].func(*callables[1].args, **(callables[1].kwargs or {}))
+        return [Outcome.success(first), Outcome.success(second)]
+
+    ctx.durable_execute_all_async = execute_all
+    request = ToolRequestEvent(
+        model="model-a",
+        tool_calls=[
+            {
+                "id": call_id,
+                "function": {
+                    "name": "search",
+                    "arguments": {"query": call_id},
+                },
+            }
+            for call_id in ("call-1", "call-2")
+        ],
+    )
+
+    with patch.object(tool_call_action, "datetime") as datetime_mock:
+        datetime_mock.now.side_effect = lambda tz: clock[0]
+        asyncio.run(process_tool_request(request, ctx))
+
+    terminal_timestamps = {
+        call.args[2][ToolExecutionMetadataKeys.TOOL_CALL_ID]: call.args[-1]
+        for call in ctx.report_execution_succeeded_at.call_args_list
+    }
+    assert terminal_timestamps == {
+        "call-1": "2026-01-01T00:00:00.020000Z",
+        "call-2": "2026-01-01T00:00:00.150000Z",
+    }
+
+
+def test_response_processing_failure_does_not_repeat_occurrences() -> None:
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+    tool.call.return_value = "ok"
+    ctx, sent_events = trace_context(tool)
+    ctx.config = AgentConfiguration({})
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, True)
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 3)
+
+    async def execute_all(callables: list[Any]) -> list[Outcome]:
+        return [
+            Outcome.success(call.func(*call.args, **(call.kwargs or {})))
+            for call in callables
+        ]
+
+    ctx.durable_execute_all_async = execute_all
+    with patch(
+        "flink_agents.plan.actions.tool_call_action._record_outcome",
+        side_effect=[None, RuntimeError("response processing failed")],
+    ):
+        asyncio.run(process_tool_request(parallel_trace_request(), ctx))
+
+    assert_occurrence_reports(
+        ctx, ["call-1", "call-2", "call-3"], ["call-1", "call-2", "call-3"], []
+    )
+    assert sent_events[0].success == dict.fromkeys(
+        ["call-1", "call-2", "call-3"], False
+    )
+
+
+@pytest.mark.parametrize("mode", ["sync", "serial_async", "parallel"])
+def test_durable_failure_is_reported_as_tool_failure(mode: str) -> None:
+    failure = RuntimeError("persist failed")
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+    tool.call.return_value = "ok"
+    ctx, sent_events = trace_context(tool)
+    ctx.config = AgentConfiguration({})
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, mode != "sync")
+    ctx.config.set(
+        AgentExecutionOptions.TOOL_CALL_PARALLELISM, 3 if mode == "parallel" else 1
+    )
+
+    def execute(func: Any, **kwargs: Any) -> Any:
+        func(**kwargs)
+        raise failure
+
+    async def execute_async(func: Any, **kwargs: Any) -> Any:
+        return execute(func, **kwargs)
+
+    async def execute_all(callables: list[Any]) -> list[Outcome]:
+        outcomes = []
+        for call in callables:
+            result = call.func(*call.args, **(call.kwargs or {}))
+            outcomes.append(
+                Outcome.failure(failure)
+                if call.kwargs["query"] == "call-2"
+                else Outcome.success(result)
+            )
+        return outcomes
+
+    ctx.durable_execute = execute
+    ctx.durable_execute_async = execute_async
+    ctx.durable_execute_all_async = execute_all
+
+    asyncio.run(process_tool_request(parallel_trace_request(), ctx))
+
+    assert_occurrence_reports(
+        ctx,
+        ["call-1", "call-2", "call-3"],
+        ["call-1", "call-3"] if mode == "parallel" else [],
+        ["call-2"] if mode == "parallel" else ["call-1", "call-2", "call-3"],
+    )
+    assert all(
+        call.args[3] is failure
+        for call in ctx.report_execution_failed_at.call_args_list
+    )
+    assert sent_events[0].success["call-2"] is False
+    assert sent_events[0].error["call-2"] == "persist failed"
+
+
+def test_parallel_batch_failure_before_invocation_retains_created_executions() -> None:
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+    ctx, _ = trace_context(tool)
+    ctx.config = AgentConfiguration({})
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, True)
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 3)
+    failure_message = "batch failed before invocation"
+
+    async def execute_all(callables: list[Any]) -> list[Outcome]:
+        raise RuntimeError(failure_message)
+
+    ctx.durable_execute_all_async = execute_all
+
+    asyncio.run(process_tool_request(parallel_trace_request(), ctx))
+
+    created_call_ids = {
+        call.args[2][ToolExecutionMetadataKeys.TOOL_CALL_ID]
+        for call in ctx.report_execution_created.call_args_list
+    }
+    assert created_call_ids == {"call-1", "call-2", "call-3"}
+    ctx.report_execution_started_at.assert_not_called()
+    ctx.report_execution_succeeded_at.assert_not_called()
+    ctx.report_execution_failed_at.assert_not_called()
+    tool.call.assert_not_called()
+
+
+def test_timeout_reports_failure_without_repeating_on_late_completion() -> None:
+    failure = TimeoutError("request timed out")
+    started = threading.Event()
+    release = threading.Event()
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+
+    def call_tool(**kwargs: Any) -> str:
+        started.set()
+        assert release.wait(5)
+        return "ok"
+
+    tool.call.side_effect = call_tool
+    ctx, sent_events = trace_context(tool)
+    ctx.config = AgentConfiguration({})
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, True)
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 1)
+    worker = ThreadPoolExecutor(max_workers=1)
+    pending = []
+    reporting_started_at = []
+    ctx.report_execution_started_at.side_effect = (
+        lambda *args: reporting_started_at.append(datetime.now(timezone.utc))
+    )
+
+    async def execute_async(func: Any, **kwargs: Any) -> Any:
+        pending.append(worker.submit(func, **kwargs))
+        assert started.wait(5)
+        raise failure
+
+    ctx.durable_execute_async = execute_async
+    try:
+        asyncio.run(
+            process_tool_request(
+                ToolRequestEvent(model="model-a", tool_calls=[trace_tool_call()]), ctx
+            )
+        )
+        assert_occurrence_reports(ctx, ["call-1"], [], ["call-1"])
+        assert ctx.report_execution_failed_at.call_args.args[3] is failure
+        finished_at = ctx.report_execution_failed_at.call_args.args[-1]
+        assert (
+            datetime.fromisoformat(finished_at.replace("Z", "+00:00"))
+            <= (reporting_started_at[0])
+        )
+        assert sent_events[0].success["call-1"] is False
+    finally:
+        release.set()
+        worker.shutdown(wait=True)
+
+    assert pending[0].result() == "ok"
+    assert_occurrence_reports(ctx, ["call-1"], [], ["call-1"])
+
+
+@pytest.mark.parametrize("complete_during_reporting", [False, True])
+def test_parallel_timeout_timestamp_precedes_response_processing_and_reporting(
+    complete_during_reporting: bool,
+) -> None:
+    failure = TimeoutError("batch timed out")
+    release = threading.Event()
+    started = {call_id: threading.Event() for call_id in ("call-2", "call-3")}
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    clock = [base]
+    observed_at = base + timedelta(seconds=1)
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+
+    def call_tool(**kwargs: Any) -> str:
+        call_id = kwargs["query"]
+        if call_id != "call-1":
+            started[call_id].set()
+            assert release.wait(5)
+        return "ok"
+
+    tool.call.side_effect = call_tool
+    ctx, sent_events = trace_context(tool)
+    ctx.config = AgentConfiguration({})
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, True)
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 3)
+    pending = []
+    record_outcome = tool_call_action._record_outcome
+
+    def process_response(*args: Any) -> None:
+        clock[0] = base + timedelta(seconds=2)
+        record_outcome(*args)
+
+    def report_started(*args: Any) -> None:
+        clock[0] = base + timedelta(seconds=3)
+        if complete_during_reporting:
+            release.set()
+            for future in pending:
+                future.result(timeout=5)
+
+    ctx.report_execution_started_at.side_effect = report_started
+    with (
+        ThreadPoolExecutor(max_workers=2) as workers,
+        patch.object(tool_call_action, "datetime") as datetime_mock,
+        patch.object(tool_call_action, "_record_outcome", side_effect=process_response),
+    ):
+        datetime_mock.now.side_effect = lambda tz: clock[0]
+
+        async def execute_all(callables: list[Any]) -> list[Outcome]:
+            first = callables[0]
+            result = first.func(*first.args, **(first.kwargs or {}))
+            pending.extend(
+                workers.submit(call.func, *call.args, **(call.kwargs or {}))
+                for call in callables[1:]
+            )
+            assert all(event.wait(5) for event in started.values())
+            clock[0] = observed_at
+            return [
+                Outcome.success(result),
+                Outcome.failure(failure),
+                Outcome.failure(failure),
+            ]
+
+        ctx.durable_execute_all_async = execute_all
+        try:
+            asyncio.run(process_tool_request(parallel_trace_request(), ctx))
+            timestamps = [
+                call.args[-1] for call in ctx.report_execution_failed_at.call_args_list
+            ]
+            assert timestamps == ["2026-01-01T00:00:01Z"] * 2
+            assert sent_events[0].success == {
+                "call-1": True,
+                "call-2": False,
+                "call-3": False,
+            }
+        finally:
+            release.set()
+            for future in pending:
+                future.result(timeout=5)
+
+    assert_occurrence_reports(
+        ctx, ["call-1", "call-2", "call-3"], ["call-1"], ["call-2", "call-3"]
+    )
+
+
+@pytest.mark.parametrize("starts_after_observation", [False, True])
+def test_parallel_timeout_omits_starts_after_result_observation(
+    starts_after_observation: bool,
+) -> None:
+    failure = TimeoutError("batch timed out")
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    observed_at = base + timedelta(seconds=1)
+    delayed_start = (
+        observed_at + timedelta(seconds=1) if starts_after_observation else observed_at
+    )
+    clock = [base]
+    delayed = []
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+    tool.call.return_value = "ok"
+    ctx, sent_events = trace_context(tool)
+    ctx.config = AgentConfiguration({})
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, True)
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 3)
+
+    async def execute_all(callables: list[Any]) -> list[Outcome]:
+        first = callables[0]
+        result = first.func(*first.args, **(first.kwargs or {}))
+        delayed.extend(callables[1:])
+        clock[0] = observed_at
+        return [
+            Outcome.success(result),
+            Outcome.failure(failure),
+            Outcome.failure(failure),
+        ]
+
+    def report_started(*args: Any) -> None:
+        if args[2][ToolExecutionMetadataKeys.TOOL_CALL_ID] == "call-1":
+            # The delayed calls enter after the Action has observed the timeout.
+            clock[0] = delayed_start
+            for call in delayed:
+                call.func(*call.args, **(call.kwargs or {}))
+
+    ctx.durable_execute_all_async = execute_all
+    ctx.report_execution_started_at.side_effect = report_started
+    with patch.object(tool_call_action, "datetime") as datetime_mock:
+        datetime_mock.now.side_effect = lambda tz: clock[0]
+        asyncio.run(process_tool_request(parallel_trace_request(), ctx))
+
+    starts = ["call-1"] if starts_after_observation else ["call-1", "call-2", "call-3"]
+    assert_occurrence_reports(ctx, starts, ["call-1"], ["call-2", "call-3"])
+    assert tool.call.call_count == 3
+    assert all(
+        call.args[3] is failure and call.args[-1] == "2026-01-01T00:00:01Z"
+        for call in ctx.report_execution_failed_at.call_args_list
+    )
+    assert sent_events[0].success == {
+        "call-1": True,
+        "call-2": False,
+        "call-3": False,
+    }
+
+
+def test_partial_cache_replay_only_reports_start_for_invoked_tool() -> None:
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+    tool.call.return_value = "ok"
+    ctx, sent_events = trace_context(tool)
+    ctx.config = AgentConfiguration({})
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, True)
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 3)
+
+    async def execute_all(callables: list[Any]) -> list[Outcome]:
+        call = callables[1]
+        result = call.func(*call.args, **(call.kwargs or {}))
+        return [
+            Outcome.success("cached"),
+            Outcome.success(result),
+            Outcome.success("cached"),
+        ]
+
+    ctx.durable_execute_all_async = execute_all
+
+    asyncio.run(process_tool_request(parallel_trace_request(), ctx))
+
+    assert_occurrence_reports(ctx, ["call-2"], ["call-1", "call-2", "call-3"], [])
+    assert all(sent_events[0].success.values())
+    tool.call.assert_called_once()
+
+
+def parallel_trace_request() -> ToolRequestEvent:
+    return ToolRequestEvent(
+        model="model-a",
+        tool_calls=[
+            {
+                "id": call_id,
+                "function": {"name": "search", "arguments": {"query": call_id}},
+            }
+            for call_id in ("call-1", "call-2", "call-3")
+        ],
+    )
+
+
+def assert_occurrence_reports(
+    ctx: MagicMock, started: list[str], succeeded: list[str], failed: list[str]
+) -> None:
+    expected_created = set(started + succeeded + failed)
+    actual_created = {
+        call.args[2][ToolExecutionMetadataKeys.TOOL_CALL_ID]
+        for call in ctx.report_execution_created.call_args_list
+    }
+    assert ctx.report_execution_created.call_count == len(expected_created)
+    assert actual_created == expected_created
+    for method, expected in (
+        (ctx.report_execution_started_at, started),
+        (ctx.report_execution_succeeded_at, succeeded),
+        (ctx.report_execution_failed_at, failed),
+    ):
+        actual = [
+            call.args[2][ToolExecutionMetadataKeys.TOOL_CALL_ID]
+            for call in method.call_args_list
+        ]
+        assert sorted(actual) == sorted(expected)
+
+
 def test_tool_call_action_uses_serial_async_when_parallelism_is_one() -> None:
     config = AgentConfiguration({"tenant_id": "tenant-1"})
     config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, True)
@@ -539,13 +1046,19 @@ def test_tool_call_reports_started_and_succeeded() -> None:
         ToolExecutionMetadataKeys.EXTERNAL_ID: "external-call-1",
         ToolExecutionMetadataKeys.TOOL_TYPE: "function",
     }
-    ctx.report_execution_started.assert_called_once_with(
+    ctx.report_execution_created.assert_called_once_with(
         ExecutionEntityTypes.TOOL, "search", metadata
     )
-    ctx.report_execution_succeeded.assert_called_once_with(
-        ExecutionEntityTypes.TOOL, "search", metadata
+    ctx.report_execution_started_at.assert_called_once()
+    started_args = ctx.report_execution_started_at.call_args.args
+    assert started_args[:3] == (ExecutionEntityTypes.TOOL, "search", metadata)
+    ctx.report_execution_succeeded_at.assert_called_once()
+    succeeded_args = ctx.report_execution_succeeded_at.call_args.args
+    assert succeeded_args[:3] == (ExecutionEntityTypes.TOOL, "search", metadata)
+    assert datetime.fromisoformat(succeeded_args[3].replace("Z", "+00:00")) >= (
+        datetime.fromisoformat(started_args[3].replace("Z", "+00:00"))
     )
-    ctx.report_execution_failed.assert_not_called()
+    ctx.report_execution_failed_at.assert_not_called()
 
 
 def test_tool_call_reports_failed() -> None:
@@ -557,13 +1070,14 @@ def test_tool_call_reports_failed() -> None:
 
     asyncio.run(process_tool_request(request, ctx))
 
-    ctx.report_execution_failed.assert_called_once()
-    args = ctx.report_execution_failed.call_args.args
+    ctx.report_execution_failed_at.assert_called_once()
+    args = ctx.report_execution_failed_at.call_args.args
     assert args[0] == ExecutionEntityTypes.TOOL
     assert args[1] == "search"
     assert args[2][ToolExecutionMetadataKeys.TOOL_CALL_ID] == "call-1"
     assert isinstance(args[3], RuntimeError)
     assert args[4] == ExecutionProblemCategories.TOOL_CALL_FAILED
+    assert datetime.fromisoformat(args[5].replace("Z", "+00:00"))
 
 
 def test_tool_call_reports_explicit_tool_response_failure() -> None:
@@ -579,8 +1093,8 @@ def test_tool_call_reports_explicit_tool_response_failure() -> None:
     assert response.responses["call-1"] == "business failure"
     assert response.success["call-1"] is False
     assert response.error["call-1"] == "business failure"
-    ctx.report_execution_failed.assert_called_once()
-    ctx.report_execution_succeeded.assert_not_called()
+    ctx.report_execution_failed_at.assert_called_once()
+    ctx.report_execution_succeeded_at.assert_not_called()
 
 
 def test_tool_call_preserves_empty_tool_response_error() -> None:
@@ -596,6 +1110,32 @@ def test_tool_call_preserves_empty_tool_response_error() -> None:
     assert response.responses["call-1"] == ""
     assert response.success["call-1"] is False
     assert response.error["call-1"] == ""
+
+
+def test_missing_tool_reports_creation_and_failure_without_start() -> None:
+    ctx = MagicMock(spec=ExecutionReporter)
+    ctx.config = AgentConfiguration({})
+    ctx.config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, False)
+    ctx.get_resource = MagicMock(side_effect=ValueError("Tool does not exist."))
+    ctx.send_event = MagicMock()
+
+    asyncio.run(
+        process_tool_request(
+            ToolRequestEvent(model="model-a", tool_calls=[trace_tool_call()]), ctx
+        )
+    )
+
+    created_metadata = ctx.report_execution_created.call_args.args[2]
+    ctx.report_execution_created.assert_called_once_with(
+        ExecutionEntityTypes.TOOL, "search", created_metadata
+    )
+    assert created_metadata[ToolExecutionMetadataKeys.TOOL_CALL_ID] == "call-1"
+    assert ctx.report_execution_failed.call_args.args[:3] == (
+        ExecutionEntityTypes.TOOL,
+        "search",
+        created_metadata,
+    )
+    ctx.report_execution_started_at.assert_not_called()
 
 
 def test_tool_call_includes_provider_metadata() -> None:
@@ -618,8 +1158,58 @@ def test_tool_call_includes_provider_metadata() -> None:
 
     asyncio.run(process_tool_request(request, ctx))
 
-    metadata = ctx.report_execution_started.call_args.args[2]
+    metadata = ctx.report_execution_started_at.call_args.args[2]
     assert metadata[ToolExecutionMetadataKeys.MCP_SERVER] == "search_server"
+
+
+def test_tool_call_reports_registered_skill_metadata() -> None:
+    class SkillTool(ToolExecutionMetadataProvider):
+        @staticmethod
+        def tool_type() -> ToolType:
+            return ToolType.FUNCTION
+
+        @staticmethod
+        def call(**kwargs: object) -> str:
+            return "skill content"
+
+        def get_tool_execution_metadata(
+            self, parameters: dict[str, object]
+        ) -> dict[str, object]:
+            return {
+                ToolExecutionMetadataKeys.SKILL_NAME: "calculator",
+                ToolExecutionMetadataKeys.SKILL_REGISTERED: True,
+            }
+
+    ctx, _ = trace_context(SkillTool())
+
+    asyncio.run(
+        process_tool_request(
+            ToolRequestEvent(model="model-a", tool_calls=[trace_tool_call()]), ctx
+        )
+    )
+
+    metadata = ctx.report_execution_started_at.call_args.args[2]
+    assert metadata[ToolExecutionMetadataKeys.SKILL_NAME] == "calculator"
+    assert metadata[ToolExecutionMetadataKeys.SKILL_REGISTERED] is True
+
+
+def test_durable_cache_hit_does_not_record_tool_call_latency() -> None:
+    tool = MagicMock()
+    tool.tool_type.return_value = ToolType.FUNCTION
+    tool.call = MagicMock(return_value="uncached")
+    ctx, _ = trace_context(tool)
+    ctx.durable_execute = MagicMock(return_value="cached")
+
+    asyncio.run(
+        process_tool_request(
+            ToolRequestEvent(model="model-a", tool_calls=[trace_tool_call()]), ctx
+        )
+    )
+
+    tool.call.assert_not_called()
+    ctx.report_execution_created.assert_called_once()
+    ctx.report_execution_started_at.assert_not_called()
+    ctx.report_execution_succeeded_at.assert_called_once()
 
 
 def test_tool_execution_metadata_cannot_mutate_call_arguments() -> None:
