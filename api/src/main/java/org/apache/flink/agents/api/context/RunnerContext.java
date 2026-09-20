@@ -173,9 +173,10 @@ public interface RunnerContext {
     /**
      * Composes deferred durable calls into one deferred batch.
      *
-     * <p>The input order defines durable slot and result order. Resolving the returned future first
-     * reserves all required durable slots and then submits the uncached calls. Individual callable
-     * failures are represented as {@link Outcome#failure(Exception)} values.
+     * <p>The input order defines result order. Resolving the returned future reuses locally
+     * completed outcomes, then reserves all required durable slots for unresolved calls before
+     * submitting them. Individual callable failures are represented as {@link
+     * Outcome#failure(Exception)} values.
      *
      * <p>On JDK 21+, resolving the returned future executes eligible uncached calls concurrently,
      * bounded by {@link AgentExecutionOptions#TOOL_CALL_PARALLELISM}. On JDK &lt; 21, batch

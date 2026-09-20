@@ -83,6 +83,15 @@ class DurableFuture(ABC, Generic[T]):
         """Return whether this handle resolved in the current action execution."""
         return self._done
 
+    def _get_completed_outcome(self) -> Outcome:
+        """Return the locally cached outcome of a resolved durable future."""
+        if not self._done:
+            msg = "Durable future has not been resolved"
+            raise RuntimeError(msg)
+        if self._error is not None:
+            return Outcome.failure(self._error)
+        return Outcome.success(self._value)
+
     def __await__(self) -> Any:
         """Resolve once and replay the local outcome on subsequent awaits."""
         if not self._done:
@@ -365,9 +374,10 @@ class RunnerContext(ABC):
     def gather(self, *futures: "DurableFuture[Any]") -> "DurableFuture[list[Outcome]]":
         """Compose deferred durable calls into one deferred batch.
 
-        The input order defines durable slot and result order. When the returned
-        future is awaited, the runtime reserves all required slots before starting
-        uncached calls. Individual callable failures are returned as failure outcomes.
+        The input order defines result order. When the returned future is awaited,
+        the runtime reuses locally completed outcomes and reserves all required slots
+        for unresolved calls before starting them. Individual callable failures are
+        returned as failure outcomes.
         """
 
     @property

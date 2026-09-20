@@ -594,6 +594,83 @@ def test_flink_runner_context_gather_caches_child_failure() -> None:
     assert j_runner_context.current_call_index == call_index_after_gather == 1
 
 
+def test_gather_reuses_resolved_future_before_composition() -> None:
+    j_runner_context = _FakeJavaRunnerContext()
+    ctx = _create_runner_context(j_runner_context)
+    call_count = 0
+
+    def tracked_call() -> str:
+        nonlocal call_count
+        call_count += 1
+        return "value"
+
+    try:
+        future = ctx.durable_execute_async(tracked_call)
+        assert _run_async(future) == "value"
+        operations_after_child = list(j_runner_context.operations)
+
+        outcomes = _run_async(ctx.gather(future))
+    finally:
+        _close_runner_context(ctx)
+
+    assert outcomes[0].value == "value"
+    assert call_count == 1
+    assert j_runner_context.operations == operations_after_child
+    assert j_runner_context.current_call_index == 1
+
+
+def test_gather_reuses_resolved_future_after_composition() -> None:
+    j_runner_context = _FakeJavaRunnerContext()
+    ctx = _create_runner_context(j_runner_context)
+    call_counts = {"one": 0, "two": 0}
+
+    def tracked_call(value: str) -> str:
+        call_counts[value] += 1
+        return value
+
+    try:
+        first = ctx.durable_execute_async(tracked_call, "one")
+        second = ctx.durable_execute_async(tracked_call, "two")
+        gathered = ctx.gather(first, second)
+
+        assert _run_async(first) == "one"
+        outcomes = _run_async(gathered)
+    finally:
+        _close_runner_context(ctx)
+
+    assert [outcome.value for outcome in outcomes] == ["one", "two"]
+    assert call_counts == {"one": 1, "two": 1}
+    assert j_runner_context.operations.count("reserve:1") == 1
+    assert j_runner_context.current_call_index == 2
+
+
+def test_gather_reuses_resolved_failure_as_outcome() -> None:
+    j_runner_context = _FakeJavaRunnerContext()
+    ctx = _create_runner_context(j_runner_context)
+    failure = ValueError("failed")
+    call_count = 0
+
+    def failing_call() -> None:
+        nonlocal call_count
+        call_count += 1
+        raise failure
+
+    try:
+        future = ctx.durable_execute_async(failing_call)
+        with pytest.raises(ValueError, match="failed"):
+            _run_async(future)
+        operations_after_child = list(j_runner_context.operations)
+
+        outcomes = _run_async(ctx.gather(future))
+    finally:
+        _close_runner_context(ctx)
+
+    assert outcomes[0].error is failure
+    assert call_count == 1
+    assert j_runner_context.operations == operations_after_child
+    assert j_runner_context.current_call_index == 1
+
+
 def test_flink_runner_context_async_reconciler_success() -> None:
     """Recover a successful async result through the reconciler."""
     j_runner_context = _FakeJavaRunnerContext()

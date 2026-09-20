@@ -398,19 +398,32 @@ class _GatherDurableFuture(DurableFuture[list[Outcome]]):
         self._futures = futures
 
     def _resolve(self) -> Any:
-        calls = []
-        for future in self._futures:
+        outcomes_by_index: dict[int, Outcome] = {}
+        unresolved_futures = []
+        unresolved_calls = []
+        unresolved_indexes = []
+        for index, future in enumerate(self._futures):
             if future._is_done():
-                msg = "A durable future passed to gather has already been resolved"
-                raise RuntimeError(msg)
-            calls.append(future._call)
+                outcomes_by_index[index] = future._get_completed_outcome()
+            else:
+                unresolved_futures.append(future)
+                unresolved_calls.append(future._call)
+                unresolved_indexes.append(index)
 
-        outcomes = yield from _DurableBatchAsyncExecutionResult(
-            self._ctx, calls
-        ).__await__()
-        for future, outcome in zip(self._futures, outcomes, strict=True):
-            future._complete(outcome)
-        return outcomes
+        if unresolved_calls:
+            unresolved_outcomes = yield from _DurableBatchAsyncExecutionResult(
+                self._ctx, unresolved_calls
+            ).__await__()
+            for index, future, outcome in zip(
+                unresolved_indexes,
+                unresolved_futures,
+                unresolved_outcomes,
+                strict=True,
+            ):
+                future._complete(outcome)
+                outcomes_by_index[index] = outcome
+
+        return [outcomes_by_index[index] for index in range(len(self._futures))]
 
 
 class _BatchTimeoutError(TimeoutError):
@@ -1319,9 +1332,6 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
                 raise TypeError(msg)
             if future._ctx is not self:
                 msg = "A durable future must be gathered by the context that created it"
-                raise ValueError(msg)
-            if future._is_done():
-                msg = "gather only accepts unresolved durable futures"
                 raise ValueError(msg)
             singles.append(future)
         return _GatherDurableFuture(self, tuple(singles))

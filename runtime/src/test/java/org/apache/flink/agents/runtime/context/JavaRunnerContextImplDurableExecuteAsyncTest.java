@@ -329,15 +329,75 @@ class JavaRunnerContextImplDurableExecuteAsyncTest {
     }
 
     @Test
-    void testGatherRejectsResolvedFuture() throws Exception {
-        JavaRunnerContextImpl context =
-                createContext(new ActionState(null), new InspectingContinuationActionExecutor());
-        DurableFuture<String> future =
-                context.durableExecuteAsync(
-                        new TestDurableCallable<>("resolved", String.class, () -> "value"));
+    void testGatherReusesFutureResolvedBeforeComposition() throws Exception {
+        InspectingContinuationActionExecutor executor = new InspectingContinuationActionExecutor();
+        JavaRunnerContextImpl context = createContext(new ActionState(null), executor);
+        TestDurableCallable<String> callable =
+                new TestDurableCallable<>("resolved", String.class, () -> "value");
+        DurableFuture<String> future = context.durableExecuteAsync(callable);
         assertEquals("value", future.await());
+        int persistCountAfterChild = persistCallCount.get();
 
-        assertThrows(IllegalArgumentException.class, () -> context.gather(List.of(future)));
+        List<Outcome<String>> outcomes = context.gather(List.of(future)).await();
+
+        assertEquals("value", outcomes.get(0).getValue());
+        assertEquals(1, callable.getCallCount());
+        assertEquals(1, executor.getExecuteAsyncCallCount());
+        assertEquals(0, executor.getExecuteAllAsyncCallCount());
+        assertEquals(persistCountAfterChild, persistCallCount.get());
+        assertEquals(1, context.getDurableExecutionContext().getCurrentCallIndex());
+    }
+
+    @Test
+    void testGatherReusesFutureResolvedAfterComposition() throws Exception {
+        InspectingContinuationActionExecutor executor = new InspectingContinuationActionExecutor();
+        JavaRunnerContextImpl context = createContext(new ActionState(null), executor);
+        TestDurableCallable<String> first =
+                new TestDurableCallable<>("resolved", String.class, () -> "one");
+        TestDurableCallable<String> second =
+                new TestDurableCallable<>("unresolved", String.class, () -> "two");
+        DurableFuture<String> firstFuture = context.durableExecuteAsync(first);
+        DurableFuture<String> secondFuture = context.durableExecuteAsync(second);
+        DurableFuture<List<Outcome<String>>> gathered =
+                context.gather(List.of(firstFuture, secondFuture));
+
+        assertEquals("one", firstFuture.await());
+        List<Outcome<String>> outcomes = gathered.await();
+
+        assertEquals("one", outcomes.get(0).getValue());
+        assertEquals("two", outcomes.get(1).getValue());
+        assertEquals(1, first.getCallCount());
+        assertEquals(1, second.getCallCount());
+        assertEquals(1, executor.getExecuteAsyncCallCount());
+        assertEquals(1, executor.getExecuteAllAsyncCallCount());
+        assertEquals(List.of(1), executor.getExecuteAllAsyncBatchSizes());
+        assertEquals(2, context.getDurableExecutionContext().getCurrentCallIndex());
+    }
+
+    @Test
+    void testGatherReusesResolvedFailureAsOutcome() throws Exception {
+        InspectingContinuationActionExecutor executor = new InspectingContinuationActionExecutor();
+        JavaRunnerContextImpl context = createContext(new ActionState(null), executor);
+        IllegalStateException failure = new IllegalStateException("failed");
+        TestDurableCallable<String> callable =
+                new TestDurableCallable<>(
+                        "resolved-failure",
+                        String.class,
+                        () -> {
+                            throw failure;
+                        });
+        DurableFuture<String> future = context.durableExecuteAsync(callable);
+        assertSame(failure, assertThrows(IllegalStateException.class, future::await));
+        int persistCountAfterChild = persistCallCount.get();
+
+        List<Outcome<String>> outcomes = context.gather(List.of(future)).await();
+
+        assertSame(failure, outcomes.get(0).getError());
+        assertEquals(1, callable.getCallCount());
+        assertEquals(1, executor.getExecuteAsyncCallCount());
+        assertEquals(0, executor.getExecuteAllAsyncCallCount());
+        assertEquals(persistCountAfterChild, persistCallCount.get());
+        assertEquals(1, context.getDurableExecutionContext().getCurrentCallIndex());
     }
 
     @Test

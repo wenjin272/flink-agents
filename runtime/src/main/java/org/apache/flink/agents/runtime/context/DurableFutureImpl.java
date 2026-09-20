@@ -48,6 +48,13 @@ abstract class DurableFutureImpl<T> implements DurableFuture<T> {
         return done;
     }
 
+    final Outcome<T> getCompletedOutcome() {
+        if (!done) {
+            throw new IllegalStateException("Durable future has not been resolved");
+        }
+        return error == null ? Outcome.success(value) : Outcome.failure(error);
+    }
+
     @Override
     public final T await() throws Exception {
         if (done) {
@@ -121,26 +128,18 @@ final class GatherDurableFuture<T> extends DurableFutureImpl<List<Outcome<T>>> {
         Set<DurableFuture<T>> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         for (DurableFuture<T> future : durableFutures) {
             Preconditions.checkNotNull(future, "future must not be null");
-            if (!seen.add(future)) {
+            if (!(future instanceof SingleDurableFuture)) {
                 throw new IllegalArgumentException(
-                        "The same durable future cannot appear more than once in gather");
+                        "gather only accepts futures returned by durableExecuteAsync");
             }
-            if (!(future instanceof DurableFutureImpl)) {
-                throw new IllegalArgumentException(
-                        "The durable future was not created by a Flink Agents runner context");
-            }
-            DurableFutureImpl<?> internalFuture = (DurableFutureImpl<?>) future;
+            SingleDurableFuture<?> internalFuture = (SingleDurableFuture<?>) future;
             if (internalFuture.getOwner() != owner) {
                 throw new IllegalArgumentException(
                         "All durable futures passed to gather must be created by this runner context");
             }
-            if (!(internalFuture instanceof SingleDurableFuture)) {
+            if (!seen.add(future)) {
                 throw new IllegalArgumentException(
-                        "gather only accepts futures returned by durableExecuteAsync");
-            }
-            if (internalFuture.isDone()) {
-                throw new IllegalArgumentException(
-                        "gather only accepts durable futures that have not been resolved");
+                        "The same durable future cannot appear more than once in gather");
             }
             @SuppressWarnings("unchecked")
             SingleDurableFuture<T> singleFuture = (SingleDurableFuture<T>) internalFuture;
@@ -151,18 +150,29 @@ final class GatherDurableFuture<T> extends DurableFutureImpl<List<Outcome<T>>> {
 
     @Override
     List<Outcome<T>> resolveValue() throws Exception {
-        List<DurableCallable<T>> callables = new ArrayList<>(futures.size());
-        for (SingleDurableFuture<T> future : futures) {
+        List<Outcome<T>> outcomes = new ArrayList<>(Collections.nCopies(futures.size(), null));
+        List<SingleDurableFuture<T>> unresolvedFutures = new ArrayList<>();
+        List<DurableCallable<T>> unresolvedCallables = new ArrayList<>();
+        List<Integer> unresolvedIndexes = new ArrayList<>();
+        for (int i = 0; i < futures.size(); i++) {
+            SingleDurableFuture<T> future = futures.get(i);
             if (future.isDone()) {
-                throw new IllegalStateException(
-                        "A durable future passed to gather has already been resolved");
+                outcomes.set(i, future.getCompletedOutcome());
+            } else {
+                unresolvedFutures.add(future);
+                unresolvedCallables.add(future.getCallable());
+                unresolvedIndexes.add(i);
             }
-            callables.add(future.getCallable());
         }
 
-        List<Outcome<T>> outcomes = getOwner().resolveDurableBatch(callables);
-        for (int i = 0; i < futures.size(); i++) {
-            futures.get(i).complete(outcomes.get(i));
+        if (!unresolvedCallables.isEmpty()) {
+            List<Outcome<T>> unresolvedOutcomes =
+                    getOwner().resolveDurableBatch(unresolvedCallables);
+            for (int i = 0; i < unresolvedFutures.size(); i++) {
+                Outcome<T> outcome = unresolvedOutcomes.get(i);
+                unresolvedFutures.get(i).complete(outcome);
+                outcomes.set(unresolvedIndexes.get(i), outcome);
+            }
         }
         return outcomes;
     }
