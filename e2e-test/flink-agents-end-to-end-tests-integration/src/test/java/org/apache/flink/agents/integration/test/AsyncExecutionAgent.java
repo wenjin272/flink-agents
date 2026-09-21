@@ -628,27 +628,28 @@ public class AsyncExecutionAgent {
 
             String result =
                     ctx.durableExecuteAsync(
-                            new DurableCallable<String>() {
-                                @Override
-                                public String getId() {
-                                    return "simple-async-process";
-                                }
+                                    new DurableCallable<String>() {
+                                        @Override
+                                        public String getId() {
+                                            return "simple-async-process";
+                                        }
 
-                                @Override
-                                public Class<String> getResultClass() {
-                                    return String.class;
-                                }
+                                        @Override
+                                        public Class<String> getResultClass() {
+                                            return String.class;
+                                        }
 
-                                @Override
-                                public String call() {
-                                    try {
-                                        Thread.sleep(100);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                    }
-                                    return "Processed: " + request.data.toUpperCase();
-                                }
-                            });
+                                        @Override
+                                        public String call() {
+                                            try {
+                                                Thread.sleep(100);
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
+                                            }
+                                            return "Processed: " + request.data.toUpperCase();
+                                        }
+                                    })
+                            .await();
 
             MemoryObject stm = ctx.getShortTermMemory();
             stm.set("lastResult", result);
@@ -688,75 +689,78 @@ public class AsyncExecutionAgent {
 
             String step1Result =
                     ctx.durableExecuteAsync(
-                            new DurableCallable<String>() {
-                                @Override
-                                public String getId() {
-                                    return "multi-async-step1";
-                                }
+                                    new DurableCallable<String>() {
+                                        @Override
+                                        public String getId() {
+                                            return "multi-async-step1";
+                                        }
 
-                                @Override
-                                public Class<String> getResultClass() {
-                                    return String.class;
-                                }
+                                        @Override
+                                        public Class<String> getResultClass() {
+                                            return String.class;
+                                        }
 
-                                @Override
-                                public String call() {
-                                    try {
-                                        Thread.sleep(100);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                    }
-                                    return "Step1:" + request.data;
-                                }
-                            });
+                                        @Override
+                                        public String call() {
+                                            try {
+                                                Thread.sleep(100);
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
+                                            }
+                                            return "Step1:" + request.data;
+                                        }
+                                    })
+                            .await();
 
             String step2Result =
                     ctx.durableExecuteAsync(
-                            new DurableCallable<String>() {
-                                @Override
-                                public String getId() {
-                                    return "multi-async-step2";
-                                }
+                                    new DurableCallable<String>() {
+                                        @Override
+                                        public String getId() {
+                                            return "multi-async-step2";
+                                        }
 
-                                @Override
-                                public Class<String> getResultClass() {
-                                    return String.class;
-                                }
+                                        @Override
+                                        public Class<String> getResultClass() {
+                                            return String.class;
+                                        }
 
-                                @Override
-                                public String call() {
-                                    try {
-                                        Thread.sleep(100);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                    }
-                                    return step1Result + "|Step2:processed";
-                                }
-                            });
+                                        @Override
+                                        public String call() {
+                                            try {
+                                                Thread.sleep(100);
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
+                                            }
+                                            return step1Result + "|Step2:processed";
+                                        }
+                                    })
+                            .await();
 
             String finalResult =
                     ctx.durableExecuteAsync(
-                            new DurableCallable<String>() {
-                                @Override
-                                public String getId() {
-                                    return "multi-async-step3";
-                                }
+                                    new DurableCallable<String>() {
+                                        @Override
+                                        public String getId() {
+                                            return "multi-async-step3";
+                                        }
 
-                                @Override
-                                public Class<String> getResultClass() {
-                                    return String.class;
-                                }
+                                        @Override
+                                        public Class<String> getResultClass() {
+                                            return String.class;
+                                        }
 
-                                @Override
-                                public String call() {
-                                    try {
-                                        Thread.sleep(100);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                    }
-                                    return step2Result + "|Step3:done";
-                                }
-                            });
+                                        @Override
+                                        public String call() {
+                                            try {
+                                                Thread.sleep(100);
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
+                                            }
+                                            return step2Result + "|Step3:done";
+                                        }
+                                    })
+                            .await();
 
             MemoryObject stm = ctx.getShortTermMemory();
             stm.set("chainedResult", finalResult);
@@ -795,33 +799,40 @@ public class AsyncExecutionAgent {
 
             String result =
                     ctx.durableExecuteAsync(
-                            new DurableCallable<String>() {
-                                @Override
-                                public String getId() {
-                                    return "timed-async-" + request.id;
-                                }
+                                    new DurableCallable<String>() {
+                                        @Override
+                                        public String getId() {
+                                            return "timed-async-" + request.id;
+                                        }
 
-                                @Override
-                                public Class<String> getResultClass() {
-                                    return String.class;
-                                }
+                                        @Override
+                                        public Class<String> getResultClass() {
+                                            return String.class;
+                                        }
 
-                                @Override
-                                public String call() {
-                                    long asyncStartTime = System.currentTimeMillis();
-                                    LOG.info("{} Async call start {}", request.id, asyncStartTime);
-                                    try {
-                                        Thread.sleep(request.sleepTimeMs);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                    }
-                                    long asyncEndTime = System.currentTimeMillis();
-                                    LOG.info("{} Async call end {}", request.id, asyncEndTime);
-                                    return String.format(
-                                            "key=%d,start=%d,end=%d",
-                                            request.id, asyncStartTime, asyncEndTime);
-                                }
-                            });
+                                        @Override
+                                        public String call() {
+                                            long asyncStartTime = System.currentTimeMillis();
+                                            LOG.info(
+                                                    "{} Async call start {}",
+                                                    request.id,
+                                                    asyncStartTime);
+                                            try {
+                                                Thread.sleep(request.sleepTimeMs);
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
+                                            }
+                                            long asyncEndTime = System.currentTimeMillis();
+                                            LOG.info(
+                                                    "{} Async call end {}",
+                                                    request.id,
+                                                    asyncEndTime);
+                                            return String.format(
+                                                    "key=%d,start=%d,end=%d",
+                                                    request.id, asyncStartTime, asyncEndTime);
+                                        }
+                                    })
+                            .await();
 
             ctx.sendEvent(new OutputEvent("TimedAsync[" + result + "]"));
         }

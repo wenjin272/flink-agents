@@ -21,6 +21,7 @@ import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.agents.AgentExecutionOptions;
 import org.apache.flink.agents.api.configuration.ConfigOption;
 import org.apache.flink.agents.api.context.DurableCallable;
+import org.apache.flink.agents.api.context.DurableFuture;
 import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.Outcome;
 import org.apache.flink.agents.api.context.RunnerContext;
@@ -210,15 +211,15 @@ public class ToolCallAction {
             Map<String, String> error,
             Map<String, ToolResponse> responses)
             throws InterruptedException {
-        List<DurableCallable<ToolResponse>> callables = new ArrayList<>(executions.size());
+        List<DurableFuture<ToolResponse>> futures = new ArrayList<>(executions.size());
         for (ToolCallExecution execution : executions) {
-            callables.add(execution.callable);
+            futures.add(ctx.durableExecuteAsync(execution.callable));
         }
         List<Outcome<ToolResponse>> outcomes = List.of();
         Instant resultObservedAt = null;
         Error fatalError = null;
         try {
-            outcomes = ctx.durableExecuteAllAsync(callables);
+            outcomes = ctx.gather(futures).await();
             resultObservedAt = Instant.now();
             for (int i = 0; i < outcomes.size(); i++) {
                 recordOutcome(executions.get(i), outcomes.get(i), success, error, responses);
@@ -273,7 +274,7 @@ public class ToolCallAction {
             try {
                 ToolResponse response =
                         toolCallAsync
-                                ? ctx.durableExecuteAsync(execution.callable)
+                                ? ctx.durableExecuteAsync(execution.callable).await()
                                 : ctx.durableExecute(execution.callable);
                 resultObservedAt = Instant.now();
                 outcome = Outcome.success(response);
