@@ -97,7 +97,9 @@ class DurableFuture(ABC, Generic[T]):
         if not self._done:
             try:
                 self._value = yield from self._resolve()
-            except BaseException as error:
+            except Exception as error:
+                # Control-flow BaseExceptions leave the handle unresolved so a later
+                # await or gather cannot mistake cancellation for a durable outcome.
                 self._error = error
                 self._done = True
                 raise

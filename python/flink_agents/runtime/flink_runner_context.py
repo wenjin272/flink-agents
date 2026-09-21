@@ -268,7 +268,7 @@ class _PendingFinalizeAsyncExecutionResult(_AsyncExecutionResult):
         result = None
         try:
             result = future.result()
-        except BaseException as e:
+        except Exception as e:
             exception = e
 
         self._ctx._finalize_current_call(
@@ -331,7 +331,7 @@ class _ReconcilerDurableAsyncExecutionResult(_AsyncExecutionResult):
         result = None
         try:
             result = future.result()
-        except BaseException as e:
+        except Exception as e:
             exception = e
 
         self._ctx._finalize_current_call(
@@ -1186,7 +1186,7 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
             result = None
             try:
                 result = func(*a, **kw)
-            except BaseException as e:
+            except Exception as e:
                 exception = e
 
             if exception:

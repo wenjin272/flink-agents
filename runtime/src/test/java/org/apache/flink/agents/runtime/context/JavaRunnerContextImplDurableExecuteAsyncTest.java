@@ -401,6 +401,38 @@ class JavaRunnerContextImplDurableExecuteAsyncTest {
     }
 
     @Test
+    void testGatherRetriesFutureAfterInterruptedResolution() throws Exception {
+        InspectingContinuationActionExecutor executor = new InspectingContinuationActionExecutor();
+        JavaRunnerContextImpl context = createContext(new ActionState(null), executor);
+        AtomicInteger attempts = new AtomicInteger();
+        TestDurableCallable<String> callable =
+                new TestDurableCallable<>(
+                        "interrupted-then-success",
+                        String.class,
+                        () -> {
+                            if (attempts.getAndIncrement() == 0) {
+                                throw new InterruptedException("cancelled");
+                            }
+                            return "value";
+                        });
+        DurableFuture<String> future = context.durableExecuteAsync(callable);
+        Thread.interrupted(); // clear any stray interrupt flag left over from another test
+
+        InterruptedException thrown = assertThrows(InterruptedException.class, future::await);
+        assertEquals("cancelled", thrown.getMessage());
+        assertTrue(Thread.interrupted(), "the interrupted resolution must restore the flag");
+        assertTrue(
+                context.getDurableExecutionContext().getActionState().getCallResults().isEmpty(),
+                "an interrupted resolution must not create a terminal durable slot");
+
+        List<Outcome<String>> outcomes = context.gather(List.of(future)).await();
+
+        assertEquals("value", outcomes.get(0).getValue());
+        assertEquals(2, callable.getCallCount());
+        assertEquals(1, context.getDurableExecutionContext().getCurrentCallIndex());
+    }
+
+    @Test
     void testGatherInitialBatchPersistsOutcomes() throws Exception {
         InspectingContinuationActionExecutor executor = new InspectingContinuationActionExecutor();
         JavaRunnerContextImpl context = createContext(new ActionState(null), executor);

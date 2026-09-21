@@ -15,6 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import asyncio
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -668,6 +669,82 @@ def test_gather_reuses_resolved_failure_as_outcome() -> None:
     assert outcomes[0].error is failure
     assert call_count == 1
     assert j_runner_context.operations == operations_after_child
+    assert j_runner_context.current_call_index == 1
+
+
+def test_gather_retries_future_after_cancelled_resolution() -> None:
+    j_runner_context = _FakeJavaRunnerContext()
+    ctx = _create_runner_context(j_runner_context)
+    call_count = 0
+
+    def cancelled_then_success() -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise asyncio.CancelledError
+        return "value"
+
+    try:
+        future = ctx.durable_execute_async(cancelled_then_success)
+        with pytest.raises(asyncio.CancelledError):
+            _run_async(future)
+
+        assert j_runner_context.call_results == []
+        assert j_runner_context.current_call_index == 0
+
+        outcomes = _run_async(ctx.gather(future))
+    finally:
+        _close_runner_context(ctx)
+
+    assert outcomes[0].value == "value"
+    assert call_count == 2
+    assert j_runner_context.current_call_index == 1
+
+
+@pytest.mark.parametrize("use_reconciler", [False, True])
+def test_gather_retries_pending_future_after_cancelled_resolution(
+    use_reconciler: bool,
+) -> None:
+    j_runner_context = _FakeJavaRunnerContext()
+    call_count = 0
+    reconciler_count = 0
+
+    def durable_call() -> str:
+        nonlocal call_count
+        call_count += 1
+        if not use_reconciler and call_count == 1:
+            raise asyncio.CancelledError
+        return "call-value"
+
+    def reconciler() -> str:
+        nonlocal reconciler_count
+        reconciler_count += 1
+        if reconciler_count == 1:
+            raise asyncio.CancelledError
+        return "reconciled-value"
+
+    _preload_pending(j_runner_context, durable_call)
+    ctx = _create_runner_context(j_runner_context)
+
+    try:
+        future = ctx.durable_execute_async(
+            durable_call,
+            reconciler=reconciler if use_reconciler else None,
+        )
+        with pytest.raises(asyncio.CancelledError):
+            _run_async(future)
+
+        assert j_runner_context.call_results[0].status == "PENDING"
+        assert j_runner_context.current_call_index == 0
+
+        outcomes = _run_async(ctx.gather(future))
+    finally:
+        _close_runner_context(ctx)
+
+    expected = "reconciled-value" if use_reconciler else "call-value"
+    assert outcomes[0].value == expected
+    assert call_count == (0 if use_reconciler else 2)
+    assert reconciler_count == (2 if use_reconciler else 0)
     assert j_runner_context.current_call_index == 1
 
 

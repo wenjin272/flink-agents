@@ -69,6 +69,9 @@ abstract class DurableFutureImpl<T> implements DurableFuture<T> {
             value = resolveValue();
             done = true;
             return value;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
         } catch (Exception e) {
             error = e;
             done = true;
