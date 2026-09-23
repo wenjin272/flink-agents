@@ -585,7 +585,7 @@ public class ActionStateSerdeTest {
         // outputEvents; cover both paths.
         ActionState originalState = new ActionState(new ChatRequestEvent("myModel", List.of(msg)));
         originalState.addEvent(new ChatRequestEvent("myModel", List.of(msg)));
-        originalState.addEvent(new ChatResponseEvent(requestId, msg));
+        originalState.addEvent(ChatResponseEvent.success(requestId, msg));
         originalState.addEvent(new ToolRequestEvent("myModel", List.of(Map.of("name", "myTool"))));
         originalState.addEvent(
                 new ToolResponseEvent(
@@ -650,5 +650,21 @@ public class ActionStateSerdeTest {
         assertEquals(mixed, restoredMessage);
         assertEquals("look at this", restoredMessage.getText());
         assertEquals(ImageBlock.class, restoredMessage.getBlocks().get(1).getClass());
+    }
+
+    @Test
+    void failedChatResponseSurvivesActionStateRecovery() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        ChatResponseEvent response =
+                ChatResponseEvent.failed(requestId, "TimeoutException: timed out", 2, 3);
+        ActionState state = new ActionState(response);
+        state.addEvent(response);
+        ActionState recovered = ActionStateSerde.deserialize(ActionStateSerde.serialize(state));
+        for (Event event : List.of(recovered.getTaskEvent(), recovered.getOutputEvents().get(0))) {
+            ChatResponseEvent restored = ChatResponseEvent.fromEvent(event);
+            assertEquals(requestId, restored.getRequestId());
+            assertEquals("TimeoutException: timed out", restored.getError());
+            assertThrows(ChatResponseEvent.ChatResponseException.class, restored::getResponse);
+        }
     }
 }
