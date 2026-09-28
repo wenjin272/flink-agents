@@ -488,7 +488,7 @@ def test_agent_plan_merges_decorated_python_tool_injected_args() -> None:
     }
     assert (
         "tenant_id"
-        not in tool_resource.metadata.args_schema.model_json_schema()["properties"]
+        not in tool_resource.metadata.args_schema["properties"]
     )
 
 

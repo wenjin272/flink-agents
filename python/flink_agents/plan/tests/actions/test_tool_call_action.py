@@ -234,7 +234,7 @@ def test_tool_call_action_injects_args_from_config_without_mutating_request() ->
     assert arguments == {"order_id": "order-1"}
 
 
-def test_tool_call_action_injected_arg_overrides_model_argument() -> None:
+def test_tool_call_action_overrides_model_supplied_injected_argument() -> None:
     ctx = _Context()
     arguments = {"order_id": "order-1", "tenant_id": "model-tenant"}
     event = ToolRequestEvent(
@@ -251,8 +251,10 @@ def test_tool_call_action_injected_arg_overrides_model_argument() -> None:
     asyncio.run(process_tool_request(event, ctx))
 
     response = ToolResponseEvent.from_event(ctx.sent_events[0])
-    assert response.responses["call-1"] == "tenant-1:order-1"
     assert response.success["call-1"] is True
+    assert response.responses["call-1"] == "tenant-1:order-1"
+    assert response.error == {}
+    assert arguments == {"order_id": "order-1", "tenant_id": "model-tenant"}
 
 
 def test_tool_call_action_injects_args_from_sensory_memory() -> None:
@@ -295,7 +297,7 @@ def test_tool_call_action_reports_missing_config_injected_arg() -> None:
                 "type": "function",
                 "function": {
                     "name": "query_order",
-                    "arguments": {"order_id": "order-1"},
+                    "arguments": {"order_id": "order-1", "tenant_id": "model-tenant"},
                 },
             }
         ],

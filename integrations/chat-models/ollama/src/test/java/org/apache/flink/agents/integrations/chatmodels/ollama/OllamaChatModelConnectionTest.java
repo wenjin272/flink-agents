@@ -134,8 +134,7 @@ class OllamaChatModelConnectionTest {
     @Test
     @DisplayName("A schema without a 'required' key converts with every property optional")
     void testSchemaWithoutRequiredKey() {
-        // SchemaUtils only emits "required" when at least one parameter is required, so an
-        // all-optional @Tool produces exactly this shape (#1014).
+        // A schema may omit "required" when every parameter is optional (#1014).
         String schema =
                 "{\"type\":\"object\",\"properties\":{"
                         + "\"a\":{\"type\":\"integer\"},\"b\":{\"type\":\"integer\"}}}";

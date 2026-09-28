@@ -58,7 +58,6 @@ import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.apache.flink.agents.plan.serializer.AgentPlanJsonDeserializer;
 import org.apache.flink.agents.plan.serializer.AgentPlanJsonSerializer;
 import org.apache.flink.agents.plan.tools.FunctionTool;
-import org.apache.flink.agents.plan.tools.ToolMetadataFactory;
 import org.apache.flink.agents.plan.tools.bash.BashTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -353,15 +352,7 @@ public class AgentPlan implements Serializable {
     private void extractTool(Method method) throws Exception {
         String name = method.getName();
 
-        // Build parameter type names for reconstruction
-        Class<?>[] paramTypes = method.getParameterTypes();
-
-        ToolMetadata metadata = ToolMetadataFactory.fromStaticMethod(method);
-        JavaFunction javaFunction =
-                new JavaFunction(method.getDeclaringClass(), method.getName(), paramTypes);
-
-        FunctionTool tool =
-                new FunctionTool(metadata, javaFunction, FunctionTool.getInjectedArgs(method));
+        FunctionTool tool = FunctionTool.fromStaticMethod(method);
         JavaSerializableResourceProvider provider =
                 JavaSerializableResourceProvider.createResourceProvider(name, TOOL, tool);
 
@@ -1015,14 +1006,12 @@ public class AgentPlan implements Serializable {
                             apiTool.getInjectedArgs(),
                             resourceName);
             ToolParameterInjectionValidator.validate(func, injectedArgs, resourceName);
-            ToolMetadata metadata =
-                    ToolMetadataFactory.fromStaticMethod(method, injectedArgs.keySet());
             org.apache.flink.agents.plan.JavaFunction planFunc =
                     new org.apache.flink.agents.plan.JavaFunction(
                             method.getDeclaringClass(),
                             method.getName(),
                             method.getParameterTypes());
-            FunctionTool tool = new FunctionTool(metadata, planFunc, injectedArgs);
+            FunctionTool tool = new FunctionTool(null, planFunc, injectedArgs);
             addResourceProvider(
                     JavaSerializableResourceProvider.createResourceProvider(
                             resourceName, TOOL, tool));

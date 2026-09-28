@@ -18,6 +18,7 @@
 import importlib
 import json
 import typing
+from functools import lru_cache
 from typing import Any, Dict, List
 
 import cloudpickle
@@ -27,10 +28,6 @@ from flink_agents.api.events.event import Event, InputEvent, OutputEvent
 from flink_agents.api.memory.long_term_memory import MemorySet, MemorySetItem
 from flink_agents.api.resource import Resource, ResourceType, get_resource_class
 from flink_agents.api.tools.tool import Tool, ToolMetadata
-from flink_agents.api.tools.utils import (
-    create_java_tool_schema_str_from_model,
-    create_model_from_java_tool_schema_str,
-)
 from flink_agents.api.vector_stores.vector_store import (
     Document,
     VectorStoreQuery,
@@ -134,9 +131,7 @@ def from_java_tool(j_tool: Any) -> JavaTool:
     metadata = ToolMetadata(
         name=name,
         description=j_tool.getDescription(),
-        args_schema=create_model_from_java_tool_schema_str(
-            name, j_tool.getMetadata().getInputSchema()
-        ),
+        args_schema=json.loads(j_tool.getMetadata().getInputSchema()),
     )
     return JavaTool(metadata=metadata)
 
@@ -156,34 +151,19 @@ def get_python_tool_metadata(
     pemja's SIGSEGV when wrapping arbitrary Python objects on non-main
     interpreter threads.
     """
-    from docstring_parser import parse
-
     from flink_agents.api.function import PythonFunction
     from flink_agents.api.tools.tool_parameter_injection import normalize_injected_args
-    from flink_agents.api.tools.utils import (
-        create_java_tool_schema_str_from_model,
-        create_schema_from_function,
-    )
 
-    descriptor = PythonFunction(module=module, qualname=qual_name)
-    callable_ = descriptor.as_callable()
-    name = callable_.__name__
-    description = (
-        (parse(callable_.__doc__).description or "") if callable_.__doc__ else ""
+    callable_ = PythonFunction(module=module, qualname=qual_name).as_callable()
+    declared = normalize_injected_args(getattr(callable_, "_injected_args", None))
+    tool = _compiled_function_tool(
+        module, qual_name, tuple(sorted(set(injected_args or ()) | set(declared)))
     )
-    callable_injected_args = normalize_injected_args(
-        getattr(callable_, "_injected_args", None)
-    )
-    hidden_args = set(injected_args or ()) | set(callable_injected_args)
-    args_schema_model = create_schema_from_function(
-        name, callable_, injected_args=hidden_args
-    )
-    input_schema = create_java_tool_schema_str_from_model(args_schema_model)
     return {
-        "name": name,
-        "description": description,
-        "inputSchema": input_schema,
-        "injectedArgs": _dump_injected_args(callable_injected_args),
+        "name": tool.metadata.name,
+        "description": tool.metadata.description,
+        "inputSchema": json.dumps(tool.metadata.args_schema),
+        "injectedArgs": _dump_injected_args(declared),
     }
 
 
@@ -193,7 +173,34 @@ def _dump_injected_args(injected_args: Dict[str, Any]) -> str:
     )
 
 
-def invoke_python_tool(module: str, qual_name: str, kwargs: Dict[str, Any]) -> Any:
+@lru_cache(maxsize=256)
+def _compiled_function_tool(module: str, qual_name: str, injected_names: tuple) -> Any:
+    # Module globals and Pydantic classes are local to each Pemja interpreter.
+    from flink_agents.api.tools.tool_parameter_injection import (
+        InjectedArg,
+        normalize_injected_args,
+    )
+    from flink_agents.plan.function import PythonFunction
+    from flink_agents.plan.tools.function_tool import FunctionTool
+
+    function = PythonFunction(module=module, qualname=qual_name)
+    declared = normalize_injected_args(
+        getattr(function.as_callable(), "_injected_args", None)
+    )
+    return FunctionTool(
+        func=function,
+        injected_args={
+            name: declared.get(name, InjectedArg.from_sensory_memory(name))
+            for name in injected_names
+        },
+    )
+
+
+def invoke_python_tool(
+    module: str,
+    qual_name: str,
+    kwargs: Dict[str, Any],
+) -> Any:
     """Invoke a Python callable as a tool, passing the provided keyword arguments.
 
     Used by the Java-side ``PythonResourceAdapter.invokePythonTool`` so a Java host can
@@ -202,10 +209,7 @@ def invoke_python_tool(module: str, qual_name: str, kwargs: Dict[str, Any]) -> A
     an internal envelope so Java can distinguish a raw result from an explicit
     ``ToolResponse`` without inspecting user payloads.
     """
-    from flink_agents.api.function import PythonFunction
-
-    descriptor = PythonFunction(module=module, qualname=qual_name)
-    result = descriptor.as_callable()(**kwargs)
+    result = _compiled_function_tool(module, qual_name, ()).call(**kwargs)
     return _encode_python_tool_result(result)
 
 
@@ -416,9 +420,7 @@ def get_java_tool_metadata_from_tool(tool: Tool) -> typing.Dict[str, str]:
     return {
         "name": tool.name,
         "description": tool.metadata.description,
-        "inputSchema": create_java_tool_schema_str_from_model(
-            tool.metadata.args_schema
-        ),
+        "inputSchema": json.dumps(tool.metadata.args_schema),
     }
 
 

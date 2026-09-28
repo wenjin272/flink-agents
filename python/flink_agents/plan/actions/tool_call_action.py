@@ -187,11 +187,14 @@ def _build_tool_call_executions(
         kwargs = tool_call["function"]["arguments"]
         external_id = tool_call.get("original_id")
         external_ids[call_id] = external_id
-        call_kwargs = dict(kwargs or {})
+        call_kwargs = dict(kwargs) if isinstance(kwargs, dict) else {}
 
         tool = None
         agent = None
-        preparation_error = None
+        preparation_error = (
+            None if isinstance(kwargs, dict)
+            else ValueError("INVALID_ARGUMENT /: type (expected object)")
+        )
         # The reserved subagent_ prefix separates the two namespaces: tool registration
         # rejects the prefix, so a prefixed callable name can only address a sub-agent.
         # Matched once here and carried down, because resolving the AGENT resource
@@ -206,8 +209,6 @@ def _build_tool_call_executions(
         # arguments unchanged.
         if tool is not None:
             try:
-                # Framework-owned injected args must win over model-provided values so
-                # hidden context such as tenant ids cannot be spoofed by tool calls.
                 call_kwargs.update(_resolve_injected_arguments(tool, ctx))
             except Exception as e:
                 preparation_error = e
