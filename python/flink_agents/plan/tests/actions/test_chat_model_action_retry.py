@@ -31,7 +31,6 @@ from flink_agents.api.agents.react_agent import OutputSchema
 from flink_agents.api.chat_message import ChatMessage, ImageBlock, MessageRole
 from flink_agents.api.core_options import (
     AgentExecutionOptions,
-    ErrorHandlingStrategy,
 )
 from flink_agents.api.events.chat_event import ChatResponseEvent
 from flink_agents.api.events.tool_event import ToolRequestEvent, ToolResponseEvent
@@ -119,7 +118,6 @@ def _create_mock_runner_context(
     chat_model: Any,
     max_retries: int = 3,
     retry_wait_interval_sec: int = 1,
-    error_handling_strategy: ErrorHandlingStrategy = ErrorHandlingStrategy.RETRY,
 ) -> tuple[MagicMock, list, _MockMetricGroup, _MockMemoryObject]:
     """Create a mock RunnerContext with configurable retry settings.
 
@@ -132,7 +130,6 @@ def _create_mock_runner_context(
 
     config = MagicMock()
     option_values = {
-        id(AgentExecutionOptions.ERROR_HANDLING_STRATEGY): error_handling_strategy,
         id(AgentExecutionOptions.MAX_RETRIES): max_retries,
         id(AgentExecutionOptions.RETRY_WAIT_INTERVAL): retry_wait_interval_sec,
         id(AgentExecutionOptions.CHAT_ASYNC): False,
@@ -167,9 +164,7 @@ class TestChatModelActionRetry:
     def test_failure_debug_log_contains_only_message_count(self, caplog) -> None:
         model = MagicMock()
         model.chat.side_effect = RuntimeError("provider unavailable")
-        ctx, _, _, _ = _create_mock_runner_context(
-            model, error_handling_strategy=ErrorHandlingStrategy.FAIL
-        )
+        ctx, events, _, _ = _create_mock_runner_context(model, max_retries=0)
         messages = [
             ChatMessage.user(
                 [
@@ -180,17 +175,66 @@ class TestChatModelActionRetry:
                 ]
             )
         ]
-        with (
-            caplog.at_level(
-                "DEBUG", logger="flink_agents.plan.actions.chat_model_action"
-            ),
-            pytest.raises(RuntimeError, match="provider unavailable"),
+        with caplog.at_level(
+            "DEBUG", logger="flink_agents.plan.actions.chat_model_action"
         ):
             asyncio.run(chat(uuid4(), "test-model", messages, {}, None, ctx))
+        assert events[0].is_failed
         assert "1 input messages" in caplog.text
         assert "c2VjcmV0" not in caplog.text
         assert "password" not in caplog.text
         assert "token=secret" not in caplog.text
+
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            RuntimeError("state failed"),
+            InterruptedError("cancelled"),
+            asyncio.CancelledError(),
+        ],
+    )
+    def test_durable_failure_propagates_without_response(self, failure) -> None:
+        model = MagicMock()
+        ctx, events, _, _ = _create_mock_runner_context(model)
+        ctx.durable_execute.side_effect = failure
+        with pytest.raises(type(failure)):
+            asyncio.run(chat(uuid4(), "test-model", [], {}, None, ctx))
+        assert not events
+        assert ctx.durable_execute.call_count == 1
+        model.chat.assert_not_called()
+
+    @pytest.mark.parametrize("provider_fails", [False, True])
+    def test_terminal_delivery_failure_propagates(self, provider_fails: bool) -> None:
+        model = MagicMock()
+        model.chat.return_value = ChatMessage.of(role=MessageRole.ASSISTANT, content="ok")
+        if provider_fails:
+            model.chat.side_effect = ValueError("provider failure")
+        ctx, events, _, _ = _create_mock_runner_context(model, max_retries=0)
+        ctx.send_event.side_effect = RuntimeError("delivery failed")
+        with pytest.raises(RuntimeError, match="delivery failed"):
+            asyncio.run(chat(uuid4(), "test-model", [], {}, None, ctx))
+        assert ctx.send_event.call_count == 1
+        assert not events
+
+    def test_provider_cancellation_propagates(self) -> None:
+        from concurrent.futures import CancelledError
+
+        model = MagicMock()
+        model.chat.side_effect = CancelledError("cancelled")
+        ctx, events, _, _ = _create_mock_runner_context(model)
+        with pytest.raises(CancelledError):
+            asyncio.run(chat(uuid4(), "test-model", [], {}, None, ctx))
+        assert not events
+        assert model.chat.call_count == 1
+
+    def test_resource_failure_returns_correlated_failure(self) -> None:
+        ctx, events, _, _ = _create_mock_runner_context(MagicMock())
+        ctx.get_resource.side_effect = ValueError("unknown model")
+        request_id = uuid4()
+        asyncio.run(chat(request_id, "test-model", [], {}, None, ctx))
+        assert len(events) == 1
+        assert events[0].request_id == request_id
+        assert events[0].error == "ValueError: unknown model"
 
     def test_chat_succeeds_without_retry(self) -> None:
         """No retry needed: retry_count=0, total_retry_wait_sec=0, no metrics."""
@@ -292,8 +336,8 @@ class TestChatModelActionRetry:
             _LLM_METADATA,
         )
 
-    def test_chat_exhausts_retries_and_raises(self) -> None:
-        """All retries exhausted: exception raised, no event sent."""
+    def test_chat_exhausts_retries_and_returns_failure(self) -> None:
+        """All retries exhausted: one correlated failure event is sent."""
         chat_model = MagicMock()
         chat_model.chat = MagicMock(side_effect=RuntimeError("persistent error"))
 
@@ -302,19 +346,21 @@ class TestChatModelActionRetry:
         )
         request_id = uuid4()
 
-        with pytest.raises(RuntimeError, match="persistent error"):
-            asyncio.run(
-                chat(
-                    request_id,
-                    "test-model",
-                    [ChatMessage.of(MessageRole.USER, "hi")],
-                    {},
-                    None,
-                    ctx,
-                )
+        asyncio.run(
+            chat(
+                request_id,
+                "test-model",
+                [ChatMessage.of(role=MessageRole.USER, content="hi")],
+                {},
+                None,
+                ctx,
             )
+        )
 
-        assert len(sent_events) == 0
+        assert sent_events[0].is_failed
+        assert "persistent error" in sent_events[0].error
+        assert len(sent_events) == 1
+        assert sent_events[0].is_failed
         assert ctx.report_execution_started.call_count == 3
         assert ctx.report_execution_failed.call_count == 3
         for failed_call in ctx.report_execution_failed.call_args_list:
@@ -407,11 +453,11 @@ class TestChatModelActionFinishReason:
             chat_model, max_retries=0, retry_wait_interval_sec=0
         )
 
-        with pytest.raises(ValueError, match="(?i)truncat") as exc_info:
-            self._run(ctx)
-
-        assert "token" in str(exc_info.value).lower()
-        assert len(sent_events) == 0
+        self._run(ctx)
+        assert "truncat" in sent_events[0].error.lower()
+        assert "token" in sent_events[0].error.lower()
+        assert len(sent_events) == 1
+        assert sent_events[0].is_failed
 
     def test_content_filtered_text_response_rejected(self) -> None:
         # Matches a word unique to the filtering message. Both messages
@@ -429,10 +475,11 @@ class TestChatModelActionFinishReason:
             chat_model, max_retries=0, retry_wait_interval_sec=0
         )
 
-        with pytest.raises(ValueError, match="(?i)withheld"):
-            self._run(ctx)
+        self._run(ctx)
+        assert "withheld" in sent_events[0].error.lower()
 
-        assert len(sent_events) == 0
+        assert len(sent_events) == 1
+        assert sent_events[0].is_failed
 
     def test_truncated_tool_call_response_rejected_before_tool_dispatch(self) -> None:
         chat_model = MagicMock()
@@ -453,12 +500,13 @@ class TestChatModelActionFinishReason:
             chat_model, max_retries=0, retry_wait_interval_sec=0
         )
 
-        with pytest.raises(ValueError, match="(?i)truncat"):
-            self._run(ctx)
+        self._run(ctx)
+        assert "truncat" in sent_events[0].error.lower()
 
         # A truncated tool call carries arguments the model never finished
         # writing, so no ToolRequestEvent may leave the action.
-        assert len(sent_events) == 0
+        assert len(sent_events) == 1
+        assert sent_events[0].is_failed
 
     @pytest.mark.parametrize(
         "extra_args",
@@ -514,9 +562,8 @@ class TestChatModelActionFinishReason:
         assert isinstance(sent_events[0], ToolRequestEvent)
         assert sent_events[0].tool_calls == tool_calls
 
-    def test_ignore_strategy_drops_rejected_response_without_event(self) -> None:
-        # Under IGNORE the record is dropped: the rejection does not propagate
-        # and no event carries the truncated content downstream.
+    def test_default_retry_budget_returns_failed_response(self) -> None:
+        # The default retry budget makes one attempt and rejects truncated content.
         chat_model = MagicMock()
         chat_model.chat = MagicMock(
             return_value=ChatMessage.of(
@@ -527,14 +574,16 @@ class TestChatModelActionFinishReason:
         )
         ctx, sent_events, _, _ = _create_mock_runner_context(
             chat_model,
-            max_retries=0,
+            max_retries=AgentExecutionOptions.MAX_RETRIES.get_default_value(),
             retry_wait_interval_sec=0,
-            error_handling_strategy=ErrorHandlingStrategy.IGNORE,
         )
 
         self._run(ctx)
 
-        assert len(sent_events) == 0
+        chat_model.chat.assert_called_once()
+        assert AgentExecutionOptions.MAX_RETRIES.get_default_value() == 0
+        assert len(sent_events) == 1
+        assert sent_events[0].is_failed
 
     @pytest.mark.parametrize("finish_reason", ["length", "content_filter"])
     def test_rejected_finish_reason_skips_structured_output(
@@ -557,8 +606,7 @@ class TestChatModelActionFinishReason:
             chat_model, max_retries=0, retry_wait_interval_sec=0
         )
 
-        with pytest.raises(ValueError):
-            self._run(ctx, OutputSchema(output_schema=_StructuredResult))
+        self._run(ctx, OutputSchema(output_schema=_StructuredResult))
 
         # The model call itself succeeded and spent its full token budget, so
         # both must be recorded before the response is rejected.
@@ -574,7 +622,8 @@ class TestChatModelActionFinishReason:
             ExecutionEntityTypes.LLM, "test-model", _LLM_METADATA
         )
         ctx.report_execution_failed.assert_not_called()
-        assert len(sent_events) == 0
+        assert len(sent_events) == 1
+        assert sent_events[0].is_failed
 
 
 class TestChatResponseEventRetryFields:
@@ -582,7 +631,7 @@ class TestChatResponseEventRetryFields:
 
     def test_default_retry_fields(self) -> None:
         """Default construction has retry_count=0, total_retry_wait_sec=0."""
-        event = ChatResponseEvent(
+        event = ChatResponseEvent.success(
             request_id=uuid4(),
             response=ChatMessage.of(MessageRole.ASSISTANT, "test"),
         )
@@ -591,7 +640,7 @@ class TestChatResponseEventRetryFields:
 
     def test_with_retry_fields(self) -> None:
         """Full construction carries retry info."""
-        event = ChatResponseEvent(
+        event = ChatResponseEvent.success(
             request_id=uuid4(),
             response=ChatMessage.of(MessageRole.ASSISTANT, "test"),
             retry_count=5,
