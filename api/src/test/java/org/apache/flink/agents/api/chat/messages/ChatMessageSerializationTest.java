@@ -23,6 +23,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +41,148 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ChatMessageSerializationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    void nullBlocksFailAtEveryEntryPoint() throws Exception {
+        assertThat(MAPPER.readValue("{}", ChatMessage.class).getBlocks()).isEmpty();
+        for (String blocks : List.of("null", "[null]")) {
+            assertThatThrownBy(
+                            () ->
+                                    MAPPER.readValue(
+                                            "{\"blocks\":" + blocks + "}", ChatMessage.class))
+                    .isInstanceOf(JsonMappingException.class);
+        }
+        ChatMessage message = ChatMessage.user("original");
+        assertThatThrownBy(() -> message.setBlocks(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> message.setBlocks(Arrays.asList((ContentBlock) null)))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(
+                        () -> new ChatMessage(MessageRole.USER, Arrays.asList((ContentBlock) null)))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> message.setBlocksFromMaps(null))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(
+                        () -> message.setBlocksFromMaps(Arrays.asList((Map<String, Object>) null)))
+                .isInstanceOf(NullPointerException.class);
+        assertThat(message.getText()).isEqualTo("original");
+    }
+
+    @Test
+    void mediaFieldsRejectScalarCoercionOnJsonAndMapPaths() throws Exception {
+        for (String kind : List.of("image", "audio", "video", "document")) {
+            for (String field : List.of("media_type", "name", "sha256", "size_bytes")) {
+                for (Object value : List.of(true, 1.5, "1.0")) {
+                    if (!field.equals("size_bytes") && value instanceof String) {
+                        continue;
+                    }
+                    Map<String, Object> block =
+                            new HashMap<>(
+                                    Map.of(
+                                            "type",
+                                            kind,
+                                            "media_type",
+                                            "image/png",
+                                            "source",
+                                            Map.of("type", "base64", "data", "aGk=")));
+                    block.put(field, value);
+                    assertRejectedBlock(block);
+                }
+            }
+        }
+        for (String field : List.of("media_type", "name", "sha256")) {
+            Map<String, Object> block =
+                    new HashMap<>(
+                            Map.of(
+                                    "type",
+                                    "image",
+                                    "media_type",
+                                    "image/png",
+                                    "source",
+                                    Map.of("type", "base64", "data", "aGk=")));
+            block.put(field, 5);
+            assertRejectedBlock(block);
+        }
+        for (Object value : List.of(-1, 1.0, "1", new BigInteger("9223372036854775808"))) {
+            assertRejectedBlock(
+                    Map.of(
+                            "type",
+                            "image",
+                            "media_type",
+                            "image/png",
+                            "source",
+                            Map.of("type", "base64", "data", "aGk="),
+                            "size_bytes",
+                            value));
+        }
+        for (String source : List.of("base64", "url")) {
+            for (Object value : List.of(5, true, 1.5)) {
+                assertRejectedBlock(
+                        Map.of(
+                                "type",
+                                "image",
+                                "media_type",
+                                "image/png",
+                                "source",
+                                Map.of(
+                                        "type",
+                                        source,
+                                        source.equals("base64") ? "data" : "url",
+                                        value)));
+            }
+        }
+        for (long size : List.of(0L, Long.MAX_VALUE)) {
+            ImageBlock block =
+                    new ImageBlock("image/png", new Base64Source("aGk="), null, size, null);
+            assertThat(MAPPER.readValue(MAPPER.writeValueAsString(block), ContentBlock.class))
+                    .isEqualTo(block);
+        }
+        assertThatThrownBy(
+                        () ->
+                                new ImageBlock(
+                                        "image/png", new Base64Source("aGk="), null, -1L, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private static void assertRejectedBlock(Map<String, Object> block) throws Exception {
+        String json = MAPPER.writeValueAsString(Map.of("blocks", List.of(block)));
+        assertThatThrownBy(() -> MAPPER.readValue(json, ChatMessage.class))
+                .isInstanceOf(JsonMappingException.class);
+        assertThatThrownBy(() -> new ChatMessage().setBlocksFromMaps(List.of(block)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void base64PayloadPreservationAndSafeRepresentations() throws Exception {
+        // Sources carry data without decoding; even malformed payloads must not report negatives.
+        for (String data :
+                List.of("=", "===", "a", "a===", "aGk==", "aG=k", "aGk\n", "aG-_", "图像")) {
+            Base64Source source = new Base64Source(data);
+            assertThat(source.getSizeBytes()).isNotNegative();
+            assertThat(MAPPER.readValue(MAPPER.writeValueAsString(source), MediaSource.class))
+                    .isEqualTo(source);
+            ChatMessage message = new ChatMessage();
+            message.setBlocksFromMaps(
+                    List.of(
+                            Map.of(
+                                    "type",
+                                    "image",
+                                    "media_type",
+                                    "image/png",
+                                    "source",
+                                    Map.of("type", "base64", "data", data))));
+            assertThat(((ImageBlock) message.getBlocks().get(0)).getSource()).isEqualTo(source);
+        }
+        for (String data : List.of("YQ==", "YQ", "aGk=", "aGk", "YWJj")) {
+            Base64Source source = new Base64Source(data);
+            assertThat(source.getSizeBytes())
+                    .isEqualTo((long) Base64.getDecoder().decode(data).length);
+            assertThat(MAPPER.readValue(MAPPER.writeValueAsString(source), MediaSource.class))
+                    .isEqualTo(source);
+        }
+        UrlSource url = new UrlSource("https://user:password@example.org/x?token=secret");
+        assertThat(url.toString()).doesNotContain("password", "secret");
+        assertThat(MAPPER.writeValueAsString(url)).contains("password", "secret");
+    }
 
     @Test
     @DisplayName("A text-only message serializes to a single typed text block")

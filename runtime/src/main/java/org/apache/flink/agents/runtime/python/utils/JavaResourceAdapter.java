@@ -19,7 +19,6 @@ package org.apache.flink.agents.runtime.python.utils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
-import org.apache.flink.agents.api.chat.messages.ContentBlock;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceContext;
@@ -106,11 +105,7 @@ public class JavaResourceAdapter {
             Map<String, Object> extraArgs) {
         // TODO: Delete this method after the pemja findClass method is fixed.
         ChatMessage message =
-                new ChatMessage(
-                        MessageRole.fromValue(roleValue),
-                        (List<ContentBlock>) null,
-                        toolCalls,
-                        extraArgs);
+                new ChatMessage(MessageRole.fromValue(roleValue), List.of(), toolCalls, extraArgs);
         message.setBlocksFromMaps(blocks);
         return message;
     }

@@ -466,7 +466,9 @@ async def chat(
                         total_wait_time_sec += current_wait_sec
                 else:
                     _logger.debug(
-                        f"Chat request {initial_request_id} failed, the input chat messages are {messages}."
+                        "Chat request %s failed (%d input messages).",
+                        initial_request_id,
+                        len(messages),
                     )
                     raise
     finally:

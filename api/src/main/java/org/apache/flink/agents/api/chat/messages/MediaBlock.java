@@ -69,6 +69,9 @@ public abstract class MediaBlock extends ContentBlock {
         if (source == null) {
             throw new IllegalArgumentException("A media block requires a source.");
         }
+        if (sizeBytes != null && sizeBytes < 0) {
+            throw new IllegalArgumentException("size_bytes must not be negative.");
+        }
         this.mediaType = mediaType;
         this.source = source;
         this.name = name;

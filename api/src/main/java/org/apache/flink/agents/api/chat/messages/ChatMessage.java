@@ -59,7 +59,7 @@ public class ChatMessage {
 
     /** Default constructor with SYSTEM role */
     public ChatMessage() {
-        this(MessageRole.SYSTEM, (List<ContentBlock>) null, null, null);
+        this(MessageRole.SYSTEM, Collections.emptyList(), null, null);
     }
 
     /** Constructor with role and text content */
@@ -109,9 +109,7 @@ public class ChatMessage {
 
     /** An unmodifiable copy — since blocks are immutable, this freezes the content. */
     private static List<ContentBlock> snapshotOf(List<ContentBlock> blocks) {
-        return blocks == null || blocks.isEmpty()
-                ? Collections.emptyList()
-                : Collections.unmodifiableList(new ArrayList<>(blocks));
+        return List.copyOf(Objects.requireNonNull(blocks, "blocks must not be null"));
     }
 
     public MessageRole getRole() {
@@ -175,13 +173,10 @@ public class ChatMessage {
     /** Replaces the content with blocks given as plain maps — see {@link #getBlocksAsMaps()}. */
     @JsonIgnore
     public void setBlocksFromMaps(List<Map<String, Object>> blockMaps) {
-        this.blocks =
-                blockMaps == null
-                        ? Collections.emptyList()
-                        : Collections.unmodifiableList(
-                                blockMaps.stream()
-                                        .map(map -> MAPPER.convertValue(map, ContentBlock.class))
-                                        .collect(Collectors.toList()));
+        setBlocks(
+                Objects.requireNonNull(blockMaps, "blocks must not be null").stream()
+                        .map(map -> MAPPER.convertValue(map, ContentBlock.class))
+                        .collect(Collectors.toList()));
     }
 
     /** The text projection: the ordered concatenation of this message's {@link TextBlock}s. */

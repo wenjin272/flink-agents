@@ -18,7 +18,12 @@
 from enum import Enum
 from typing import Any, Dict, List, Literal, Sequence
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictStr,
+)
 from typing_extensions import Annotated, Self
 
 
@@ -62,13 +67,13 @@ class Base64Source(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     type: Literal["base64"] = "base64"
-    data: str = Field(min_length=1)
+    data: StrictStr = Field(min_length=1, repr=False)
 
     @property
     def size_bytes(self) -> int:
-        """The decoded byte count implied by the base64 length."""
+        """Infer the byte count assuming valid standard Base64, without decoding."""
         padding = 2 if self.data.endswith("==") else 1 if self.data.endswith("=") else 0
-        return len(self.data) * 3 // 4 - padding
+        return max(0, len(self.data) * 3 // 4 - padding)
 
     def __str__(self) -> str:
         return f"Base64Source({self.size_bytes} bytes)"
@@ -84,10 +89,10 @@ class UrlSource(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     type: Literal["url"] = "url"
-    url: str = Field(min_length=1)
+    url: StrictStr = Field(min_length=1, repr=False)
 
     def __str__(self) -> str:
-        return f"UrlSource({self.url})"
+        return "UrlSource(<redacted>)"
 
 
 MediaSource = Annotated[
@@ -122,11 +127,11 @@ class MediaBlock(BaseModel):
 
     # min_length mirrors the Java constructor: both languages reject an empty
     # media type, so a block valid here is valid after crossing the bridge.
-    media_type: str = Field(min_length=1)
+    media_type: StrictStr = Field(min_length=1)
     source: MediaSource
-    name: str | None = None
-    size_bytes: int | None = None
-    sha256: str | None = None
+    name: StrictStr | None = None
+    size_bytes: Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)] | None = None
+    sha256: StrictStr | None = None
 
     @classmethod
     def from_base64(cls, media_type: str, data: str, **kwargs: Any) -> Self:
@@ -197,7 +202,7 @@ class ChatMessage(BaseModel):
 
     # Unknown keys fail loudly: the replaced `content` field would otherwise be
     # silently ignored, producing an empty message instead of an error.
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     role: MessageRole = MessageRole.USER
     blocks: List[ContentBlock] = Field(default_factory=list)

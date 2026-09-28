@@ -20,6 +20,7 @@ package org.apache.flink.agents.api.chat.messages;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -38,7 +39,9 @@ public final class UrlSource extends MediaSource {
     private final String url;
 
     @JsonCreator
-    public UrlSource(@JsonProperty("url") String url) {
+    public UrlSource(
+            @JsonProperty("url") @JsonDeserialize(using = MediaFieldDeserializers.StringValue.class)
+                    String url) {
         if (url == null || url.isEmpty()) {
             throw new IllegalArgumentException("A URL source requires a non-empty URL.");
         }
@@ -107,6 +110,6 @@ public final class UrlSource extends MediaSource {
 
     @Override
     public String toString() {
-        return "UrlSource(" + url + ")";
+        return "UrlSource(<redacted>)";
     }
 }

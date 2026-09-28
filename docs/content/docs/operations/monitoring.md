@@ -414,9 +414,14 @@ Each event type is logged at a configurable verbosity. Three levels are supporte
 |------------|----------------------------------------------------------------------------------------------------------------|
 | `OFF`      | Events of this type are not logged.                                                                            |
 | `STANDARD` | Events are logged, but the payload may be truncated or summarized to keep logs concise. **This is the default.** |
-| `VERBOSE`  | Events are logged with the full, untruncated payload.                                                          |
+| `VERBOSE`  | Events are logged without truncation, after applicable media sanitization.                                    |
 
-The global default is set by [`event-log.level`]({{< ref "docs/operations/configuration#core-options" >}}). At `STANDARD` level, the payload is shrunk along three independent axes — long strings, large arrays, and deep nesting — controlled by `event-log.standard.max-string-length`, `event-log.standard.max-array-elements`, and `event-log.standard.max-depth` respectively. Setting any threshold to `0` disables that specific truncation; setting all three to `0` makes `STANDARD` behave identically to `VERBOSE` (apart from the `logLevel` label). The exact truncation strategy may evolve over time; the contract is only that `STANDARD` keeps logs concise while `VERBOSE` preserves the full payload.
+The global default is set by [`event-log.level`]({{< ref "docs/operations/configuration#core-options" >}}). At `STANDARD` level, the payload is shrunk along three independent axes — long strings, large arrays, and deep nesting — controlled by `event-log.standard.max-string-length`, `event-log.standard.max-array-elements`, and `event-log.standard.max-depth` respectively. Setting any threshold to `0` disables that specific truncation; setting all three to `0` makes `STANDARD` behave identically to `VERBOSE` (apart from the `logLevel` label). The exact truncation strategy may evolve over time; `VERBOSE` disables truncation but does not disable media sanitization.
+
+**Media sanitization.** When logging `ChatMessage` objects, all enabled log levels
+omit inline Base64 media data and remove userinfo, query strings, and fragments
+from media URLs. Media metadata is retained. Message text is not automatically
+redacted.
 
 **Fields that are never truncated.** Structural and identifying fields are always preserved in full so log consumers can still group, route, and correlate records: `timestamp`, `logLevel`, trace fields such as `inputRunId` and `executionId`, `eventId`, `eventType`, and lifecycle fields such as `status` and `problemCategory`. Truncation only applies to large nested content under `eventAttributes` (long strings, big arrays, deeply nested objects).
 
@@ -442,8 +447,8 @@ Example record at `STANDARD` with a long string and a large array truncated:
     "model": "gpt-4",
     "messages": {
       "truncatedList": [
-        {"role": "system", "content": "You are a helpful assistant..."},
-        {"role": "user", "content": {"truncatedString": "Analyze this doc...", "omittedChars": 1000}}
+        {"role": "system", "blocks": [{"type": "text", "text": "You are a helpful assistant..."}]},
+        {"role": "user", "blocks": [{"type": "text", "text": {"truncatedString": "Analyze this doc...", "omittedChars": 1000}}]}
       ],
       "omittedElements": 30
     }
