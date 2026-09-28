@@ -20,6 +20,7 @@ package org.apache.flink.agents.api.chat.messages;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import javax.annotation.Nullable;
 
@@ -28,11 +29,22 @@ public final class AudioBlock extends MediaBlock {
 
     @JsonCreator
     public AudioBlock(
-            @JsonProperty("media_type") String mediaType,
+            @JsonProperty("media_type")
+                    @JsonDeserialize(using = MediaFieldDeserializers.StringValue.class)
+                    String mediaType,
             @JsonProperty("source") MediaSource source,
-            @JsonProperty("name") @Nullable String name,
-            @JsonProperty("size_bytes") @Nullable Long sizeBytes,
-            @JsonProperty("sha256") @Nullable String sha256) {
+            @JsonProperty("name")
+                    @JsonDeserialize(using = MediaFieldDeserializers.StringValue.class)
+                    @Nullable
+                    String name,
+            @JsonProperty("size_bytes")
+                    @JsonDeserialize(using = MediaFieldDeserializers.SizeBytes.class)
+                    @Nullable
+                    Long sizeBytes,
+            @JsonProperty("sha256")
+                    @JsonDeserialize(using = MediaFieldDeserializers.StringValue.class)
+                    @Nullable
+                    String sha256) {
         super(mediaType, source, name, sizeBytes, sha256);
     }
 

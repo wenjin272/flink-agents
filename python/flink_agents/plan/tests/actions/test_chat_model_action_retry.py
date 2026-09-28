@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from flink_agents.api.agents.agent import STRUCTURED_OUTPUT
 from flink_agents.api.agents.react_agent import OutputSchema
-from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.chat_message import ChatMessage, ImageBlock, MessageRole
 from flink_agents.api.core_options import (
     AgentExecutionOptions,
     ErrorHandlingStrategy,
@@ -163,6 +163,34 @@ def _create_mock_runner_context(
 
 class TestChatModelActionRetry:
     """Tests for retry behavior in chat()."""
+
+    def test_failure_debug_log_contains_only_message_count(self, caplog) -> None:
+        model = MagicMock()
+        model.chat.side_effect = RuntimeError("provider unavailable")
+        ctx, _, _, _ = _create_mock_runner_context(
+            model, error_handling_strategy=ErrorHandlingStrategy.FAIL
+        )
+        messages = [
+            ChatMessage.user(
+                [
+                    ImageBlock.from_base64("image/png", "c2VjcmV0"),
+                    ImageBlock.from_url(
+                        "image/png", "https://u:password@example.org/x?token=secret"
+                    ),
+                ]
+            )
+        ]
+        with (
+            caplog.at_level(
+                "DEBUG", logger="flink_agents.plan.actions.chat_model_action"
+            ),
+            pytest.raises(RuntimeError, match="provider unavailable"),
+        ):
+            asyncio.run(chat(uuid4(), "test-model", messages, {}, None, ctx))
+        assert "1 input messages" in caplog.text
+        assert "c2VjcmV0" not in caplog.text
+        assert "password" not in caplog.text
+        assert "token=secret" not in caplog.text
 
     def test_chat_succeeds_without_retry(self) -> None:
         """No retry needed: retry_count=0, total_retry_wait_sec=0, no metrics."""

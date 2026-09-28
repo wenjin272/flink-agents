@@ -20,6 +20,7 @@ package org.apache.flink.agents.api.chat.messages;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -31,7 +32,10 @@ public final class Base64Source extends MediaSource {
     private final String data;
 
     @JsonCreator
-    public Base64Source(@JsonProperty("data") String data) {
+    public Base64Source(
+            @JsonProperty("data")
+                    @JsonDeserialize(using = MediaFieldDeserializers.StringValue.class)
+                    String data) {
         if (data == null || data.isEmpty()) {
             throw new IllegalArgumentException("A base64 source requires a non-empty payload.");
         }
@@ -47,11 +51,11 @@ public final class Base64Source extends MediaSource {
         return "base64";
     }
 
-    /** The decoded byte count implied by the base64 length. */
+    /** Infers the byte count assuming valid standard Base64, without decoding. */
     @Override
     public Long getSizeBytes() {
         long padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
-        return data.length() * 3L / 4 - padding;
+        return Math.max(0L, data.length() * 3L / 4 - padding);
     }
 
     /**

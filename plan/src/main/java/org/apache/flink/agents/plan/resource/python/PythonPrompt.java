@@ -18,7 +18,6 @@
 package org.apache.flink.agents.plan.resource.python;
 
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
-import org.apache.flink.agents.api.chat.messages.ContentBlock;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
 import org.apache.flink.agents.api.prompt.Prompt;
 
@@ -79,15 +78,15 @@ public class PythonPrompt extends Prompt.LocalPrompt {
         String roleValue = messageMap.get("role").toString();
         MessageRole role = MessageRole.fromValue(roleValue);
 
-        List<Map<String, Object>> blocks = (List<Map<String, Object>>) messageMap.get("blocks");
+        List<Map<String, Object>> blocks =
+                (List<Map<String, Object>>) messageMap.getOrDefault("blocks", List.of());
 
         List<Map<String, Object>> toolCalls =
                 (List<Map<String, Object>>) messageMap.get("tool_calls");
 
         Map<String, Object> extraArgs = (Map<String, Object>) messageMap.get("extra_args");
 
-        ChatMessage message =
-                new ChatMessage(role, (List<ContentBlock>) null, toolCalls, extraArgs);
+        ChatMessage message = new ChatMessage(role, List.of(), toolCalls, extraArgs);
         message.setBlocksFromMaps(blocks);
         return message;
     }

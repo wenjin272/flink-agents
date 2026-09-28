@@ -53,6 +53,53 @@ Chat models communicate through built-in events:
 
 A `ChatRequestEvent` can name a model router instead of a chat model to pick the model per request; see [Model Routing]({{< ref "docs/development/model_routing" >}}).
 
+### Message content blocks
+
+Use `ChatMessage.blocks` to combine text and media in a single message, in the
+order you want them presented. Supported block types are `TextBlock`, `ImageBlock`,
+`AudioBlock`, `VideoBlock`, and `DocumentBlock`. For example, a message can contain
+a question followed by an image:
+
+**Provider support:** Built-in provider integrations currently send only the text
+portion of a message. These examples construct multimodal messages; sending their
+media to a model requires a provider integration that supports those block types.
+
+{{< tabs "Message content blocks" >}}
+
+{{< tab "Python" >}}
+```python
+from flink_agents.api.chat_message import ChatMessage, ImageBlock, TextBlock
+
+message = ChatMessage.user([
+    TextBlock(text="Describe this image"),
+    ImageBlock.from_url("image/png", "https://example.org/image.png"),
+])
+```
+{{< /tab >}}
+
+{{< tab "Java" >}}
+```java
+ChatMessage message = ChatMessage.user(List.of(
+        TextBlock.of("Describe this image"),
+        ImageBlock.fromUrl("image/png", "https://example.org/image.png")));
+```
+{{< /tab >}}
+
+{{< /tabs >}}
+
+Each media block requires a MIME type such as `image/png` and a media source.
+Use `from_url` (Python) or `fromUrl` (Java) for an external URL, as above. For
+inline data, use `from_base64(media_type, data)` or `fromBase64(mediaType, data)`
+with an already Base64-encoded string. The framework does not encode the data or
+verify that its contents match the declared media type. Choose a concrete block
+such as `ImageBlock`, rather than constructing the shared `MediaBlock` base class.
+
+Media blocks also accept optional metadata: `name` for a file name, `size_bytes`
+for the media size in bytes, and `sha256` for a content checksum.
+
+To read only the text, use `.text` (Python) or `getText()` (Java). These concatenate
+the text blocks and exclude media.
+
 ### Usage Example
 
 Here's how to define and use chat models in a workflow agent:

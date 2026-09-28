@@ -43,6 +43,100 @@ def test_text_only_wire_shape() -> None:
     }
 
 
+@pytest.mark.parametrize("blocks", [None, [None]])
+def test_null_blocks_rejected_at_construction_and_assignment(blocks) -> None:
+    with pytest.raises(ValidationError):
+        ChatMessage(blocks=blocks)
+    message = ChatMessage.user("original")
+    with pytest.raises(ValidationError):
+        message.blocks = blocks
+    assert message.text == "original"
+
+
+def test_block_list_copies_input_supports_append_and_dumps_as_list() -> None:
+    blocks = [TextBlock(text="original")]
+    message = ChatMessage.user(blocks)
+    blocks.clear()
+    assert message.text == "original"
+    message.blocks.append(TextBlock(text=" appended"))
+    assert message.text == "original appended"
+    message.blocks = [TextBlock(text="replacement")]
+    assert message.text == "replacement"
+    assert isinstance(message.model_dump()["blocks"], list)
+    assert isinstance(message.model_dump(mode="json")["blocks"], list)
+
+
+@pytest.mark.parametrize("kind", ["image", "audio", "video", "document"])
+@pytest.mark.parametrize("field", ["media_type", "name", "sha256"])
+@pytest.mark.parametrize("value", [5, True, 1.5])
+def test_media_strings_reject_coercion(kind, field, value) -> None:
+    payload = {
+        "type": kind,
+        "media_type": "image/png",
+        "source": {"type": "base64", "data": "aGk="},
+        field: value,
+    }
+    with pytest.raises(ValidationError):
+        ChatMessage.model_validate({"blocks": [payload]})
+
+
+@pytest.mark.parametrize("value", [-1, True, False, 1.5, 1.0, "1", "1.0", 2**63])
+def test_size_bytes_rejects_invalid_values(value) -> None:
+    with pytest.raises(ValidationError):
+        ImageBlock.from_base64("image/png", "aGk=", size_bytes=value)
+
+
+@pytest.mark.parametrize("value", [None, 0, 2**63 - 1])
+def test_size_bytes_accepts_boundaries(value) -> None:
+    block = ImageBlock.from_base64("image/png", "aGk=", size_bytes=value)
+    assert block.size_bytes == value
+
+
+@pytest.mark.parametrize("value", [5, True, 1.5, b"aGk="])
+def test_sources_reject_non_strings(value) -> None:
+    with pytest.raises(ValidationError):
+        Base64Source(data=value)
+    with pytest.raises(ValidationError):
+        UrlSource(url=value)
+
+
+@pytest.mark.parametrize(
+    "data", ["=", "===", "a", "a===", "aGk==", "aG=k", "aGk\n", "aG-_", "图像"]
+)
+def test_base64_preserves_unvalidated_payload(data) -> None:
+    """The source carries data; malformed input must not produce negative sizes."""
+    source = Base64Source(data=data)
+    assert source.size_bytes >= 0
+    assert Base64Source.model_validate_json(source.model_dump_json()) == source
+    assert source.model_dump()["data"] == data
+
+
+@pytest.mark.parametrize(
+    ("data", "size"), [("YQ==", 1), ("YQ", 1), ("aGk=", 2), ("aGk", 2), ("YWJj", 3)]
+)
+def test_base64_size_and_wire_preservation(data, size) -> None:
+    source = Base64Source(data=data)
+    assert source.size_bytes == size
+    assert source.model_dump()["data"] == data
+
+
+def test_media_representations_hide_payloads_but_wire_preserves_them() -> None:
+    data = "c2VjcmV0"
+    url = "https://user:password@example.org/x?token=secret"
+    message = ChatMessage.user(
+        [
+            ImageBlock.from_base64("image/png", data),
+            ImageBlock.from_url("image/png", url),
+        ]
+    )
+    assert data not in repr([message])
+    assert url not in repr([message])
+    assert url not in str(message.blocks[1])
+    dumped = message.model_dump(mode="json")
+    assert dumped["blocks"][0]["source"]["data"] == data
+    assert dumped["blocks"][1]["source"]["url"] == url
+
+
 def test_media_block_wire_shape_omits_absent_fields() -> None:
     message = ChatMessage.user(
         [

@@ -345,7 +345,8 @@ public class ChatModelAction {
         }
         Map<String, Object> extraArgs = new HashMap<>(response.getExtraArgs());
         extraArgs.put(STRUCTURED_OUTPUT, structuredOutput);
-        return new ChatMessage(response.getRole(), output, extraArgs);
+        return new ChatMessage(
+                response.getRole(), response.getBlocks(), response.getToolCalls(), extraArgs);
     }
 
     /**

@@ -96,6 +96,23 @@ public class PythonPromptTest {
                         });
     }
 
+    @Test
+    public void testOmittedBlocksDefaultToEmptyButExplicitNullIsRejected() {
+        Map<String, Object> message = messageDump("user", null);
+        Map<String, Object> serialized = Map.of("template", List.of(message));
+        assertThatThrownBy(() -> PythonPrompt.fromSerializedMap(serialized))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("blocks must not be null");
+
+        message.remove("blocks");
+        assertThat(
+                        PythonPrompt.fromSerializedMap(serialized)
+                                .formatMessages(MessageRole.USER, Map.of())
+                                .get(0)
+                                .getBlocks())
+                .isEmpty();
+    }
+
     private static Map<String, Object> messageDump(String role, List<Map<String, Object>> blocks) {
         Map<String, Object> message = new HashMap<>();
         message.put("role", role);
