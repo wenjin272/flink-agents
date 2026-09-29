@@ -123,8 +123,7 @@ public class OllamaChatModelConnection extends BaseChatModelConnection {
 
                 final Map<String, Map<String, String>> properties =
                         (Map<String, Map<String, String>>) schema.get("properties");
-                // "required" is optional in JSON Schema, and SchemaUtils only emits it when at
-                // least one parameter is required — treat a missing list as empty (#1014).
+                // "required" is optional in JSON Schema; treat a missing list as empty (#1014).
                 final List<String> required =
                         (List<String>) schema.getOrDefault("required", Collections.emptyList());
 

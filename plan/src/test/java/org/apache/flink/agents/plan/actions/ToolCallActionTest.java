@@ -290,7 +290,7 @@ public class ToolCallActionTest {
     }
 
     @Test
-    void processToolRequestInjectsArgsFromConfigBeforeDurableToolCall() throws Exception {
+    void processToolRequestOverridesModelSuppliedInjectedParameter() throws Exception {
         FakeRunnerContext ctx = new FakeRunnerContext();
 
         Map<String, Object> arguments =
@@ -310,7 +310,9 @@ public class ToolCallActionTest {
         ToolCallAction.processToolRequest(event, ctx);
 
         ToolResponseEvent response = ToolResponseEvent.fromEvent(ctx.sentEvents.get(0));
+        assertThat(response.getResponses().get("call-1").isSuccess()).isTrue();
         assertThat(response.getResponses().get("call-1").getResult()).isEqualTo("tenant-1:order-1");
+        assertThat(response.getError()).isEmpty();
         assertThat(arguments)
                 .containsOnly(
                         Map.entry("orderId", "order-1"), Map.entry("tenant_id", "model-tenant"));
@@ -354,7 +356,26 @@ public class ToolCallActionTest {
                                 ToolParameterInjection.fromSensoryMemory("request.tenant_id"))
                         .withSensoryMemory(Map.of());
 
-        ToolCallAction.processToolRequest(toolRequest("queryOrder"), ctx);
+        ToolRequestEvent request =
+                new ToolRequestEvent(
+                        "model",
+                        List.of(
+                                Map.of(
+                                        "id",
+                                        "call-1",
+                                        "type",
+                                        "function",
+                                        "function",
+                                        Map.of(
+                                                "name",
+                                                "queryOrder",
+                                                "arguments",
+                                                Map.of(
+                                                        "orderId",
+                                                        "order-1",
+                                                        "tenant_id",
+                                                        "model-tenant")))));
+        ToolCallAction.processToolRequest(request, ctx);
 
         ToolResponseEvent response = ToolResponseEvent.fromEvent(ctx.sentEvents.get(0));
         assertThat(response.getSuccess()).containsEntry("call-1", false);
