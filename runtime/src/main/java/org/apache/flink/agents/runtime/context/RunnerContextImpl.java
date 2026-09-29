@@ -620,10 +620,10 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
             return executeAndFinalizeCurrentCall(functionId, argsDigest, executionCallable);
         }
 
-        Optional<T> cachedResult =
+        Optional<Outcome<T>> cachedResult =
                 tryGetCachedResult(functionId, argsDigest, durableCallable.getResultClass());
         if (cachedResult.isPresent()) {
-            return cachedResult.get();
+            return cachedResult.get().getValue();
         }
 
         T result = null;
@@ -916,7 +916,13 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         return null;
     }
 
-    protected <T> Optional<T> tryGetCachedResult(
+    /**
+     * Returns the recorded outcome of the next durable call when it matches and has finished, or an
+     * empty {@code Optional} when there is nothing to replay. A recorded failure is rethrown. A
+     * recorded success may carry a {@code null} value (for example a {@code Void} call), so the
+     * presence of the outcome, not its value, marks the hit.
+     */
+    protected <T> Optional<Outcome<T>> tryGetCachedResult(
             String functionId, String argsDigest, Class<T> resultClass) throws Exception {
         Object[] cached = matchNextOrClearSubsequentCallResult(functionId, argsDigest);
         if (cached != null && (Boolean) cached[0]) {
@@ -928,9 +934,10 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
                         OBJECT_MAPPER.readValue(exceptionPayload, DurableExecutionException.class);
                 throw cachedException.toException();
             } else if (resultPayload != null) {
-                return Optional.of(OBJECT_MAPPER.readValue(resultPayload, resultClass));
+                return Optional.of(
+                        Outcome.success(OBJECT_MAPPER.readValue(resultPayload, resultClass)));
             } else {
-                return Optional.of(null);
+                return Optional.of(Outcome.success(null));
             }
         }
         return Optional.empty();
@@ -978,10 +985,10 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         }
 
         if (!current.isPending()) {
-            Optional<T> cachedResult =
+            Optional<Outcome<T>> cachedResult =
                     tryGetCachedResult(functionId, argsDigest, durableCallable.getResultClass());
             if (cachedResult.isPresent()) {
-                return cachedResult.get();
+                return cachedResult.get().getValue();
             }
             throw new IllegalStateException(
                     String.format(
