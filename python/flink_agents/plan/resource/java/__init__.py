@@ -15,24 +15,3 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from flink_agents.api.decorators import java_resource
-from flink_agents.api.vector_stores.vector_store import (
-    BaseVectorStore,
-    CollectionManageableVectorStore,
-)
-
-
-@java_resource
-class JavaVectorStore(BaseVectorStore):
-    """Java-based implementation of VectorStore that wraps a Java vector store."""
-
-    java_class_name: str = ""
-
-
-@java_resource
-class JavaCollectionManageableVectorStore(
-    JavaVectorStore, CollectionManageableVectorStore
-):
-    """Java-based implementation of VectorStore with collection management capabilities
-    that bridges Python and Java vector store functionality.
-    """

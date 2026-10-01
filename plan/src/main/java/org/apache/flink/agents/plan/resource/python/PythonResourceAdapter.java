@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.agents.api.resource.python;
+package org.apache.flink.agents.plan.resource.python;
 
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.metrics.FlinkAgentsMetricGroup;

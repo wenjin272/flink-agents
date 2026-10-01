@@ -25,13 +25,13 @@ import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.event.ContextRetrievalRequestEvent;
 import org.apache.flink.agents.api.event.ContextRetrievalResponseEvent;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.resource.python.PythonObjectScope;
 import org.apache.flink.agents.api.vectorstores.BaseVectorStore;
 import org.apache.flink.agents.api.vectorstores.Document;
 import org.apache.flink.agents.api.vectorstores.VectorStoreQuery;
 import org.apache.flink.agents.api.vectorstores.VectorStoreQueryResult;
-import org.apache.flink.agents.api.vectorstores.python.PythonVectorStore;
 import org.apache.flink.agents.plan.JavaFunction;
+import org.apache.flink.agents.plan.resource.python.PythonObjectScope;
+import org.apache.flink.agents.plan.resource.python.PythonVectorStore;
 
 import java.util.List;
 

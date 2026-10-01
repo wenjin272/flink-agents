@@ -35,6 +35,7 @@ import org.apache.flink.agents.api.chat.model.routing.ModelRouter;
 import org.apache.flink.agents.api.chat.model.routing.RoutingStrategy;
 import org.apache.flink.agents.api.chat.model.routing.RoutingStrategyType;
 import org.apache.flink.agents.api.function.JavaFunctionUtils;
+import org.apache.flink.agents.api.resource.PythonResourceDescriptor;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
@@ -49,7 +50,6 @@ import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.plan.actions.ChatModelAction;
 import org.apache.flink.agents.plan.actions.ContextRetrievalAction;
 import org.apache.flink.agents.plan.actions.ToolCallAction;
-import org.apache.flink.agents.plan.resource.python.PythonMCPServer;
 import org.apache.flink.agents.plan.resourceprovider.JavaResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.JavaSerializableResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
@@ -345,8 +345,7 @@ public class AgentPlan implements Serializable {
     }
 
     private boolean isPythonResource(ResourceDescriptor descriptor) {
-        String pythonClazz = descriptor.getArgument("pythonClazz");
-        return pythonClazz != null && !pythonClazz.isEmpty();
+        return "python".equals(descriptor.getLanguage());
     }
 
     private void extractTool(Method method) throws Exception {
@@ -542,9 +541,9 @@ public class AgentPlan implements Serializable {
                             ResourceType.MCP_SERVER,
                             method,
                             desc ->
-                                    new ResourceDescriptor(
-                                            desc.getModule(),
-                                            PythonMCPServer.class.getName(),
+                                    new PythonResourceDescriptor(
+                                            "flink_agents.integrations.mcp.mcp",
+                                            "MCPServer",
                                             new HashMap<>(desc.getInitialArguments())),
                             true);
                 }
@@ -874,7 +873,7 @@ public class AgentPlan implements Serializable {
         // The judge must be a plain chat model — nothing may rewrite the judge conversation.
         // Only descriptor-carried bindings are visible here; a setup that is not introspectable
         // at plan time surfaces its bindings on the judge's normal chat path. Both Java- and
-        // Python-backed setups (a Java agent declaring the judge with 'pythonClazz') carry the
+        // Python-backed setups (declared with PythonResourceDescriptor) carry the
         // same 'prompt'/'tools'/'skills' arguments, so both descriptors are checked.
         ResourceDescriptor judgeDescriptor = descriptorOf(judgeProvider);
         if (judgeDescriptor == null || judgeDescriptor.getInitialArguments() == null) {

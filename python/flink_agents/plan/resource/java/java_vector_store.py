@@ -20,20 +20,16 @@ from typing import Any, Dict, List
 
 from typing_extensions import override
 
-from flink_agents.api.vector_stores.java_vector_store import (
-    JavaCollectionManageableVectorStore,
-)
 from flink_agents.api.vector_stores.vector_store import (
+    CollectionManageableVectorStore,
     Document,
     _maybe_cast_to_list,
 )
-from flink_agents.runtime.java.java_resource_wrapper import (
-    set_java_resource_metric_group,
-)
-from flink_agents.runtime.python_java_utils import from_java_document
+from flink_agents.plan.resource.java.conversions import from_java_document
+from flink_agents.plan.resource.java.java_resource_adapter import JavaResourceAdapter
 
 
-class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
+class JavaVectorStore(CollectionManageableVectorStore):
     """Java-based implementation of EmbeddingModelSetup that wraps a Java embedding
     model object.
     This class serves as a bridge between Python and Java embedding model environments,
@@ -42,9 +38,11 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
     """
 
     _j_resource: Any
-    _j_resource_adapter: Any
+    _j_resource_adapter: JavaResourceAdapter
 
-    def __init__(self, j_resource: Any, j_resource_adapter: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, j_resource: Any, j_resource_adapter: JavaResourceAdapter, **kwargs: Any
+    ) -> None:
         """Creates a new JavaEmbeddingModelSetup.
 
         Args:
@@ -66,7 +64,7 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
     @override
     def set_metric_group(self, metric_group: Any) -> None:
         super().set_metric_group(metric_group)
-        set_java_resource_metric_group(self._j_resource, metric_group)
+        self._j_resource_adapter.set_metric_group(self._j_resource, metric_group)
 
     @property
     @override
@@ -167,7 +165,7 @@ class JavaVectorStoreImpl(JavaCollectionManageableVectorStore):
         self._j_resource.updateEmbedding(j_documents, collection_name, kwargs)
 
 
-def _to_j_document(j_resource_adapter: Any, doc: Document) -> Any:
+def _to_j_document(j_resource_adapter: JavaResourceAdapter, doc: Document) -> Any:
     """Convert a Python ``Document`` to a Java ``Document`` by passing the
     fields through to the Java adapter as primitives. This avoids the reverse
     Java→Python ``getAttr`` path, which crashes the JVM when the call

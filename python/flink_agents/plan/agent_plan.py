@@ -159,7 +159,9 @@ class AgentPlan(BaseModel):
         return AgentPlan(
             actions=actions,
             resource_providers=resource_providers,
-            agent_name=agent_name if agent_name is not None else agent.__class__.__name__,
+            agent_name=agent_name
+            if agent_name is not None
+            else agent.__class__.__name__,
             config=config,
         )
 
@@ -312,14 +314,24 @@ def _get_resource_providers(
 
             if callable(value):
                 descriptor = value()
-                if hasattr(descriptor.clazz, "_is_java_resource"):
-                    resource_providers.append(
-                        JavaResourceProvider.get(name=name, descriptor=value())
-                    )
-                else:
-                    resource_providers.append(
-                        PythonResourceProvider.get(name=name, descriptor=value())
-                    )
+                resource_type = next(
+                    resource_type
+                    for marker, resource_type in {
+                        "_is_chat_model_setup": ResourceType.CHAT_MODEL,
+                        "_is_chat_model_connection": ResourceType.CHAT_MODEL_CONNECTION,
+                        "_is_embedding_model_setup": ResourceType.EMBEDDING_MODEL,
+                        "_is_embedding_model_connection": ResourceType.EMBEDDING_MODEL_CONNECTION,
+                        "_is_vector_store": ResourceType.VECTOR_STORE,
+                    }.items()
+                    if hasattr(value, marker)
+                    or hasattr(agent.__class__.__dict__[name], marker)
+                )
+                provider = (
+                    JavaResourceProvider
+                    if descriptor.language == "java"
+                    else PythonResourceProvider
+                )
+                resource_providers.append(provider.get(name, descriptor, resource_type))
 
         elif hasattr(value, "_is_tool"):
             injected_args = getattr(value, "_injected_args", None)
@@ -417,14 +429,12 @@ def _get_resource_providers(
         ResourceType.VECTOR_STORE,
     ]:
         for name, descriptor in agent.resources[resource_type].items():
-            if hasattr(descriptor.clazz, "_is_java_resource"):
-                resource_providers.append(
-                    JavaResourceProvider.get(name=name, descriptor=descriptor)
-                )
-            else:
-                resource_providers.append(
-                    PythonResourceProvider.get(name=name, descriptor=descriptor)
-                )
+            provider = (
+                JavaResourceProvider
+                if descriptor.language == "java"
+                else PythonResourceProvider
+            )
+            resource_providers.append(provider.get(name, descriptor, resource_type))
 
     return resource_providers
 

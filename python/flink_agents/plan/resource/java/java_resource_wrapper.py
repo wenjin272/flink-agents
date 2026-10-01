@@ -25,22 +25,7 @@ from flink_agents.api.prompts.prompt import Prompt
 from flink_agents.api.resource import Resource, ResourceType
 from flink_agents.api.resource_context import ResourceContext
 from flink_agents.api.tools.tool import Tool, ToolMetadata, ToolType
-
-
-def set_java_resource_metric_group(j_resource: Any, metric_group: Any) -> None:
-    """Bind the underlying Java metric group to a wrapped Java resource."""
-    if j_resource is None:
-        return
-    from flink_agents.runtime.flink_metric_group import FlinkMetricGroup
-
-    if metric_group is None:
-        j_metric_group = None
-    elif isinstance(metric_group, FlinkMetricGroup):
-        j_metric_group = metric_group._j_metric_group
-    else:
-        msg = "Java resource metric groups must be FlinkMetricGroup or None."
-        raise TypeError(msg)
-    j_resource.setMetricGroup(j_metric_group)
+from flink_agents.plan.resource.java.java_resource_adapter import JavaResourceAdapter
 
 
 class JavaTool(Tool):
@@ -108,7 +93,7 @@ class JavaPrompt(Prompt):
 class JavaResourceContextWrapper(ResourceContext):
     """Python wrapper for Java ResourceAdapter."""
 
-    def __init__(self, j_resource_adapter: Any) -> None:
+    def __init__(self, j_resource_adapter: JavaResourceAdapter) -> None:
         """Initialize with a Java ResourceAdapter."""
         self._j_resource_adapter = j_resource_adapter
 
@@ -125,7 +110,9 @@ class JavaResourceContextWrapper(ResourceContext):
         so that a Python chat model running inside a Java agent can use skills
         declared on the Java side.
         """
-        result = self._j_resource_adapter.generateAvailableSkillsPrompt(list(skill_names))
+        result = self._j_resource_adapter.generateAvailableSkillsPrompt(
+            list(skill_names)
+        )
         return result if result is not None else ""
 
     @override

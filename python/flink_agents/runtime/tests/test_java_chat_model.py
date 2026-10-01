@@ -18,7 +18,7 @@
 from typing import Any
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.runtime.java.java_chat_model import _to_java_chat_message
+from flink_agents.plan.resource.java.java_chat_model import _to_java_chat_message
 
 
 class _JavaResourceAdapter:

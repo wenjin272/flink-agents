@@ -21,7 +21,6 @@ import org.apache.flink.agents.api.agents.Agent;
 import org.apache.flink.agents.api.agents.AgentExecutionOptions;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.model.BaseChatModelSetup;
-import org.apache.flink.agents.api.chat.model.python.PythonChatModelSetup;
 import org.apache.flink.agents.api.context.DurableCallable;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.metrics.FlinkAgentsMetricGroup;
@@ -29,6 +28,7 @@ import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.trace.ExecutionReporter;
 import org.apache.flink.agents.api.trace.ExecutionReporters;
 import org.apache.flink.agents.api.trace.LLMExecutionMetadataKeys;
+import org.apache.flink.agents.plan.resource.python.PythonChatModelSetup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

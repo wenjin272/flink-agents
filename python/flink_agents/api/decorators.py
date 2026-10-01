@@ -15,7 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
-from typing import Callable, Type
+from typing import Callable
 
 from flink_agents.api.function import Function, JavaFunction, PythonFunction
 from flink_agents.api.tools.tool_parameter_injection import (
@@ -262,9 +262,3 @@ def skills(func: Callable) -> Callable:
     """
     func._is_skills = True
     return func
-
-
-def java_resource(cls: Type) -> Type:
-    """Decorator to mark a class as Java resource."""
-    cls._is_java_resource = True
-    return cls

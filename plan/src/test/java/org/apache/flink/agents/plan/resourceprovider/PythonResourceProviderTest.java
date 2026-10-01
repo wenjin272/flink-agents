@@ -17,11 +17,12 @@
  */
 package org.apache.flink.agents.plan.resourceprovider;
 
+import org.apache.flink.agents.api.resource.PythonResourceDescriptor;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceContext;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.resource.python.PythonResourceAdapter;
+import org.apache.flink.agents.plan.resource.python.PythonResourceAdapter;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import pemja.core.object.PyObject;
@@ -48,7 +49,7 @@ class PythonResourceProviderTest {
         PythonResourceAdapter adapter = mock(PythonResourceAdapter.class);
         PyObject pythonResource = mock(PyObject.class);
         ResourceDescriptor descriptor =
-                new ResourceDescriptor("example.module", "ExampleModel", Map.of());
+                new PythonResourceDescriptor("example.module", "ExampleModel", Map.of());
         PythonResourceProvider provider = new PythonResourceProvider("model", type, descriptor);
         provider.setPythonResourceAdapter(adapter);
         when(adapter.initPythonResource(anyString(), anyString(), anyMap()))

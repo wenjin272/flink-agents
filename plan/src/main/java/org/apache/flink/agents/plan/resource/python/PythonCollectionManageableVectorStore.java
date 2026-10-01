@@ -16,11 +16,10 @@
  * limitations under the License.
  */
 
-package org.apache.flink.agents.api.vectorstores.python;
+package org.apache.flink.agents.plan.resource.python;
 
 import org.apache.flink.agents.api.resource.ResourceContext;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
-import org.apache.flink.agents.api.resource.python.PythonResourceAdapter;
 import org.apache.flink.agents.api.vectorstores.CollectionManageableVectorStore;
 import pemja.core.object.PyObject;
 

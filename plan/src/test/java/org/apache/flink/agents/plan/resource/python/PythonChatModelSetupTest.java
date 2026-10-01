@@ -15,15 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.agents.api.chat.model.python;
+package org.apache.flink.agents.plan.resource.python;
 
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
-import org.apache.flink.agents.api.chat.model.BaseChatModelConnection;
+import org.apache.flink.agents.api.metrics.FlinkAgentsMetricGroup;
 import org.apache.flink.agents.api.resource.ResourceContext;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
-import org.apache.flink.agents.api.resource.python.PythonResourceAdapter;
-import org.apache.flink.agents.api.resource.python.PythonResourceWrapper;
-import org.apache.flink.agents.api.tools.Tool;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,26 +34,27 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
-public class PythonChatModelConnectionTest {
+public class PythonChatModelSetupTest {
     @Mock private PythonResourceAdapter mockAdapter;
 
-    @Mock private PyObject mockChatModel;
+    @Mock private PyObject mockChatModelSetup;
 
     @Mock private ResourceDescriptor mockDescriptor;
 
     @Mock private ResourceContext mockGetResource;
 
-    private PythonChatModelConnection pythonChatModelConnection;
+    private PythonChatModelSetup pythonChatModelSetup;
     private AutoCloseable mocks;
 
     @BeforeEach
     void setUp() throws Exception {
         mocks = MockitoAnnotations.openMocks(this);
-        pythonChatModelConnection =
-                new PythonChatModelConnection(
-                        mockAdapter, mockChatModel, mockDescriptor, mockGetResource);
+        pythonChatModelSetup =
+                new PythonChatModelSetup(
+                        mockAdapter, mockChatModelSetup, mockDescriptor, mockGetResource);
     }
 
     @AfterEach
@@ -68,92 +66,110 @@ public class PythonChatModelConnectionTest {
 
     @Test
     void testConstructor() {
-        assertThat(pythonChatModelConnection).isNotNull();
-        assertThat(pythonChatModelConnection.getPythonResource()).isEqualTo(mockChatModel);
+        assertThat(pythonChatModelSetup).isNotNull();
+        assertThat(pythonChatModelSetup.getPythonResource()).isEqualTo(mockChatModelSetup);
     }
 
     @Test
-    void testGetPythonResourceWithNullChatModel() {
-        PythonChatModelConnection connectionWithNullModel =
-                new PythonChatModelConnection(mockAdapter, null, mockDescriptor, mockGetResource);
+    void testGetPythonResourceWithNullChatModelSetup() {
+        PythonChatModelSetup setupWithNullModel =
+                new PythonChatModelSetup(mockAdapter, null, mockDescriptor, mockGetResource);
 
-        Object result = connectionWithNullModel.getPythonResource();
+        Object result = setupWithNullModel.getPythonResource();
 
         assertThat(result).isNull();
+    }
+
+    @Test
+    void testGetParameters() {
+        Map<String, Object> result = pythonChatModelSetup.getParameters();
+
+        assertThat(result).isNotNull();
+        assertThat(result).isEmpty();
     }
 
     @Test
     void testChat() throws Exception {
         ChatMessage inputMessage = mock(ChatMessage.class);
         ChatMessage outputMessage = mock(ChatMessage.class);
-        Tool mockTool = mock(Tool.class);
         List<ChatMessage> messages = Collections.singletonList(inputMessage);
-        List<Tool> tools = Collections.singletonList(mockTool);
+        Map<String, Object> promptArgs = new HashMap<>();
+        promptArgs.put("input", "value");
         Map<String, Object> modelParams = new HashMap<>();
         modelParams.put("temperature", 0.7);
         modelParams.put("max_tokens", 100);
 
         PyObject pythonInputMessage = mock(PyObject.class);
         PyObject pythonOutputMessage = mock(PyObject.class);
-        PyObject pythonTool = mock(PyObject.class);
 
         when(mockAdapter.toPythonChatMessage(inputMessage)).thenReturn(pythonInputMessage);
-        when(mockAdapter.convertToPythonTool(mockTool)).thenReturn(pythonTool);
-        when(mockAdapter.callMethod(eq(mockChatModel), eq("chat"), any(Map.class)))
+        when(mockAdapter.callMethod(eq(mockChatModelSetup), eq("chat"), any(Map.class)))
                 .thenReturn(pythonOutputMessage);
         when(mockAdapter.fromPythonChatMessage(pythonOutputMessage)).thenReturn(outputMessage);
 
-        ChatMessage result = pythonChatModelConnection.chat(messages, tools, modelParams);
+        ChatMessage result = pythonChatModelSetup.chat(messages, promptArgs, modelParams);
 
         assertThat(result).isEqualTo(outputMessage);
 
         verify(mockAdapter).toPythonChatMessage(inputMessage);
-        verify(mockAdapter).convertToPythonTool(mockTool);
         verify(mockAdapter)
                 .callMethod(
-                        eq(mockChatModel),
+                        eq(mockChatModelSetup),
                         eq("chat"),
                         argThat(
                                 kwargs -> {
                                     assertThat(kwargs).containsKey("messages");
-                                    assertThat(kwargs).containsKey("tools");
+                                    assertThat(kwargs).containsKey("prompt_args");
                                     assertThat(kwargs).containsKey("temperature");
                                     assertThat(kwargs).containsKey("max_tokens");
+                                    assertThat(kwargs.get("prompt_args")).isEqualTo(promptArgs);
                                     assertThat(kwargs.get("temperature")).isEqualTo(0.7);
                                     assertThat(kwargs.get("max_tokens")).isEqualTo(100);
-
                                     List<?> pythonMessages = (List<?>) kwargs.get("messages");
                                     assertThat(pythonMessages).hasSize(1);
                                     assertThat(pythonMessages.get(0)).isEqualTo(pythonInputMessage);
-
-                                    List<?> pythonTools = (List<?>) kwargs.get("tools");
-                                    assertThat(pythonTools).hasSize(1);
-                                    assertThat(pythonTools.get(0)).isEqualTo(pythonTool);
-
                                     return true;
                                 }));
         verify(mockAdapter).fromPythonChatMessage(pythonOutputMessage);
         verify(pythonInputMessage).close();
-        verify(pythonTool).close();
         verify(pythonOutputMessage).close();
     }
 
     @Test
-    void testInheritanceFromBaseChatModelConnection() {
-        assertThat(pythonChatModelConnection).isInstanceOf(BaseChatModelConnection.class);
+    void testChatWithNullChatModelSetupThrowsException() {
+        PythonChatModelSetup setupWithNullModel =
+                new PythonChatModelSetup(mockAdapter, null, mockDescriptor, mockGetResource);
+
+        ChatMessage inputMessage = mock(ChatMessage.class);
+        List<ChatMessage> messages = Collections.singletonList(inputMessage);
+        Map<String, Object> promptArgs = new HashMap<>();
+        Map<String, Object> modelParams = new HashMap<>();
+
+        assertThatThrownBy(() -> setupWithNullModel.chat(messages, promptArgs, modelParams))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ChatModelSetup is not initialized")
+                .hasMessageContaining("Cannot perform chat operation");
+    }
+
+    @Test
+    void testInheritanceFromBaseChatModelSetup() {
+        assertThat(pythonChatModelSetup)
+                .isInstanceOf(org.apache.flink.agents.api.chat.model.BaseChatModelSetup.class);
     }
 
     @Test
     void testImplementsPythonResourceWrapper() {
-        assertThat(pythonChatModelConnection).isInstanceOf(PythonResourceWrapper.class);
+        assertThat(pythonChatModelSetup)
+                .isInstanceOf(
+                        org.apache.flink.agents.plan.resource.python.PythonResourceWrapper.class);
     }
 
     @Test
-    void testConstructorWithAllNullParameters() {
-        PythonChatModelConnection connectionWithNulls =
-                new PythonChatModelConnection(null, null, null, null);
+    void testSetMetricGroupPropagatesToPythonResource() {
+        FlinkAgentsMetricGroup metricGroup = mock(FlinkAgentsMetricGroup.class);
 
-        assertThat(connectionWithNulls).isNotNull();
-        assertThat(connectionWithNulls.getPythonResource()).isNull();
+        pythonChatModelSetup.setMetricGroup(metricGroup);
+
+        verify(mockAdapter).setMetricGroup(mockChatModelSetup, metricGroup);
     }
 }

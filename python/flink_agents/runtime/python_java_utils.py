@@ -36,12 +36,21 @@ from flink_agents.api.vector_stores.vector_store import (
     VectorStoreQuery,
     VectorStoreQueryMode,
 )
-from flink_agents.plan.resource_provider import JAVA_RESOURCE_MAPPING
-from flink_agents.runtime.java.java_resource_wrapper import (
+from flink_agents.plan.resource.java.conversions import (
+    from_java_chat_message as from_java_chat_message,
+)
+from flink_agents.plan.resource.java.conversions import (
+    from_java_document as from_java_document,
+)
+from flink_agents.plan.resource.java.conversions import (
+    normalize_tool_call_id as normalize_tool_call_id,
+)
+from flink_agents.plan.resource.java.java_resource_wrapper import (
     JavaPrompt,
     JavaResourceContextWrapper,
     JavaTool,
 )
+from flink_agents.plan.resource_provider import JAVA_RESOURCE_MAPPING
 from flink_agents.runtime.memory.event_attachment_utils import load_event_attachments
 
 
@@ -118,7 +127,9 @@ def get_resource_context(j_resource_adapter: Any) -> JavaResourceContextWrapper:
         JavaResourceContextWrapper: A ResourceContext that wraps the
         Java resource adapter
     """
-    return JavaResourceContextWrapper(j_resource_adapter)
+    from flink_agents.runtime.java_resource_adapter import JavaResourceAdapterImpl
+
+    return JavaResourceContextWrapper(JavaResourceAdapterImpl(j_resource_adapter))
 
 
 def from_java_tool(j_tool: Any) -> JavaTool:
@@ -264,6 +275,10 @@ def from_java_resource(type_name: str, kwargs: Dict[str, Any]) -> Resource:
     module_path, class_name = class_path.rsplit(".", 1)
     cls = get_resource_class(module_path, class_name)
 
+    from flink_agents.runtime.java_resource_adapter import JavaResourceAdapterImpl
+
+    kwargs = dict(kwargs)
+    kwargs["j_resource_adapter"] = JavaResourceAdapterImpl(kwargs["j_resource_adapter"])
     return cls(**kwargs)
 
 
@@ -291,41 +306,6 @@ def call_embedding_with_usage(
     This avoids PyObject attribute access in the Java caller.
     """
     return embedding_result_to_java(embedding_model.embed_with_usage(**kwargs))
-
-
-def normalize_tool_call_id(tool_call: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalize tool call by converting the ID field to string format while preserving
-    all other fields.
-
-    This function ensures that the tool call ID is consistently represented as a string,
-    which is required for compatibility with certain systems that expect string IDs.
-
-    Args:
-        tool_call: Dictionary containing tool call information. The dictionary may
-                   contain any number of fields, but typically includes:
-                  - id: Tool call identifier (will be converted to string)
-                  - type: Tool call type (preserved as-is)
-                  - function: Function details (preserved as-is)
-                  - Any other fields (preserved as-is)
-    """
-    normalized_call = tool_call.copy()
-
-    normalized_call["id"] = str(tool_call.get("id", ""))
-
-    return normalized_call
-
-
-def from_java_chat_message(j_chat_message: Any) -> ChatMessage:
-    """Convert a chat message to a python chat message."""
-    return ChatMessage(
-        role=MessageRole(j_chat_message.getRole().getValue()),
-        content=j_chat_message.getContent(),
-        tool_calls=[
-            normalize_tool_call_id(tool_call)
-            for tool_call in j_chat_message.getToolCalls()
-        ],
-        extra_args=j_chat_message.getExtraArgs(),
-    )
 
 
 def to_java_chat_message(chat_message: ChatMessage) -> Any:
@@ -360,18 +340,6 @@ def update_java_chat_message(chat_message: ChatMessage, j_chat_message: Any) -> 
         j_chat_message.setToolCalls(tool_calls)
 
     return chat_message.role.value
-
-
-def from_java_document(j_document: Any) -> Document:
-    """Convert a Java documents to a Python document."""
-    document = Document(
-        content=j_document.getContent(),
-        id=j_document.getId(),
-        metadata=j_document.getMetadata(),
-    )
-    if j_document.getEmbedding():
-        document.embedding = list(j_document.getEmbedding())
-    return document
 
 
 def update_java_document(document: Document, j_document: Any) -> None:
