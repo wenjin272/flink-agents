@@ -18,10 +18,11 @@
 
 package org.apache.flink.agents.resource.test;
 
+import org.apache.flink.agents.api.resource.PythonResourceDescriptor;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.resource.python.PythonResourceWrapper;
+import org.apache.flink.agents.plan.resource.python.PythonResourceWrapper;
 import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.apache.flink.agents.runtime.PythonMCPResourceDiscovery;
@@ -181,14 +182,14 @@ public final class PythonResourceWorkerLifetimeScenario {
 
     private static Map<ResourceType, Map<String, ResourceProvider>> createProviders() {
         ResourceDescriptor descriptor =
-                new ResourceDescriptor(
+                new PythonResourceDescriptor(
                         "resource_lifetime_fixture",
                         "LifetimeChatModelSetup",
                         Map.of("connection", "unused", "model", "unused"));
         PythonResourceProvider provider =
                 new PythonResourceProvider(RESOURCE_NAME, ResourceType.CHAT_MODEL, descriptor);
         ResourceDescriptor dependencyDescriptor =
-                new ResourceDescriptor(
+                new PythonResourceDescriptor(
                         "resource_lifetime_fixture",
                         "LifetimeDependencySetup",
                         Map.of("connection", "unused", "model", "unused"));

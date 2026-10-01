@@ -16,11 +16,10 @@
  * limitations under the License.
  */
 
-package org.apache.flink.agents.api.vectorstores.python;
+package org.apache.flink.agents.plan.resource.python;
 
 import org.apache.flink.agents.api.resource.ResourceContext;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
-import org.apache.flink.agents.api.resource.python.PythonResourceAdapter;
 import org.apache.flink.agents.api.vectorstores.CollectionManageableVectorStore;
 import org.apache.flink.agents.api.vectorstores.Document;
 import org.junit.jupiter.api.AfterEach;
@@ -313,6 +312,6 @@ public class PythonCollectionManageableVectorStoreTest {
     void testImplementsPythonResourceWrapper() {
         assertThat(vectorStore)
                 .isInstanceOf(
-                        org.apache.flink.agents.api.resource.python.PythonResourceWrapper.class);
+                        org.apache.flink.agents.plan.resource.python.PythonResourceWrapper.class);
     }
 }

@@ -1477,10 +1477,10 @@ Flink Agents supports cross-language chat model integration, allowing you to use
 
 ### How To Use
 
-To leverage chat model supports provided in a different language, you need to declare the resource within a built-in cross-language wrapper, and specify the target provider as an argument:
+To use a resource implemented in another language, declare its implementation class with the corresponding cross-language resource descriptor:
 
-- **Using Java chat models in Python**: Use `ResourceName.ChatModel.JAVA_WRAPPER_CONNECTION` and `ResourceName.ChatModel.JAVA_WRAPPER_SETUP`, specifying the Java provider class via the `java_clazz` parameter
-- **Using Python chat models in Java**: Use `ResourceName.ChatModel.PYTHON_WRAPPER_CONNECTION` and `ResourceName.ChatModel.PYTHON_WRAPPER_SETUP`, specifying the Python provider via the `pythonClazz` parameter
+- **Using Java chat models in Python**: Use `JavaResourceDescriptor(clazz=ResourceName.ChatModel.Java.OLLAMA_CONNECTION, ...)` (or the corresponding setup class).
+- **Using Python chat models in Java**: Use `PythonResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.Python.OLLAMA_CONNECTION)` (or the corresponding setup class).
 
 
 
@@ -1501,9 +1501,8 @@ class MyAgent(Agent):
         #     .addInitialArgument("endpoint", "http://localhost:11434")
         #     .addInitialArgument("requestTimeout", 120)
         #     .build();
-        return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.JAVA_WRAPPER_CONNECTION,
-            java_clazz=ResourceName.ChatModel.Java.OLLAMA_CONNECTION,
+        return JavaResourceDescriptor(
+            clazz=ResourceName.ChatModel.Java.OLLAMA_CONNECTION,
             endpoint="http://localhost:11434",
             requestTimeout=120,
         )
@@ -1521,9 +1520,8 @@ class MyAgent(Agent):
         #     .addInitialArgument("tools", List.of("my_tool1", "my_tool2"))
         #     .addInitialArgument("extractReasoning", true)
         #     .build();
-        return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.JAVA_WRAPPER_SETUP,
-            java_clazz=ResourceName.ChatModel.Java.OLLAMA_SETUP,
+        return JavaResourceDescriptor(
+            clazz=ResourceName.ChatModel.Java.OLLAMA_SETUP,
             connection="java_chat_model_connection",
             model="qwen3:8b",
             prompt="my_prompt",
@@ -1562,8 +1560,7 @@ public class MyAgent extends Agent {
         //     clazz=ResourceName.ChatModel.OLLAMA_CONNECTION,
         //     request_timeout=120.0
         // )
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.PYTHON_WRAPPER_CONNECTION)
-                .addInitialArgument("pythonClazz", ResourceName.ChatModel.Python.OLLAMA_CONNECTION)
+        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.Python.OLLAMA_CONNECTION)
                 .addInitialArgument("request_timeout", 120.0)
                 .build();
     }
@@ -1578,8 +1575,7 @@ public class MyAgent extends Agent {
         //     tools=["tool1", "tool2"],
         //     extract_reasoning=True
         // )
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.PYTHON_WRAPPER_SETUP)
-                .addInitialArgument("pythonClazz", ResourceName.ChatModel.Python.OLLAMA_SETUP)
+        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.Python.OLLAMA_SETUP)
                 .addInitialArgument("connection", "pythonChatModelConnection")
                 .addInitialArgument("model", "qwen3:8b")
                 .addInitialArgument("tools", List.of("tool1", "tool2"))
