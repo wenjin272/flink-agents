@@ -38,7 +38,7 @@ import org.apache.flink.agents.api.logger.EventLoggerFactory;
 import org.apache.flink.agents.api.logger.EventLoggerOpenParams;
 import org.apache.flink.agents.api.logger.LoggerType;
 import org.apache.flink.agents.api.memory.MemorySet;
-import org.apache.flink.agents.api.resource.ResourceDescriptor;
+import org.apache.flink.agents.api.resource.PythonResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceName;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.trace.ExecutionLifecycleEvents;
@@ -307,7 +307,8 @@ public class ActionExecutionOperatorTest {
                 new PythonResourceProvider(
                         "python-chat-model",
                         ResourceType.CHAT_MODEL,
-                        new ResourceDescriptor("test.module", "TestChatModel", new HashMap<>()));
+                        new PythonResourceDescriptor(
+                                "test.module", "TestChatModel", new HashMap<>()));
         Map<String, ResourceProvider> chatModels = new HashMap<>();
         chatModels.put("python-chat-model", pythonChatModel);
         Map<ResourceType, Map<String, ResourceProvider>> resourceProviders = new HashMap<>();
@@ -341,14 +342,9 @@ public class ActionExecutionOperatorTest {
                 new PythonResourceProvider(
                         "python-chroma-vector-store",
                         ResourceType.VECTOR_STORE,
-                        new ResourceDescriptor(
-                                "test.module",
-                                "TestVectorStore",
-                                new HashMap<>(
-                                        Map.of(
-                                                "pythonClazz",
-                                                ResourceName.VectorStore.Python
-                                                        .CHROMA_VECTOR_STORE))));
+                        PythonResourceDescriptor.Builder.newBuilder(
+                                        ResourceName.VectorStore.Python.CHROMA_VECTOR_STORE)
+                                .build());
         Map<String, ResourceProvider> vectorStores = new HashMap<>();
         vectorStores.put("python-chroma-vector-store", pythonChromaVectorStore);
         Map<ResourceType, Map<String, ResourceProvider>> resourceProviders = new HashMap<>();

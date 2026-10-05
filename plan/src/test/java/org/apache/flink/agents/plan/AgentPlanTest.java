@@ -28,14 +28,11 @@ import org.apache.flink.agents.api.annotation.MCPServer;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.function.PythonFunction;
-import org.apache.flink.agents.api.resource.Resource;
-import org.apache.flink.agents.api.resource.ResourceContext;
+import org.apache.flink.agents.api.resource.PythonResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceName;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.resource.SerializableResource;
-import org.apache.flink.agents.api.resource.python.PythonResourceAdapter;
-import org.apache.flink.agents.api.resource.python.PythonResourceWrapper;
 import org.apache.flink.agents.api.yaml.YamlLoader;
 import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.plan.resourceprovider.JavaResourceProvider;
@@ -45,7 +42,6 @@ import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import pemja.core.object.PyObject;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -110,27 +106,6 @@ public class AgentPlanTest {
         }
     }
 
-    public static class TestPythonResource extends Resource implements PythonResourceWrapper {
-
-        public TestPythonResource(
-                PythonResourceAdapter adapter,
-                PyObject chatModel,
-                ResourceDescriptor descriptor,
-                ResourceContext resourceContext) {
-            super(descriptor, resourceContext);
-        }
-
-        @Override
-        public ResourceType getResourceType() {
-            return ResourceType.CHAT_MODEL;
-        }
-
-        @Override
-        public Object getPythonResource() {
-            return null;
-        }
-    }
-
     /** Test agent class with annotated methods. */
     public static class TestAgent extends Agent {
 
@@ -164,9 +139,7 @@ public class AgentPlanTest {
 
         @ChatModelSetup
         public static ResourceDescriptor pythonChatModel() {
-            return ResourceDescriptor.Builder.newBuilder(TestPythonResource.class.getName())
-                    .addInitialArgument("pythonClazz", "test.module.TestClazz")
-                    .build();
+            return PythonResourceDescriptor.Builder.newBuilder("test.module.TestClazz").build();
         }
 
         @Tool private TestTool anotherTool = new TestTool("anotherTool");
@@ -174,15 +147,6 @@ public class AgentPlanTest {
         @org.apache.flink.agents.api.annotation.Action(EventType.InputEvent)
         public void handleInputEvent(Event event, RunnerContext context) {
             InputEvent inputEvent = InputEvent.fromEvent(event);
-        }
-    }
-
-    /** Test agent class with illegal python resource. */
-    public static class TestAgentWithIllegalPythonResource extends Agent {
-        @ChatModelSetup
-        public static ResourceDescriptor reviewAnalysisModel() {
-            return ResourceDescriptor.Builder.newBuilder(TestPythonResource.class.getName())
-                    .build();
         }
     }
 
@@ -592,9 +556,7 @@ public class AgentPlanTest {
     public void testAddResourceRegistersEmbeddingModelProvider() throws Exception {
         Agent agent = new Agent();
         ResourceDescriptor descriptor =
-                ResourceDescriptor.Builder.newBuilder(TestPythonResource.class.getName())
-                        .addInitialArgument("pythonClazz", "test.module.EmbeddingClazz")
-                        .build();
+                PythonResourceDescriptor.Builder.newBuilder("test.module.EmbeddingClazz").build();
         agent.addResource("myEmbedding", ResourceType.EMBEDDING_MODEL, descriptor);
 
         AgentPlan plan = new AgentPlan(agent);
@@ -605,20 +567,17 @@ public class AgentPlanTest {
         assertThat(providers).containsKey("myEmbedding");
 
         ResourceProvider provider = providers.get("myEmbedding");
-        // TestPythonResource implements PythonResourceWrapper, so a Python provider is expected.
+        // Explicit Python language selects the provider without loading the target class.
         assertThat(provider).isInstanceOf(PythonResourceProvider.class);
         assertThat(provider.getName()).isEqualTo("myEmbedding");
         assertThat(provider.getType()).isEqualTo(ResourceType.EMBEDDING_MODEL);
     }
 
     @Test
-    public void testAddResourceDescriptorWithPythonClazzUsesPythonResourceProvider()
-            throws Exception {
+    public void testAddPythonResourceDescriptorUsesPythonResourceProvider() throws Exception {
         Agent agent = new Agent();
         ResourceDescriptor descriptor =
-                ResourceDescriptor.Builder.newBuilder(String.class.getName())
-                        .addInitialArgument("pythonClazz", "test.module.EmbeddingClazz")
-                        .build();
+                PythonResourceDescriptor.Builder.newBuilder("test.module.EmbeddingClazz").build();
         agent.addResource("myEmbedding", ResourceType.EMBEDDING_MODEL, descriptor);
 
         AgentPlan plan = new AgentPlan(agent);
@@ -627,7 +586,7 @@ public class AgentPlanTest {
                 plan.getResourceProviders().get(ResourceType.EMBEDDING_MODEL).get("myEmbedding");
         assertThat(provider).isInstanceOf(PythonResourceProvider.class);
         assertThat(((PythonResourceProvider) provider).getDescriptor().getClazz())
-                .isEqualTo(String.class.getName());
+                .isEqualTo("EmbeddingClazz");
     }
 
     @Test
@@ -664,14 +623,12 @@ public class AgentPlanTest {
     public static class TestAgentWithDescriptorPythonResource extends Agent {
         @ChatModelSetup
         public static ResourceDescriptor pythonChatModelByDescriptor() {
-            return ResourceDescriptor.Builder.newBuilder(String.class.getName())
-                    .addInitialArgument("pythonClazz", "test.module.TestClazz")
-                    .build();
+            return PythonResourceDescriptor.Builder.newBuilder("test.module.TestClazz").build();
         }
     }
 
     @Test
-    public void testDescriptorWithPythonClazzUsesPythonResourceProvider() throws Exception {
+    public void testPythonResourceDescriptorUsesPythonResourceProvider() throws Exception {
         AgentPlan plan = new AgentPlan(new TestAgentWithDescriptorPythonResource());
 
         ResourceProvider provider =
@@ -680,7 +637,7 @@ public class AgentPlanTest {
                         .get("pythonChatModelByDescriptor");
         assertThat(provider).isInstanceOf(PythonResourceProvider.class);
         assertThat(((PythonResourceProvider) provider).getDescriptor().getClazz())
-                .isEqualTo(String.class.getName());
+                .isEqualTo("TestClazz");
     }
 
     /** Test agent with explicit Python MCP server declaration. */

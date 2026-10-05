@@ -645,10 +645,10 @@ Flink Agents supports cross-language embedding model integration, allowing you t
 {{< /hint >}}
 ### How To Use
 
-To leverage embedding model supports provided in a different language, you need to declare the resource within a built-in cross-language wrapper, and specify the target provider as an argument:
+To use a resource implemented in another language, declare its implementation class with the corresponding cross-language resource descriptor:
 
-- **Using Java embedding models in Python**: Use `ResourceName.EmbeddingModel.JAVA_WRAPPER_CONNECTION` and `ResourceName.EmbeddingModel.JAVA_WRAPPER_SETUP`, specifying the Java provider class via the `java_clazz` parameter
-- **Using Python embedding models in Java**: Use `ResourceName.EmbeddingModel.PYTHON_WRAPPER_CONNECTION` and `ResourceName.EmbeddingModel.PYTHON_WRAPPER_SETUP`, specifying the Python provider via the `pythonClazz` parameter
+- **Using Java embedding models in Python**: Use `JavaResourceDescriptor` with the actual Java connection or setup class as `clazz`.
+- **Using Python embedding models in Java**: Use `PythonResourceDescriptor.Builder.newBuilder(...)` with the actual Python connection or setup class, including its module.
 
 ### Usage Example
 
@@ -667,9 +667,8 @@ class MyAgent(Agent):
         #     .newBuilder(ResourceName.EmbeddingModel.OLLAMA_CONNECTION)
         #     .addInitialArgument("host", "http://localhost:11434")
         #     .build();
-        return ResourceDescriptor(
-            clazz=ResourceName.EmbeddingModel.JAVA_WRAPPER_CONNECTION,
-            java_clazz=ResourceName.EmbeddingModel.Java.OLLAMA_CONNECTION,
+        return JavaResourceDescriptor(
+            clazz=ResourceName.EmbeddingModel.Java.OLLAMA_CONNECTION,
             host="http://localhost:11434"
         )
 
@@ -682,9 +681,8 @@ class MyAgent(Agent):
         #     .addInitialArgument("connection", "java_embedding_connection")
         #     .addInitialArgument("model", "nomic-embed-text")
         #     .build();
-        return ResourceDescriptor(
-            clazz=ResourceName.EmbeddingModel.JAVA_WRAPPER_SETUP,
-            java_clazz=ResourceName.EmbeddingModel.Java.OLLAMA_SETUP,
+        return JavaResourceDescriptor(
+            clazz=ResourceName.EmbeddingModel.Java.OLLAMA_SETUP,
             connection="java_embedding_connection",
             model="nomic-embed-text"
         )
@@ -713,8 +711,7 @@ public class MyAgent extends Agent {
         //     clazz=ResourceName.EmbeddingModel.OLLAMA_CONNECTION,
         //     base_url="http://localhost:11434"
         // )
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.EmbeddingModel.PYTHON_WRAPPER_CONNECTION)
-                .addInitialArgument("pythonClazz", ResourceName.EmbeddingModel.Python.OLLAMA_CONNECTION)
+        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.EmbeddingModel.Python.OLLAMA_CONNECTION)
                 .addInitialArgument("base_url", "http://localhost:11434")
                 .build();
     }
@@ -727,8 +724,7 @@ public class MyAgent extends Agent {
         //     connection="ollama_connection",
         //     model="nomic-embed-text"
         // )
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.EmbeddingModel.PYTHON_WRAPPER_SETUP)
-                .addInitialArgument("pythonClazz", ResourceName.EmbeddingModel.Python.OLLAMA_SETUP)
+        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.EmbeddingModel.Python.OLLAMA_SETUP)
                 .addInitialArgument("connection", "pythonEmbeddingConnection")
                 .addInitialArgument("model", "nomic-embed-text")
                 .build();

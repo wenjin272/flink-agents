@@ -17,31 +17,29 @@
 #################################################################################
 from typing import Any, Dict, List, Mapping, Sequence
 
+from pydantic import ConfigDict
 from typing_extensions import override
 
 from flink_agents.api.agents.types import OutputSchema
 from flink_agents.api.chat_message import ChatMessage
-from flink_agents.api.chat_models.java_chat_model import (
-    JavaChatModelConnection,
-    JavaChatModelSetup,
+from flink_agents.api.chat_models.chat_model import (
+    BaseChatModelConnection,
+    BaseChatModelSetup,
 )
 from flink_agents.api.resource import ResourceType
 from flink_agents.api.tools.tool import Tool
-from flink_agents.runtime.java.java_resource_wrapper import (
-    set_java_resource_metric_group,
-)
-from flink_agents.runtime.python_java_utils import (
+from flink_agents.plan.resource.java.conversions import (
     dump_blocks,
     from_java_chat_message,
     normalize_tool_call_id,
 )
+from flink_agents.plan.resource.java.java_resource_adapter import JavaResourceAdapter
 
 
-def _to_java_chat_message(j_resource_adapter: Any, message: ChatMessage) -> Any:
-    """Build a Java message from fields extracted on the Python calling thread.
-
-    Content crosses as block maps so media blocks survive the bridge.
-    """
+def _to_java_chat_message(
+    j_resource_adapter: JavaResourceAdapter, message: ChatMessage
+) -> Any:
+    """Build a Java message with content blocks preserved across the bridge."""
     tool_calls = [normalize_tool_call_id(call) for call in message.tool_calls]
     return j_resource_adapter.fromPythonChatMessage(
         message.role.value,
@@ -51,7 +49,7 @@ def _to_java_chat_message(j_resource_adapter: Any, message: ChatMessage) -> Any:
     )
 
 
-class JavaChatModelConnectionImpl(JavaChatModelConnection):
+class JavaChatModelConnection(BaseChatModelConnection):
     """Java-based implementation of ChatModelConnection that wraps a Java chat model
     object.
 
@@ -59,10 +57,14 @@ class JavaChatModelConnectionImpl(JavaChatModelConnection):
     unlike JavaChatModelSetup, it does not provide direct chat functionality in Python.
     """
 
-    _j_resource: Any
-    _j_resource_adapter: Any
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
-    def __init__(self, j_resource: Any, j_resource_adapter: Any, **kwargs: Any) -> None:
+    _j_resource: Any
+    _j_resource_adapter: JavaResourceAdapter
+
+    def __init__(
+        self, j_resource: Any, j_resource_adapter: JavaResourceAdapter, **kwargs: Any
+    ) -> None:
         """Creates a new JavaChatModelSetup.
 
         Args:
@@ -77,7 +79,7 @@ class JavaChatModelConnectionImpl(JavaChatModelConnection):
     @override
     def set_metric_group(self, metric_group: Any) -> None:
         super().set_metric_group(metric_group)
-        set_java_resource_metric_group(self._j_resource, metric_group)
+        self._j_resource_adapter.set_metric_group(self._j_resource, metric_group)
 
     @override
     def chat(
@@ -114,10 +116,10 @@ class JavaChatModelConnectionImpl(JavaChatModelConnection):
 
     @override
     def close(self) -> None:
-        self.j_resource.close()
+        self._j_resource.close()
 
 
-class JavaChatModelSetupImpl(JavaChatModelSetup):
+class JavaChatModelSetup(BaseChatModelSetup):
     """Java-based implementation of ChatModelSetup that bridges Python and Java chat
     model functionality.
 
@@ -126,10 +128,14 @@ class JavaChatModelSetupImpl(JavaChatModelSetup):
     implementation.
     """
 
-    _j_resource: Any
-    _j_resource_adapter: Any
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
-    def __init__(self, j_resource: Any, j_resource_adapter: Any, **kwargs: Any) -> None:
+    _j_resource: Any
+    _j_resource_adapter: JavaResourceAdapter
+
+    def __init__(
+        self, j_resource: Any, j_resource_adapter: JavaResourceAdapter, **kwargs: Any
+    ) -> None:
         """Creates a new JavaChatModelSetup.
 
         Args:
@@ -148,7 +154,7 @@ class JavaChatModelSetupImpl(JavaChatModelSetup):
     @override
     def set_metric_group(self, metric_group: Any) -> None:
         super().set_metric_group(metric_group)
-        set_java_resource_metric_group(self._j_resource, metric_group)
+        self._j_resource_adapter.set_metric_group(self._j_resource, metric_group)
 
     @property
     @override

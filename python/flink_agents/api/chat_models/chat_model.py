@@ -123,7 +123,7 @@ class BaseChatModelConnection(Resource, ABC):
     # then having no effect. Java-backed subclasses (JavaChatModelConnection,
     # JavaChatModelSetup) override this back to "ignore", since their descriptor
     # arguments intentionally carry implementation-specific, provider-facing keys
-    # (e.g. java_clazz, extract_reasoning) that this base has no field for.
+    # (e.g. extract_reasoning) that this base has no field for.
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     @classmethod

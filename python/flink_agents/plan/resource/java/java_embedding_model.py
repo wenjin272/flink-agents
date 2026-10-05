@@ -20,16 +20,12 @@ from typing import Any, Dict, Sequence
 from typing_extensions import override
 
 from flink_agents.api.embedding_models.embedding_model import (
+    BaseEmbeddingModelConnection,
+    BaseEmbeddingModelSetup,
     EmbeddingResult,
     EmbeddingTokenUsage,
 )
-from flink_agents.api.embedding_models.java_embedding_model import (
-    JavaEmbeddingModelConnection,
-    JavaEmbeddingModelSetup,
-)
-from flink_agents.runtime.java.java_resource_wrapper import (
-    set_java_resource_metric_group,
-)
+from flink_agents.plan.resource.java.java_resource_adapter import JavaResourceAdapter
 
 
 def _from_java_embedding_result(
@@ -54,7 +50,7 @@ def _from_java_embedding_result(
     return EmbeddingResult(embeddings=embeddings, token_usage=token_usage)
 
 
-class JavaEmbeddingModelConnectionImpl(JavaEmbeddingModelConnection):
+class JavaEmbeddingModelConnection(BaseEmbeddingModelConnection):
     """Java-based implementation of EmbeddingModelConnection that wraps a Java embedding
     model object.
     This class serves as a bridge between Python and Java embedding model environments,
@@ -63,9 +59,11 @@ class JavaEmbeddingModelConnectionImpl(JavaEmbeddingModelConnection):
     """
 
     _j_resource: Any
-    _j_resource_adapter: Any
+    _j_resource_adapter: JavaResourceAdapter
 
-    def __init__(self, j_resource: Any, j_resource_adapter: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, j_resource: Any, j_resource_adapter: JavaResourceAdapter, **kwargs: Any
+    ) -> None:
         """Creates a new JavaEmbeddingModelConnection.
 
         Args:
@@ -80,7 +78,7 @@ class JavaEmbeddingModelConnectionImpl(JavaEmbeddingModelConnection):
     @override
     def set_metric_group(self, metric_group: Any) -> None:
         super().set_metric_group(metric_group)
-        set_java_resource_metric_group(self._j_resource, metric_group)
+        self._j_resource_adapter.set_metric_group(self._j_resource, metric_group)
 
     def embed(
         self, text: str | Sequence[str], **kwargs: Any
@@ -109,7 +107,7 @@ class JavaEmbeddingModelConnectionImpl(JavaEmbeddingModelConnection):
         return _from_java_embedding_result(result, text)
 
 
-class JavaEmbeddingModelSetupImpl(JavaEmbeddingModelSetup):
+class JavaEmbeddingModelSetup(BaseEmbeddingModelSetup):
     """Java-based implementation of EmbeddingModelSetup that wraps a Java embedding
     model object.
     This class serves as a bridge between Python and Java embedding model environments,
@@ -118,9 +116,11 @@ class JavaEmbeddingModelSetupImpl(JavaEmbeddingModelSetup):
     """
 
     _j_resource: Any
-    _j_resource_adapter: Any
+    _j_resource_adapter: JavaResourceAdapter
 
-    def __init__(self, j_resource: Any, j_resource_adapter: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, j_resource: Any, j_resource_adapter: JavaResourceAdapter, **kwargs: Any
+    ) -> None:
         """Creates a new JavaEmbeddingModelSetup.
 
         Args:
@@ -139,7 +139,7 @@ class JavaEmbeddingModelSetupImpl(JavaEmbeddingModelSetup):
     @override
     def set_metric_group(self, metric_group: Any) -> None:
         super().set_metric_group(metric_group)
-        set_java_resource_metric_group(self._j_resource, metric_group)
+        self._j_resource_adapter.set_metric_group(self._j_resource, metric_group)
 
     @property
     def model_kwargs(self) -> Dict[str, Any]:

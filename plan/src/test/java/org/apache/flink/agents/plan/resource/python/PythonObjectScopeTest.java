@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.agents.api.resource.python;
+package org.apache.flink.agents.plan.resource.python;
 
 import org.junit.jupiter.api.Test;
 import pemja.core.object.PyObject;

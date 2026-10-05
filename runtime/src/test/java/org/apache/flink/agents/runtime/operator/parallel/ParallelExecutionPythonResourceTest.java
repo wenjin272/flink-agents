@@ -17,11 +17,11 @@
  */
 package org.apache.flink.agents.runtime.operator.parallel;
 
+import org.apache.flink.agents.api.resource.PythonResourceDescriptor;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceContext;
-import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.vectorstores.python.PythonVectorStore;
+import org.apache.flink.agents.plan.resource.python.PythonVectorStore;
 import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.apache.flink.agents.runtime.PythonMCPResourceDiscovery;
@@ -121,7 +121,8 @@ class ParallelExecutionPythonResourceTest {
                     new PythonVectorStore(
                             adapter,
                             vectorStoreHandle,
-                            new ResourceDescriptor("test.module", "TestVectorStore", Map.of()),
+                            new PythonResourceDescriptor(
+                                    "test.module", "TestVectorStore", Map.of()),
                             mock(ResourceContext.class));
 
             runOnParallelWorker(
@@ -151,7 +152,7 @@ class ParallelExecutionPythonResourceTest {
                 new PythonResourceProvider(
                         "model",
                         ResourceType.CHAT_MODEL,
-                        new ResourceDescriptor("test.module", "TestChatModel", Map.of()));
+                        new PythonResourceDescriptor("test.module", "TestChatModel", Map.of()));
         Resource connection =
                 new Resource() {
                     @Override
