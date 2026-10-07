@@ -25,8 +25,8 @@ from pyflink.common.typeinfo import Types
 
 from flink_agents.api.agents.types import OutputSchema
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.integrations.chat_models.tongyi_chat_model import (
-    TongyiChatModelConnection,
+from flink_agents.integrations.chat_models.dashscope_chat_model import (
+    DashScopeChatModelConnection,
 )
 
 # The models DashScope documents native structured output for on the
@@ -68,8 +68,8 @@ class Unrenderable(BaseModel):
     cb: Callable[[int], int]
 
 
-def _connection() -> TongyiChatModelConnection:
-    return TongyiChatModelConnection(api_key="fake-key")
+def _connection() -> DashScopeChatModelConnection:
+    return DashScopeChatModelConnection(api_key="fake-key")
 
 
 def _messages() -> list[ChatMessage]:
@@ -103,7 +103,7 @@ def _patched_call(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """
     mock_call = MagicMock(return_value=_mocked_response())
     monkeypatch.setattr(
-        "flink_agents.integrations.chat_models.tongyi_chat_model.Generation.call",
+        "flink_agents.integrations.chat_models.dashscope_chat_model.Generation.call",
         mock_call,
     )
     return mock_call
@@ -268,7 +268,7 @@ def test_row_type_info_leaves_a_caller_response_format_alone(monkeypatch) -> Non
 _DEFAULT_MODEL = "qwen-plus"
 
 
-def _judging_connection() -> tuple[TongyiChatModelConnection, list[str | None]]:
+def _judging_connection() -> tuple[DashScopeChatModelConnection, list[str | None]]:
     """A connection recording every model its request path judges for capability.
 
     Subclassing keeps the predicate itself under test rather than standing a stub in
@@ -276,7 +276,7 @@ def _judging_connection() -> tuple[TongyiChatModelConnection, list[str | None]]:
     """
     judged: list[str | None] = []
 
-    class _JudgingConnection(TongyiChatModelConnection):
+    class _JudgingConnection(DashScopeChatModelConnection):
         def supports_native_structured_output(
             self, effective_model: str | None
         ) -> bool:
