@@ -3637,7 +3637,7 @@ public class ActionExecutionOperatorTest {
                 input,
                 agentPlan,
                 "durableReconcilableAction",
-                actionStateWithCallResults(CallResult.pending("reconcilable-call", "")));
+                actionStateWithCallResults(CallResult.pending("reconcilable-call")));
 
         try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> testHarness =
                 new KeyedOneInputStreamOperatorTestHarness<>(
@@ -3682,7 +3682,7 @@ public class ActionExecutionOperatorTest {
                 input,
                 agentPlan,
                 "durableReconcilableAction",
-                actionStateWithCallResults(CallResult.pending("reconcilable-call", "")));
+                actionStateWithCallResults(CallResult.pending("reconcilable-call")));
 
         try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> testHarness =
                 new KeyedOneInputStreamOperatorTestHarness<>(
@@ -3725,7 +3725,7 @@ public class ActionExecutionOperatorTest {
                 input,
                 agentPlan,
                 "durableReconcilableAction",
-                actionStateWithCallResults(CallResult.pending("stale-call", "")));
+                actionStateWithCallResults(CallResult.pending("stale-call")));
 
         try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> testHarness =
                 new KeyedOneInputStreamOperatorTestHarness<>(
@@ -3771,9 +3771,8 @@ public class ActionExecutionOperatorTest {
                 agentPlan,
                 "durableMixedRecoveryAction",
                 actionStateWithCallResults(
-                        new CallResult(
-                                "mixed-legacy-call", "", OBJECT_MAPPER.writeValueAsBytes(11L)),
-                        CallResult.pending("mixed-reconcilable-call", "")));
+                        new CallResult("mixed-legacy-call", OBJECT_MAPPER.writeValueAsBytes(11L)),
+                        CallResult.pending("mixed-reconcilable-call")));
 
         try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> testHarness =
                 new KeyedOneInputStreamOperatorTestHarness<>(
