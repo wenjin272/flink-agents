@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
@@ -866,6 +867,82 @@ class JavaRunnerContextImplDurableExecuteAsyncTest {
         assertTrue(persisted.get(0).isSuccess());
         assertTrue(persisted.get(1).isPending());
         assertEquals(2, context.getDurableExecutionContext().getCurrentCallIndex());
+    }
+
+    @Test
+    void realFallbackBatchTimeoutKeepsUnstartedDurableCallsReplayable() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeFalse(
+                ContinuationActionExecutor.isContinuationSupported());
+        ContinuationActionExecutor executor = new ContinuationActionExecutor(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger queuedCalls = new AtomicInteger();
+        ActionState state = new ActionState(null);
+        JavaRunnerContextImpl context = createContext(state, executor);
+        ((Configuration) context.getConfig())
+                .set(AgentExecutionOptions.ASYNC_BATCH_TIMEOUT_MS, 1000L);
+        ((Configuration) context.getConfig()).set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, 2);
+        TestDurableCallable<String> first =
+                new TestDurableCallable<>(
+                        "started",
+                        String.class,
+                        () -> {
+                            release.await();
+                            return "late";
+                        });
+        TestDurableCallable<String> second =
+                new TestDurableCallable<>("pending", String.class, () -> "recovered");
+        try {
+            List<Outcome<String>> outcomes =
+                    context.gather(
+                                    List.of(
+                                            context.durableExecuteAsync(first),
+                                            context.durableExecuteAsync(
+                                                    new TestDurableCallable<>(
+                                                            "queued",
+                                                            String.class,
+                                                            () -> {
+                                                                queuedCalls.incrementAndGet();
+                                                                return "queued";
+                                                            })),
+                                            context.durableExecuteAsync(second)))
+                            .await();
+            assertTrue(outcomes.stream().allMatch(Outcome::isFailure));
+            assertTrue(state.getCallResults().get(0).isFailure());
+            assertTrue(state.getCallResults().get(1).isPending());
+            assertTrue(state.getCallResults().get(2).isPending());
+            assertEquals(0, queuedCalls.get());
+            assertEquals(0, second.getCallCount());
+            release.countDown();
+            // Queue barrier: cancelled calls cannot sneak in after timeout.
+            executor.executeAllAsync(new ContinuationContext(), List.of(() -> "drained"), null, 1);
+            JavaRunnerContextImpl recovered = createContext(state, executor);
+            List<Outcome<String>> replay =
+                    recovered
+                            .gather(
+                                    List.of(
+                                            recovered.durableExecuteAsync(first),
+                                            recovered.durableExecuteAsync(
+                                                    new TestDurableCallable<>(
+                                                            "queued",
+                                                            String.class,
+                                                            () -> {
+                                                                queuedCalls.incrementAndGet();
+                                                                return "queued";
+                                                            })),
+                                            recovered.durableExecuteAsync(second)))
+                            .await();
+            assertTrue(replay.get(0).isFailure());
+            assertEquals("queued", replay.get(1).getValue());
+            assertEquals("recovered", replay.get(2).getValue());
+            assertEquals(1, first.getCallCount());
+            assertEquals(1, queuedCalls.get());
+            assertEquals(1, second.getCallCount());
+            assertTrue(state.getCallResults().get(1).isSuccess());
+            assertTrue(state.getCallResults().get(2).isSuccess());
+        } finally {
+            release.countDown();
+            executor.close();
+        }
     }
 
     private JavaRunnerContextImpl createContext(

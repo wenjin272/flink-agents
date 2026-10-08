@@ -342,9 +342,6 @@ public class AsyncExecutionTest {
 
     @Test
     public void testToolCallBatchExecutionIsActuallyParallel() throws Exception {
-        boolean continuationSupported = ContinuationActionExecutor.isContinuationSupported();
-        int javaVersion = Runtime.version().feature();
-
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
 
@@ -382,28 +379,13 @@ public class AsyncExecutionTest {
 
         Assertions.assertEquals(3, executionRanges.size());
         int overlapCount = countOverlaps(executionRanges);
-        if (continuationSupported && javaVersion >= 21) {
-            Assertions.assertTrue(
-                    overlapCount >= 2,
-                    "On JDK 21+, tool calls in one ToolRequestEvent should run in parallel.");
-        } else {
-            Assertions.assertEquals(
-                    0,
-                    overlapCount,
-                    "On JDK < 21, tool-call batch execution should use the sequential fallback.");
-        }
+        Assertions.assertTrue(
+                overlapCount >= 2,
+                "Tool calls in one ToolRequestEvent should run in parallel on all supported JDKs.");
     }
 
     @Test
     public void testToolCallBatchRespectsMaxParallelismInFlight() throws Exception {
-        boolean continuationSupported = ContinuationActionExecutor.isContinuationSupported();
-        int javaVersion = Runtime.version().feature();
-        if (!continuationSupported || javaVersion < 21) {
-            System.out.println(
-                    "Skipping max-parallelism e2e: requires JDK 21+ Continuation execution");
-            return;
-        }
-
         final int sleepTimeMs = AsyncExecutionAgent.ToolBatchMaxParallelismAgent.SLEEP_MS;
         final int toolCount = AsyncExecutionAgent.ToolBatchMaxParallelismAgent.TOOL_COUNT;
         final int maxParallelism = 2;
@@ -492,14 +474,6 @@ public class AsyncExecutionTest {
 
     @Test
     public void testToolCallBatchTimeoutKeepsCompletedOutcomes() throws Exception {
-        boolean continuationSupported = ContinuationActionExecutor.isContinuationSupported();
-        int javaVersion = Runtime.version().feature();
-        if (!continuationSupported || javaVersion < 21) {
-            System.out.println(
-                    "Skipping batch timeout e2e: requires JDK 21+ Continuation execution");
-            return;
-        }
-
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
 
@@ -551,21 +525,11 @@ public class AsyncExecutionTest {
      * #testToolCallBatchTimeoutKeepsCompletedOutcomes()} cannot reach: both of its calls start
      * because parallelism never exceeds the pool size. Here {@code num-async-threads = 1} is below
      * {@code async.batch.parallelism = 2}, so while one slow tool holds the only worker past the
-     * deadline the second slot sits in the pool queue, and the timeout collector must cancel it in
-     * runtime/src/main/java21 ContinuationActionExecutor. Both slots are reported as timeout
-     * failures; whether the cancelled supplier is skipped by the JVM is an implementation detail
-     * the unit tests cover, not this e2e.
+     * deadline the second slot sits in the pool queue. Both slots are reported as timeout failures;
+     * runtime tests also verify that cancelled queued calls remain unstarted.
      */
     @Test
     public void testToolCallBatchTimeoutCancelsQueuedButUnstartedSlots() throws Exception {
-        boolean continuationSupported = ContinuationActionExecutor.isContinuationSupported();
-        int javaVersion = Runtime.version().feature();
-        if (!continuationSupported || javaVersion < 21) {
-            System.out.println(
-                    "Skipping queued-slot batch timeout e2e: requires JDK 21+ Continuation execution");
-            return;
-        }
-
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
 

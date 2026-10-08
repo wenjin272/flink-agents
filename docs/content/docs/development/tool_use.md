@@ -332,13 +332,12 @@ When `tool-call.async` is enabled, the built-in `tool_call_action` runs all tool
 - `1` — serial execution (one tool at a time).
 - `> 1` — parallel batch with a sliding window of at most that many in-flight tool calls.
 
-On **Java**, concurrent in-batch execution uses a sliding window on **JDK 21+** (Continuation
-API); on JDK 11 the batch still completes but tool calls run serially. **Python** uses the shared
-async thread pool and runs batches concurrently regardless of JDK version.
+Java and Python support concurrent tool-call batches on all supported JDK versions.
 
-Chat, RAG, and tool batches share one `num-async-threads` pool **per operator subtask** (every
-key routed to that subtask). The default parallelism is the host CPU count, so multi-tool batches
-run in parallel on JDK 21+ / Python unless you change this setting.
+Tool batches share a `num-async-threads` pool **per operator subtask** (every key routed to
+that subtask). On JDK 21+ and in Python, chat and RAG calls also use this pool. On older JDKs,
+Java batches use a separate pool from the Action workers. The default batch parallelism is
+the host CPU count.
 
 Built-in actions for a **single key** run one at a time. In the usual chat → tool path, a chat
 async call finishes before `tool_call_action` starts, so they do not overlap on the same key.

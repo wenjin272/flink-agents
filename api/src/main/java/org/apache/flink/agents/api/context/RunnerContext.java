@@ -178,9 +178,8 @@ public interface RunnerContext {
      * submitting them. Individual callable failures are represented as {@link
      * Outcome#failure(Exception)} values.
      *
-     * <p>On JDK 21+, resolving the returned future executes eligible uncached calls concurrently,
-     * bounded by {@link AgentExecutionOptions#ASYNC_BATCH_PARALLELISM}. On JDK &lt; 21, batch
-     * execution falls back to serial execution regardless of that setting.
+     * <p>Resolving the returned future executes eligible uncached calls concurrently, bounded by
+     * {@link AgentExecutionOptions#ASYNC_BATCH_PARALLELISM} and the shared async worker pool.
      */
     <T> DurableFuture<List<Outcome<T>>> gather(List<? extends DurableFuture<T>> futures);
 

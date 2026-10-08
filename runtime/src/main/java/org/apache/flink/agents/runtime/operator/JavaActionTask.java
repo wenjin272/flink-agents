@@ -37,7 +37,10 @@ import static org.apache.flink.util.Preconditions.checkState;
  * code. When the action yields for async execution, this task returns with {@code finished=false}
  * and generates itself as the next task to continue execution.
  *
- * <p>On JDK &lt; 21, async execution falls back to synchronous mode.
+ * <p>On JDK &lt; 21 with the parallel execution engine enabled, this task runs on an action worker.
+ * Async calls release the shared execution lock and restore the context after re-acquiring it,
+ * allowing the mailbox and other actions to progress. Without that engine, execution is
+ * synchronous.
  */
 public class JavaActionTask extends ActionTask {
 

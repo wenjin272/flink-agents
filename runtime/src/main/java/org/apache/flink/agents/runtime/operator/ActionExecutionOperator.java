@@ -942,8 +942,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     public void close() throws Exception {
         // Close every component even when an earlier one fails, so a failing close cannot leak
         // the components behind it or skip super.close(). The first failure is rethrown with
-        // the later ones suppressed. Order is preserved: the resource cache must close before
-        // pythonInterpreter since cached resources may hold Python references.
+        // the later ones suppressed. Signal both worker pools before joining either: Action-worker
+        // interpreter cleanup can wait for a timed-out batch callback to release its lifecycle
+        // lock.
+        // Drain workers before resources; cached Python references must close before pythonBridge.
         //
         // The ladder catches Throwable, not Exception, and IOUtils.closeAll is deliberately not
         // used: both stop at the first non-Exception Throwable without closing what follows,
@@ -951,9 +953,11 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         Throwable firstFailure = null;
         for (AutoCloseable closeable :
                 new AutoCloseable[] {
+                    executionCoordinator == null ? null : executionCoordinator::shutdown,
+                    contextManager == null ? null : contextManager::shutdownAsyncExecutor,
                     executionCoordinator,
-                    resourceCache,
                     contextManager,
+                    resourceCache,
                     pythonBridge,
                     eventLogWriter,
                     durableExecManager

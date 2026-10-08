@@ -356,8 +356,13 @@ public class ContinuationActionExecutor {
                 : System.nanoTime() + timeout.toNanos();
     }
 
-    public void close() {
+    /** Stops async work without waiting for worker exit cleanup. */
+    public void shutdown() {
         asyncExecutor.shutdownNow();
+    }
+
+    public void close() {
+        shutdown();
         boolean interrupted = false;
         try {
             while (!asyncExecutor.isTerminated()) {
