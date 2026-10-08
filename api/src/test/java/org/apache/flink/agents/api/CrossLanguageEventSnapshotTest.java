@@ -21,8 +21,12 @@ package org.apache.flink.agents.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.agents.api.agents.OutputSchema;
+import org.apache.flink.agents.api.chat.messages.AudioBlock;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.DocumentBlock;
+import org.apache.flink.agents.api.chat.messages.ImageBlock;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
+import org.apache.flink.agents.api.chat.messages.VideoBlock;
 import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.MemoryRef;
 import org.apache.flink.agents.api.event.AgentRunBeginEvent;
@@ -194,6 +198,43 @@ class CrossLanguageEventSnapshotTest {
     }
 
     // ── ChatRequestEvent ───────────────────────────────────────────────────
+
+    private static ChatRequestEvent buildRawMediaChatRequestEvent() {
+        byte[] data = {(byte) 0xff, 0, (byte) 0x80, (byte) 0xfb};
+        Map<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("model", "test-model");
+        attrs.put(
+                "messages",
+                List.of(
+                        ChatMessage.user(
+                                List.of(
+                                        ImageBlock.fromBytes("image/png", data),
+                                        AudioBlock.fromBytes("audio/wav", data),
+                                        VideoBlock.fromBytes("video/mp4", data),
+                                        DocumentBlock.fromBytes("application/pdf", data)))));
+        return new ChatRequestEvent(FIXED_EVENT_ID, attrs);
+    }
+
+    @Test
+    void regenerateRawMediaChatRequestEventJavaSnapshot() throws Exception {
+        assumeTrue(regenerateRequested(), "Set -Dregenerate.snapshots=true to refresh.");
+        writeJavaSnapshot("raw_media_chat_request_event.json", buildRawMediaChatRequestEvent());
+    }
+
+    @Test
+    void rawMediaChatRequestEventJavaSnapshotIsStable() throws Exception {
+        assertJavaSnapshotStable(
+                "raw_media_chat_request_event.json", buildRawMediaChatRequestEvent());
+    }
+
+    @Test
+    void javaCanDeserializeRawMediaChatRequestEventFromPythonSnapshot() throws Exception {
+        ChatRequestEvent event =
+                ChatRequestEvent.fromEvent(readPythonSnapshot("raw_media_chat_request_event.json"));
+        assertEquals(
+                buildRawMediaChatRequestEvent().getMessages().get(0).getBlocks(),
+                event.getMessages().get(0).getBlocks());
+    }
 
     private static ChatRequestEvent buildChatRequestEvent() {
         Map<String, Object> attrs = new LinkedHashMap<>();

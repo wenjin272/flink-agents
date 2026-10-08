@@ -15,6 +15,7 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import base64
 from enum import Enum
 from typing import Any, Dict, List, Literal, Sequence
 
@@ -135,8 +136,32 @@ class MediaBlock(BaseModel):
 
     @classmethod
     def from_base64(cls, media_type: str, data: str, **kwargs: Any) -> Self:
-        """Create a block carrying an inline base64 payload."""
+        """Create a block from a non-empty, already Base64-encoded string.
+
+        The string is preserved without encoding or validating Base64 syntax.
+        """
         return cls(media_type=media_type, source=Base64Source(data=data), **kwargs)
+
+    @classmethod
+    def from_bytes(cls, media_type: str, data: bytes, **kwargs: Any) -> Self:
+        """Create a block from non-empty raw bytes using standard Base64.
+
+        Encoding happens once at construction, without line wrapping. Optional
+        metadata is passed through just as for ``from_base64``.
+
+        Raises:
+            TypeError: If data is not bytes.
+            ValueError: If data is empty or media fields are invalid.
+        """
+        if not isinstance(data, bytes):
+            msg = "A raw media payload must be bytes."
+            raise TypeError(msg)
+        if not data:
+            msg = "A raw media payload must not be empty."
+            raise ValueError(msg)
+        return cls.from_base64(
+            media_type, base64.b64encode(data).decode("ascii"), **kwargs
+        )
 
     @classmethod
     def from_url(cls, media_type: str, url: str, **kwargs: Any) -> Self:

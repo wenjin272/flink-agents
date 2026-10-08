@@ -92,11 +92,44 @@ ChatMessage message = ChatMessage.user(List.of(
 {{< /tabs >}}
 
 Each media block requires a MIME type such as `image/png` and a media source.
-Use `from_url` (Python) or `fromUrl` (Java) for an external URL, as above. For
-inline data, use `from_base64(media_type, data)` or `fromBase64(mediaType, data)`
-with an already Base64-encoded string. The framework does not encode the data or
-verify that its contents match the declared media type. Choose a concrete block
-such as `ImageBlock`, rather than constructing the shared `MediaBlock` base class.
+Use `from_url` (Python) or `fromUrl` (Java) for an externally managed URL, as above.
+For inline data, all four media block types provide two separate entry points:
+
+- `from_bytes(media_type, data)` (Python) or `fromBytes(mediaType, data)` (Java)
+  accepts non-empty raw `bytes` or `byte[]` and encodes them as standard Base64
+  without line wrapping at construction. Java does not retain the caller's array.
+- `from_base64(media_type, data)` or `fromBase64(mediaType, data)` accepts a
+  non-empty, already Base64-encoded string. It preserves the string without
+  encoding it again or validating its Base64 syntax.
+
+{{< tabs "Inline media" >}}
+{{< tab "Python" >}}
+```python
+from pathlib import Path
+from flink_agents.api.chat_message import ImageBlock
+
+image = ImageBlock.from_bytes("image/png", Path("image.png").read_bytes(), name="image.png")
+# If a service already returned Base64, pass that string directly.
+encoded_image = ImageBlock.from_base64("image/png", base64_from_service)
+```
+{{< /tab >}}
+{{< tab "Java" >}}
+```java
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.apache.flink.agents.api.chat.messages.ImageBlock;
+
+ImageBlock image = ImageBlock.fromBytes("image/png", Files.readAllBytes(Path.of("image.png")));
+// If a service already returned Base64, pass that string directly.
+ImageBlock encodedImage = ImageBlock.fromBase64("image/png", base64FromService);
+```
+{{< /tab >}}
+{{< /tabs >}}
+
+The framework does not verify that the contents match the declared media type.
+Choose a concrete block such as `ImageBlock`, rather than constructing the shared
+`MediaBlock` base class. Both inline factories produce the same Base64 source
+representation for serialization and provider conversion.
 
 Media blocks also accept optional metadata: `name` for a file name, `size_bytes`
 for the media size in bytes, and `sha256` for a content checksum.

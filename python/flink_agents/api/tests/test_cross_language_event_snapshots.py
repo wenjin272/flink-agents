@@ -25,7 +25,14 @@ from uuid import UUID
 
 import pytest
 
-from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.chat_message import (
+    AudioBlock,
+    ChatMessage,
+    DocumentBlock,
+    ImageBlock,
+    MessageRole,
+    VideoBlock,
+)
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.context_retrieval_event import (
     ContextRetrievalRequestEvent,
@@ -139,6 +146,47 @@ def test_python_can_deserialize_output_event_from_java_snapshot() -> None:
 
 
 # ── ChatRequestEvent ────────────────────────────────────────────────────
+
+
+def _build_raw_media_chat_request_event() -> ChatRequestEvent:
+    data = b"\xff\x00\x80\xfb"
+    event = ChatRequestEvent(
+        model="test-model",
+        messages=[
+            ChatMessage.user(
+                [
+                    ImageBlock.from_bytes("image/png", data),
+                    AudioBlock.from_bytes("audio/wav", data),
+                    VideoBlock.from_bytes("video/mp4", data),
+                    DocumentBlock.from_bytes("application/pdf", data),
+                ]
+            )
+        ],
+    )
+    return _force_id(event, _FIXED_EVENT_ID)
+
+
+def test_regenerate_raw_media_chat_request_event_python_snapshot() -> None:
+    if not _regenerate_enabled():
+        pytest.skip("Set REGENERATE_SNAPSHOTS=1 to refresh.")
+    _write_python_snapshot(
+        "raw_media_chat_request_event.json", _build_raw_media_chat_request_event()
+    )
+
+
+def test_raw_media_chat_request_event_python_snapshot_is_stable() -> None:
+    _assert_python_snapshot_stable(
+        "raw_media_chat_request_event.json", _build_raw_media_chat_request_event()
+    )
+
+
+def test_python_can_deserialize_raw_media_chat_request_event_from_java_snapshot() -> (
+    None
+):
+    event = ChatRequestEvent.from_event(
+        _read_java_snapshot("raw_media_chat_request_event.json")
+    )
+    assert event.messages == _build_raw_media_chat_request_event().messages
 
 
 def _build_chat_request_event() -> ChatRequestEvent:

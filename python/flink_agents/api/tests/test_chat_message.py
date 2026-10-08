@@ -15,6 +15,8 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 #################################################################################
+import base64
+
 import pytest
 from pydantic import ValidationError
 
@@ -24,6 +26,7 @@ from flink_agents.api.chat_message import (
     ChatMessage,
     DocumentBlock,
     ImageBlock,
+    MediaBlock,
     MessageRole,
     TextBlock,
     UrlSource,
@@ -318,3 +321,71 @@ def test_factories_and_text_projection() -> None:
     empty.set_text("replaced")
     assert empty.text == "replaced"
     assert str(ChatMessage.user("hi")) == "user: hi"
+
+
+_MEDIA_TYPES = [
+    (ImageBlock, "image/png"),
+    (AudioBlock, "audio/wav"),
+    (VideoBlock, "video/mp4"),
+    (DocumentBlock, "application/pdf"),
+]
+
+
+@pytest.mark.parametrize(("block_type", "media_type"), _MEDIA_TYPES)
+@pytest.mark.parametrize(
+    "data", [b"\xff", b"\xff\x00", b"\xff\x00\x80", bytes(range(256))]
+)
+def test_from_bytes_preserves_binary_and_wire_contract(
+    block_type: type[MediaBlock], media_type: str, data: bytes
+) -> None:
+    """Exercise padding, non-UTF-8 bytes, and payloads longer than a MIME line."""
+    block = block_type.from_bytes(media_type, data)
+    encoded = block.source.data
+    assert "\n" not in encoded
+    assert "\r" not in encoded
+    assert base64.b64decode(encoded, validate=True) == data
+    assert len(encoded) == 4 * ((len(data) + 2) // 3)
+    assert block.source.size_bytes == len(data)
+    assert block.size_bytes is None
+    assert block == block_type.from_base64(
+        media_type, base64.b64encode(data).decode("ascii")
+    )
+    message = ChatMessage.user([block])
+    assert ChatMessage.model_validate_json(message.model_dump_json()) == message
+    assert message.model_dump(mode="json", exclude_none=True)["blocks"] == [
+        {
+            "type": block.type,
+            "media_type": media_type,
+            "source": {"type": "base64", "data": encoded},
+        }
+    ]
+    assert encoded not in repr(message)
+    assert encoded not in str(block)
+
+
+@pytest.mark.parametrize(("block_type", "media_type"), _MEDIA_TYPES)
+@pytest.mark.parametrize(
+    "data", [None, "aGk=", 3, [1, 2], bytearray(b"hi"), memoryview(b"hi")]
+)
+def test_from_bytes_rejects_non_bytes(block_type, media_type, data) -> None:
+    with pytest.raises(TypeError, match="must be bytes"):
+        block_type.from_bytes(media_type, data)
+
+
+@pytest.mark.parametrize(("block_type", "media_type"), _MEDIA_TYPES)
+def test_from_bytes_validation_and_metadata(block_type, media_type) -> None:
+    with pytest.raises(ValueError, match="must not be empty"):
+        block_type.from_bytes(media_type, b"")
+    for invalid_media_type in (None, "", 3):
+        with pytest.raises(ValidationError):
+            block_type.from_bytes(invalid_media_type, b"hi")
+    with pytest.raises(ValidationError):
+        block_type.from_bytes(media_type, b"hi", size_bytes=-1)
+    metadata = {"name": "sample", "size_bytes": 2, "sha256": "caller-supplied"}
+    assert block_type.from_bytes(
+        media_type, b"hi", **metadata
+    ) == block_type.from_base64(media_type, "aGk=", **metadata)
+    # Existing Base64 factories neither encode again nor start validating syntax.
+    assert (
+        block_type.from_base64(media_type, "not base64!").source.data == "not base64!"
+    )
