@@ -55,6 +55,37 @@ class OpenAIChatCompletionsMultimodalTest {
     }
 
     @Test
+    void rawBytesPreservedInProviderContentParts() {
+        byte[] data = {(byte) 0xff, 0, (byte) 0x80, (byte) 0xfb};
+        String encoded = "/wCA+w==";
+        ChatMessage raw =
+                ChatMessage.user(
+                        List.of(
+                                ImageBlock.fromBytes("image/png", data),
+                                AudioBlock.fromBytes("audio/wav", data),
+                                DocumentBlock.fromBytes("application/pdf", data)));
+        ChatMessage existing =
+                ChatMessage.user(
+                        List.of(
+                                ImageBlock.fromBase64("image/png", encoded),
+                                AudioBlock.fromBase64("audio/wav", encoded),
+                                DocumentBlock.fromBase64("application/pdf", encoded)));
+        assertThat(wire(raw)).isEqualTo(wire(existing));
+        JsonNode parts = wire(raw).get("content");
+        assertThat(parts.get(0).at("/image_url/url").asText())
+                .isEqualTo("data:image/png;base64," + encoded);
+        assertThat(parts.get(1).at("/input_audio/data").asText()).isEqualTo(encoded);
+        assertThat(parts.get(2).at("/file/file_data").asText())
+                .isEqualTo("data:application/pdf;base64," + encoded);
+        assertThatThrownBy(
+                        () ->
+                                wire(
+                                        ChatMessage.user(
+                                                List.of(VideoBlock.fromBytes("video/mp4", data)))))
+                .isInstanceOf(UnsupportedContentBlockException.class);
+    }
+
+    @Test
     @DisplayName("A text-only user message keeps plain string content")
     void testTextOnlyUserMessageKeepsStringContent() {
         JsonNode message =

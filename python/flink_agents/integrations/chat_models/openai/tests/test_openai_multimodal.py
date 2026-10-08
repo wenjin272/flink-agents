@@ -141,3 +141,33 @@ def test_media_outside_user_messages_fails(role: MessageRole) -> None:
 
     with pytest.raises(UnsupportedContentBlockError, match="only user messages"):
         convert_to_openai_message(message)
+
+
+def test_raw_bytes_preserved_in_provider_content_parts() -> None:
+    """No extra encoding or text decoding occurs when converting binary media."""
+    data = b"\xff\x00\x80\xfb"
+    raw = ChatMessage.user(
+        [
+            ImageBlock.from_bytes("image/png", data),
+            AudioBlock.from_bytes("audio/wav", data),
+            DocumentBlock.from_bytes("application/pdf", data),
+        ]
+    )
+    encoded = "/wCA+w=="
+    existing = ChatMessage.user(
+        [
+            ImageBlock.from_base64("image/png", encoded),
+            AudioBlock.from_base64("audio/wav", encoded),
+            DocumentBlock.from_base64("application/pdf", encoded),
+        ]
+    )
+    converted = convert_to_openai_message(raw)
+    assert converted == convert_to_openai_message(existing)
+    parts = converted["content"]
+    assert parts[0]["image_url"]["url"] == f"data:image/png;base64,{encoded}"
+    assert parts[1]["input_audio"]["data"] == encoded
+    assert parts[2]["file"]["file_data"] == f"data:application/pdf;base64,{encoded}"
+    with pytest.raises(UnsupportedContentBlockError):
+        convert_to_openai_message(
+            ChatMessage.user([VideoBlock.from_bytes("video/mp4", data)])
+        )
