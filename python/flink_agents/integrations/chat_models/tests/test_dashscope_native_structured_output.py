@@ -16,7 +16,7 @@
 # limitations under the License.
 #################################################################################
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, List, Mapping
 from unittest.mock import MagicMock
 
 import pytest
@@ -25,9 +25,13 @@ from pyflink.common.typeinfo import Types
 
 from flink_agents.api.agents.types import OutputSchema
 from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.chat_models.chat_model import NativeStructuredOutputSupport
+from flink_agents.api.tools.tool import Tool
 from flink_agents.integrations.chat_models.dashscope_chat_model import (
     DashScopeChatModelConnection,
 )
+from flink_agents.plan.function import PythonFunction
+from flink_agents.plan.tools.function_tool import FunctionTool
 
 # The models DashScope documents native structured output for on the
 # text-generation endpoint this connection calls. The names are written out here
@@ -158,6 +162,25 @@ def test_native_not_applied_for_default_model(monkeypatch) -> None:
     assert "response_format" not in kwargs
 
 
+def test_native_not_applied_for_a_non_string_model(monkeypatch) -> None:
+    """A model that is not a string is answered with the fallback rather than an error.
+
+    This connection's capability predicate tests membership of a frozenset allowlist,
+    which answers for any hashable value without raising, so a schema sent against such
+    a model degrades to prompt engineering and the request carries no
+    ``response_format``. The value reaches the provider as the model either way, which
+    is what decides the call. Sibling connections classify by other means and several
+    raise on this input, so the tolerance is local to this connection rather than a
+    contract every connection keeps.
+    """
+    response, kwargs = _chat(
+        monkeypatch, model=123, output_schema=OutputSchema(output_schema=Person)
+    )
+    assert response.text == "ok"
+    assert "response_format" not in kwargs
+    assert kwargs["model"] == 123
+
+
 def test_native_not_applied_when_schema_none(monkeypatch) -> None:
     """A call without a schema carries no response format key at all.
 
@@ -195,15 +218,29 @@ def test_unrenderable_schema_raises_naming_the_model(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("model", _CAPABLE_MODELS)
-def test_capability_predicate_accepts_capable_models(model: str) -> None:
-    """Every model documented as schema-capable on the text interface is capable."""
-    assert _connection().supports_native_structured_output(model) is True
+def test_query_recommends_native_for_capable_models(model: str) -> None:
+    """Every model documented as schema-capable on the text interface is recommended."""
+    assert (
+        _connection().supports_native_structured_output(
+            OutputSchema(output_schema=Person), [], {"model": model}
+        )
+        is NativeStructuredOutputSupport.NATIVE_RECOMMENDED
+    )
 
 
 @pytest.mark.parametrize("model", _INCAPABLE_MODELS)
-def test_capability_predicate_rejects_incapable_models(model: str | None) -> None:
-    """Other families, a multimodal-only snapshot, and no model are not capable."""
-    assert _connection().supports_native_structured_output(model) is False
+def test_query_reports_incapable_models_feasible(model: str | None) -> None:
+    """Other families, a multimodal-only snapshot, and no model stay merely feasible.
+
+    The schema is translatable, so the request is not infeasible: capability is
+    advisory and kept out of the binding half of the answer.
+    """
+    assert (
+        _connection().supports_native_structured_output(
+            OutputSchema(output_schema=Person), [], {"model": model}
+        )
+        is NativeStructuredOutputSupport.FEASIBLE
+    )
 
 
 def test_caller_supplied_response_format_conflicts(monkeypatch) -> None:
@@ -277,48 +314,39 @@ def _judging_connection() -> tuple[DashScopeChatModelConnection, list[str | None
     judged: list[str | None] = []
 
     class _JudgingConnection(DashScopeChatModelConnection):
-        def supports_native_structured_output(
+        def _model_supports_native_structured_output(
             self, effective_model: str | None
         ) -> bool:
             judged.append(effective_model)
-            return super().supports_native_structured_output(effective_model)
+            return super()._model_supports_native_structured_output(effective_model)
 
     return _JudgingConnection(api_key="fake-key"), judged
 
 
-def test_effective_model_for_applies_the_default_model() -> None:
-    """A call naming no model resolves to the model the request would be issued to.
+def test_query_judges_the_default_model_for_an_absent_model() -> None:
+    """A call naming no model is judged as the model the request would be issued to.
 
-    Reading the parameter alone answers ``None`` for every such call and reports the
-    default model incapable without ever asking about it, which is the failure the
-    comment beside the request builder's own lookup warns about.
+    Reading the parameter alone would judge ``None`` for every such call and report the
+    default model incapable without ever asking about it. The default stands in for an
+    absent model only, matching the request builder's ``pop`` default, so a present but
+    empty model is judged as given.
     """
-    assert _connection().effective_model_for({}) == _DEFAULT_MODEL
-    assert _connection().effective_model_for(None) == _DEFAULT_MODEL
+    conn, judged = _judging_connection()
+    schema = OutputSchema(output_schema=Person)
+
+    for model_kwargs in ({}, None, {"model": ""}):
+        conn.supports_native_structured_output(schema, [], model_kwargs)
+
+    assert judged == [_DEFAULT_MODEL, _DEFAULT_MODEL, ""]
 
 
-def test_effective_model_for_reads_an_explicit_model() -> None:
-    """A named model is answered as given, not replaced by the default."""
-    assert (
-        _connection().effective_model_for({"model": _CAPABLE_MODEL}) == _CAPABLE_MODEL
-    )
-
-
-def test_effective_model_for_keeps_a_present_but_empty_model() -> None:
-    """The default stands in for an absent model only, matching the request builder.
-
-    The builder's fallback is a ``pop`` default, which applies when the key is missing
-    and not when it is present and empty. Substituting the default for an empty value
-    would make the hook and the request disagree on exactly that input.
-    """
-    assert _connection().effective_model_for({"model": ""}) == ""
-
-
-def test_effective_model_for_does_not_consume_the_model() -> None:
-    """The hook reads the key that ``chat`` pops, and has to leave it in place."""
+def test_query_does_not_consume_the_model() -> None:
+    """The query reads the key that ``chat`` pops, and has to leave it in place."""
     model_kwargs = {"model": _CAPABLE_MODEL}
 
-    _connection().effective_model_for(model_kwargs)
+    _connection().supports_native_structured_output(
+        OutputSchema(output_schema=Person), [], model_kwargs
+    )
 
     assert model_kwargs == {"model": _CAPABLE_MODEL}
 
@@ -328,24 +356,125 @@ def test_effective_model_for_does_not_consume_the_model() -> None:
     [{"model": _CAPABLE_MODEL}, {"model": "qwen-turbo"}, {"model": ""}, {}],
     ids=["capable", "incapable", "blank", "absent"],
 )
-def test_effective_model_for_names_the_model_the_request_judges(
+def test_query_judges_the_model_the_request_judges(
     monkeypatch, model_kwargs: dict[str, Any]
 ) -> None:
-    """The hook names exactly the model the request path asks the predicate about.
+    """The query asks about exactly the model the request path asks about.
 
-    The hook duplicates the builder's resolution rather than centralizing it, so only
-    capturing what the request feeds the predicate keeps the two from drifting apart.
-    A fresh connection per case is what makes the single-element comparison also an
-    assertion that the predicate was reached at all.
+    The query resolves the effective model separately from the builder, so only
+    capturing what each feeds the capability check keeps the two from drifting apart.
     """
     conn, judged = _judging_connection()
     _patched_call(monkeypatch)
+    schema = OutputSchema(output_schema=Person)
 
-    named = conn.effective_model_for(model_kwargs)
-    conn.chat(
-        _messages(),
-        output_schema=OutputSchema(output_schema=Person),
-        **model_kwargs,
+    conn.supports_native_structured_output(schema, [], model_kwargs)
+    conn.chat(_messages(), output_schema=schema, **model_kwargs)
+
+    assert len(judged) == 2
+    assert judged[0] == judged[1]
+
+
+def _add(a: int, b: int) -> int:
+    """Add two integers.
+
+    Parameters
+    ----------
+    a : int
+        first
+    b : int
+        second
+
+    Returns:
+    -------
+    int
+        sum
+    """
+    return a + b
+
+
+def test_query_agrees_with_the_native_branch(monkeypatch) -> None:
+    """The answer matches whether the request ends up carrying a response_format.
+
+    Comparing the answer against what the request carries, rather than against a
+    literal, is what keeps the query and the branch from drifting in step. The model is
+    capable in every case, so the schema form is the only thing that moves.
+    """
+    conn = _connection()
+    mock_call = _patched_call(monkeypatch)
+    tool = FunctionTool(func=PythonFunction.from_callable(_add))
+    row_type = Types.ROW_NAMED(["name"], [Types.STRING()])
+    model_kwargs = {"model": _CAPABLE_MODEL}
+
+    for schema in (
+        OutputSchema(output_schema=Person),
+        OutputSchema(output_schema=row_type),
+        None,
+    ):
+        for tools in (None, [], [tool]):
+            support = conn.supports_native_structured_output(
+                schema, tools, model_kwargs
+            )
+
+            conn.chat(_messages(), tools=tools, output_schema=schema, **model_kwargs)
+
+            carried = "response_format" in mock_call.call_args.kwargs
+            expected = (
+                NativeStructuredOutputSupport.NATIVE_RECOMMENDED
+                if carried
+                else NativeStructuredOutputSupport.INFEASIBLE
+            )
+            assert support is expected, f"schema {schema}, tools {tools}"
+
+
+def test_query_ignores_a_caller_response_format() -> None:
+    """A caller-supplied response_format does not make a translatable schema infeasible.
+
+    The branch answers that conflict by raising rather than by skipping, so the query
+    has to keep recommending native here. Reporting it infeasible instead would turn
+    a documented error into a silently unconstrained request.
+    """
+    assert (
+        _connection().supports_native_structured_output(
+            OutputSchema(output_schema=Person),
+            [],
+            {"model": _CAPABLE_MODEL, "response_format": {"type": "json_object"}},
+        )
+        is NativeStructuredOutputSupport.NATIVE_RECOMMENDED
     )
 
-    assert judged == [named]
+
+def test_feasibility_is_asked_with_the_unstripped_kwargs(monkeypatch) -> None:
+    """Feasibility sees the parameters as they arrived, not a copy ``chat`` stripped.
+
+    ``chat`` removes ``model``, ``api_key`` and ``extract_reasoning`` from its own
+    mapping before the native branch runs. Asked with that copy, an override reading
+    any of them would answer about a request other than the one being built. No term of
+    today's answer reads them, so this pins the shape rather than a live defect.
+    """
+    asked: List[Mapping[str, Any] | None] = []
+
+    class _CapturingConnection(DashScopeChatModelConnection):
+        def _can_apply_native_structured_output(
+            self,
+            output_schema: OutputSchema | None,
+            tools: List[Tool] | None,
+            model_kwargs: Mapping[str, Any] | None,
+        ) -> bool:
+            asked.append(model_kwargs)
+            return super()._can_apply_native_structured_output(
+                output_schema, tools, model_kwargs
+            )
+
+    _patched_call(monkeypatch)
+    _CapturingConnection(api_key="fake-key").chat(
+        _messages(),
+        model=_CAPABLE_MODEL,
+        extract_reasoning=True,
+        output_schema=OutputSchema(output_schema=Person),
+    )
+
+    assert len(asked) == 1
+    assert asked[0] is not None
+    assert asked[0]["model"] == _CAPABLE_MODEL
+    assert asked[0]["extract_reasoning"] is True

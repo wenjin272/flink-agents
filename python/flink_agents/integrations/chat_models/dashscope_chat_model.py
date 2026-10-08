@@ -34,6 +34,7 @@ from flink_agents.api.chat_message import (
 from flink_agents.api.chat_models.chat_model import (
     BaseChatModelConnection,
     BaseChatModelSetup,
+    NativeStructuredOutputSupport,
 )
 from flink_agents.api.tools.tool import Tool, ToolMetadata
 
@@ -172,7 +173,30 @@ class DashScopeChatModelConnection(BaseChatModelConnection):
         )
 
     @override
-    def supports_native_structured_output(self, effective_model: str | None) -> bool:
+    def supports_native_structured_output(
+        self,
+        output_schema: OutputSchema | None,
+        tools: List[Tool] | None,
+        model_kwargs: Mapping[str, Any] | None,
+    ) -> NativeStructuredOutputSupport:
+        """Answers from the same two helpers ``chat`` uses to decide its native branch.
+
+        The effective model is the ``model`` parameter, or ``DEFAULT_MODEL`` when it
+        is absent.
+        """
+        if not self._can_apply_native_structured_output(
+            output_schema, tools, model_kwargs
+        ):
+            return NativeStructuredOutputSupport.INFEASIBLE
+        if self._model_supports_native_structured_output(
+            self._effective_model_for(model_kwargs)
+        ):
+            return NativeStructuredOutputSupport.NATIVE_RECOMMENDED
+        return NativeStructuredOutputSupport.FEASIBLE
+
+    def _model_supports_native_structured_output(
+        self, effective_model: str | None
+    ) -> bool:
         """Whether DashScope documents structured output for ``effective_model``.
 
         See the module-level allowlist for the source of truth and for why names are
@@ -188,8 +212,9 @@ class DashScopeChatModelConnection(BaseChatModelConnection):
         """
         return effective_model in _NATIVE_STRUCTURED_OUTPUT_MODELS
 
-    @override
-    def effective_model_for(self, model_kwargs: Mapping[str, Any] | None) -> str | None:
+    def _effective_model_for(
+        self, model_kwargs: Mapping[str, Any] | None
+    ) -> str | None:
         """The ``model`` parameter, falling back to ``DEFAULT_MODEL`` when absent.
 
         ``chat`` resolves the model it calls the same way, so reading the parameter
@@ -197,12 +222,53 @@ class DashScopeChatModelConnection(BaseChatModelConnection):
         default model incapable without ever asking about it.
 
         The fallback stands in for an absent parameter only, matching the request: a
-        parameter that is present but empty is passed through, so the hook and the
+        parameter that is present but empty is passed through, so the helper and the
         request agree on that input too.
         """
         if model_kwargs is None:
             return DEFAULT_MODEL
         return model_kwargs.get("model", DEFAULT_MODEL)
+
+    def _can_apply_native_structured_output(
+        self,
+        output_schema: OutputSchema | None,
+        tools: List[Tool] | None,
+        model_kwargs: Mapping[str, Any] | None,
+    ) -> bool:
+        """Whether a request built from these inputs would carry a native
+        ``response_format``, leaving the effective model's capability out of the answer.
+
+        Only a ``BaseModel`` subclass has a native translation here; a ``RowTypeInfo``
+        wrapped in ``OutputSchema``, or no schema at all, has none and keeps the
+        prompt-engineering fallback.
+
+        A caller-supplied ``response_format`` is deliberately not a condition: the
+        branch answers that conflict by raising rather than by skipping, so a caller
+        that asked here first can still be met with an exception. Reporting the
+        conflict infeasible instead would turn a documented error into a silently
+        unconstrained request. Rendering raises likewise, on a ``BaseModel`` that
+        carries no JSON Schema, so a ``True`` is not a promise the call succeeds.
+
+        Neither the tools nor the parameters are read: this connection sends a native
+        schema alongside bound tools, and the one parameter that would bear on the
+        answer is the model, which is the capability question this excludes.
+
+        Parameters
+        ----------
+        output_schema : OutputSchema | None
+            The schema the request would carry, or ``None`` for an unconstrained
+            request.
+        tools : List[Tool] | None
+            Not read; bound tools do not stop this connection sending a native schema.
+        model_kwargs : Mapping[str, Any] | None
+            Not read.
+
+        Returns:
+        -------
+        bool
+            ``True`` if ``output_schema`` wraps a ``BaseModel`` subclass.
+        """
+        return _native_output_model(output_schema) is not None
 
     def chat(
         self,
@@ -237,6 +303,13 @@ class DashScopeChatModelConnection(BaseChatModelConnection):
         """
         # Media blocks are not sent yet; fail rather than drop them (#1059).
         UnsupportedContentBlockError.reject_media("DashScope", messages)
+        # Snapshotted before the pops below, so the feasibility check is asked with
+        # the parameters as they arrived rather than with a mapping this path has
+        # already stripped. No term of today's answer reads them; the shape is what
+        # keeps a term added later from answering about a request other than the one
+        # being built.
+        raw_kwargs = dict(kwargs)
+
         dashscope_messages = self.__convert_to_dashscope_messages(messages)
 
         dashscope_tools: List[Dict[str, Any]] | None = (
@@ -253,24 +326,21 @@ class DashScopeChatModelConnection(BaseChatModelConnection):
         # popped on the line above, so a kwargs lookup would yield None on every call
         # and report every model incapable.
         #
-        # TODO(#912): the requested strategy is not visible here, so this check
-        # cannot tell an explicit NATIVE request apart from one that merely
-        # resolved to native. A caller asking for NATIVE on a model this predicate
-        # rejects therefore gets an unconstrained response instead of an error.
-        # Once strategy resolution is wired up, NATIVE must either bypass this
-        # capability check or fail explicitly.
-        if output_schema is not None and self.supports_native_structured_output(
-            model_name
-        ):
-            # Resolved before the conflict test, so a payload with no native
-            # translation does not raise over a response_format this branch was
-            # never going to write. Tested before the schema is rendered, because a
-            # caller who supplies both a schema and a response_format has a conflict
-            # to resolve whatever the schema turns out to render to, and reporting a
-            # render failure instead would describe the wrong problem. The name is
-            # read off the model class, so this needs no rendered document.
+        # The feasibility half is asked rather than restated, so a caller asking the
+        # same question gets the answer this branch acts on. A payload with no native
+        # translation is reported infeasible there, so it never reaches the conflict
+        # test below and cannot raise over a response_format this branch was never
+        # going to write.
+        if self._can_apply_native_structured_output(
+            output_schema, tools, raw_kwargs
+        ) and self._model_supports_native_structured_output(model_name):
+            # Tested before the schema is rendered, because a caller who supplies both
+            # a schema and a response_format has a conflict to resolve whatever the
+            # schema turns out to render to, and reporting a render failure instead
+            # would describe the wrong problem. The name is read off the model class,
+            # so this needs no rendered document.
             native_model = _native_output_model(output_schema)
-            if native_model is not None and "response_format" in kwargs:
+            if "response_format" in kwargs:
                 msg = (
                     f"The {native_model.__name__} output schema is sent as "
                     f"response_format to model '{model_name}', so response_format "
@@ -278,9 +348,7 @@ class DashScopeChatModelConnection(BaseChatModelConnection):
                     f"omit output_schema to set response_format directly."
                 )
                 raise ValueError(msg)
-            response_format = _native_response_format(output_schema)
-            if response_format is not None:
-                kwargs["response_format"] = response_format
+            kwargs["response_format"] = _native_response_format(output_schema)
 
         response = Generation.call(
             model=model_name,
