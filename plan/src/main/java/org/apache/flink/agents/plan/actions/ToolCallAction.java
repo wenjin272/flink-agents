@@ -80,7 +80,8 @@ public class ToolCallAction {
         // boundary), so the dispatched ToolRequestEvent is cast directly.
         ToolRequestEvent toolRequest = (ToolRequestEvent) event;
         boolean toolCallAsync = ctx.getConfig().get(AgentExecutionOptions.TOOL_CALL_ASYNC);
-        int toolCallParallelism = ctx.getConfig().get(AgentExecutionOptions.TOOL_CALL_PARALLELISM);
+        int toolCallParallelism =
+                ctx.getConfig().get(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM);
 
         Map<String, Boolean> success = new HashMap<>();
         Map<String, String> error = new HashMap<>();

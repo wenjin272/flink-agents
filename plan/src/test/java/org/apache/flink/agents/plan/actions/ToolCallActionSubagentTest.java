@@ -826,7 +826,7 @@ class ToolCallActionSubagentTest {
         /** Turns on the batched path: async tool calls with room to run more than one. */
         FakeRunnerContext withParallelToolCalls() {
             config.set(AgentExecutionOptions.TOOL_CALL_ASYNC, true);
-            config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 2);
+            config.set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, 2);
             return this;
         }
 

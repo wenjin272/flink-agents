@@ -327,7 +327,7 @@ Injected parameters are part of the tool execution contract, not the model contr
 ## Parallel tool-call batches
 
 When `tool-call.async` is enabled, the built-in `tool_call_action` runs all tool calls from one
-`ToolRequestEvent` as a single durable batch. Set `tool-call.parallelism` to control concurrency:
+`ToolRequestEvent` as a single durable batch. Set `async.batch.parallelism` to control concurrency:
 
 - `1` — serial execution (one tool at a time).
 - `> 1` — parallel batch with a sliding window of at most that many in-flight tool calls.
@@ -346,13 +346,13 @@ Contention appears mainly **across keys** on the same subtask: one key's paralle
 delay another key's chat or RAG async work.
 
 {{< hint warning >}}
-**Cross-key impact:** with defaults (`num-async-threads = 2× cores`, `tool-call.parallelism =
+**Cross-key impact:** with defaults (`num-async-threads = 2× cores`, `async.batch.parallelism =
 cores`), one full tool batch can use up to half the subtask pool; several hot keys can saturate it.
 If your job mixes heavy tool batches with chat/RAG on the same subtask, lower
-`tool-call.parallelism` or increase `num-async-threads`.
+`async.batch.parallelism` or increase `num-async-threads`.
 {{< /hint >}}
 
-`tool-call.batch.timeout.ms` applies to the whole batch. On timeout, completed slots keep their
+`async.batch.timeout.ms` applies to the whole batch. On timeout, completed slots keep their
 outcome; slots that started but did not finish are recorded as failures; slots that never started
 executing (for example, queued in a saturated pool) stay pending, so they are re-executed after
 recovery instead of recording a false failure. Timeout cancellation is best-effort; side-effecting

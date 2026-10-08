@@ -108,7 +108,7 @@ public class ToolCallActionTest {
         }
 
         FakeRunnerContext withToolCallParallelism(int parallelism) {
-            config.set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, parallelism);
+            config.set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, parallelism);
             return this;
         }
 

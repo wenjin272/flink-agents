@@ -593,7 +593,7 @@ class JavaRunnerContextImplDurableExecuteAsyncTest {
     void testGatherPassesParallelismFromConfig() throws Exception {
         InspectingContinuationActionExecutor executor = new InspectingContinuationActionExecutor();
         JavaRunnerContextImpl context = createContext(new ActionState(null), executor);
-        ((Configuration) context.getConfig()).set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 4);
+        ((Configuration) context.getConfig()).set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, 4);
         TestDurableCallable<String> callable =
                 new TestDurableCallable<>("batch-1", String.class, () -> "ok");
 
@@ -610,7 +610,7 @@ class JavaRunnerContextImplDurableExecuteAsyncTest {
         executor.setUseTimeoutCollection(true);
         JavaRunnerContextImpl context = createContext(new ActionState(null), executor);
         ((Configuration) context.getConfig())
-                .set(AgentExecutionOptions.TOOL_CALL_BATCH_TIMEOUT_MS, 100L);
+                .set(AgentExecutionOptions.ASYNC_BATCH_TIMEOUT_MS, 100L);
         TestDurableCallable<String> first =
                 new TestDurableCallable<>("batch-1", String.class, () -> "fast");
         TestDurableCallable<String> second =
@@ -644,8 +644,8 @@ class JavaRunnerContextImplDurableExecuteAsyncTest {
         executor.setUseTimeoutCollection(true);
         JavaRunnerContextImpl context = createContext(new ActionState(null), executor);
         ((Configuration) context.getConfig())
-                .set(AgentExecutionOptions.TOOL_CALL_BATCH_TIMEOUT_MS, 100L);
-        ((Configuration) context.getConfig()).set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 2);
+                .set(AgentExecutionOptions.ASYNC_BATCH_TIMEOUT_MS, 100L);
+        ((Configuration) context.getConfig()).set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, 2);
         TestDurableCallable<String> first =
                 new TestDurableCallable<>(
                         "batch-1",
@@ -692,8 +692,8 @@ class JavaRunnerContextImplDurableExecuteAsyncTest {
         executor.setBatchThreads(2);
         JavaRunnerContextImpl context = createContext(new ActionState(null), executor);
         ((Configuration) context.getConfig())
-                .set(AgentExecutionOptions.TOOL_CALL_BATCH_TIMEOUT_MS, 100L);
-        ((Configuration) context.getConfig()).set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 4);
+                .set(AgentExecutionOptions.ASYNC_BATCH_TIMEOUT_MS, 100L);
+        ((Configuration) context.getConfig()).set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, 4);
         Callable<String> slow =
                 () -> {
                     Thread.sleep(150);

@@ -1033,7 +1033,7 @@ class ToolCallActionReportTest {
                 if (option == AgentExecutionOptions.TOOL_CALL_ASYNC) {
                     return (T) Boolean.valueOf(async);
                 }
-                if (option == AgentExecutionOptions.TOOL_CALL_PARALLELISM) {
+                if (option == AgentExecutionOptions.ASYNC_BATCH_PARALLELISM) {
                     return (T) Integer.valueOf(parallelism);
                 }
                 return option.getDefaultValue();

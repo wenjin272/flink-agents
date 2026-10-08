@@ -334,10 +334,10 @@ class AgentExecutionOptions:
     # tool batches on the same key do not overlap in the usual chat->tool flow;
     # contention is mainly across keys on the same subtask. Defaults:
     # pool=2xcores, parallelism=cores -> one batch can use up to half the pool.
-    # Lower tool-call.parallelism or raise
+    # Lower async.batch.parallelism or raise
     # num-async-threads when hot subtasks mix heavy tool batches with chat/RAG.
-    TOOL_CALL_PARALLELISM = ConfigOption(
-        key="tool-call.parallelism",
+    ASYNC_BATCH_PARALLELISM = ConfigOption(
+        key="async.batch.parallelism",
         config_type=int,
         default=os.cpu_count() or 1,
     )
@@ -352,8 +352,8 @@ class AgentExecutionOptions:
     # permanently reduces pool capacity. Bound blocking work inside the tool itself
     # (for example an HTTP client read timeout) instead of relying on this batch
     # timeout to free the thread.
-    TOOL_CALL_BATCH_TIMEOUT_MS = ConfigOption(
-        key="tool-call.batch.timeout.ms",
+    ASYNC_BATCH_TIMEOUT_MS = ConfigOption(
+        key="async.batch.timeout.ms",
         config_type=int,
         default=-1,
     )

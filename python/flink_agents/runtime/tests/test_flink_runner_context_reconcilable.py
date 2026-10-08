@@ -551,7 +551,7 @@ def test_flink_runner_context_async_future_is_deferred_and_reusable() -> None:
 def test_flink_runner_context_gather_reserves_before_execution() -> None:
     j_runner_context = _FakeJavaRunnerContext()
     config = AgentConfiguration(
-        {"tool-call.batch.timeout.ms": -1, "tool-call.parallelism": 2}
+        {"async.batch.timeout.ms": -1, "async.batch.parallelism": 2}
     )
     ctx = _create_runner_context(j_runner_context, config=config)
     observed_states: list[list[str]] = []
@@ -851,7 +851,7 @@ def test_flink_runner_context_gather_runs_calls_in_parallel() -> None:
     j_runner_context = _FakeJavaRunnerContext()
     parallelism = 3
     config = AgentConfiguration(
-        {"tool-call.batch.timeout.ms": -1, "tool-call.parallelism": parallelism}
+        {"async.batch.timeout.ms": -1, "async.batch.parallelism": parallelism}
     )
     ctx = _create_runner_context(
         j_runner_context, config=config, executor_workers=parallelism
@@ -1051,7 +1051,7 @@ def test_flink_runner_context_gather_collects_failures() -> None:
 
 def test_flink_runner_context_gather_timeout_keeps_completed_results() -> None:
     j_runner_context = _FakeJavaRunnerContext()
-    config = AgentConfiguration({"tool-call.batch.timeout.ms": 100})
+    config = AgentConfiguration({"async.batch.timeout.ms": 100})
     ctx = _create_runner_context(j_runner_context, config=config)
 
     # The slow worker blocks on an event instead of racing a sleep against the
@@ -1088,7 +1088,7 @@ def test_flink_runner_context_gather_timeout_keeps_completed_results() -> None:
 def test_flink_runner_context_gather_timeout_leaves_unsubmitted_slots_pending() -> None:
     j_runner_context = _FakeJavaRunnerContext()
     config = AgentConfiguration(
-        {"tool-call.batch.timeout.ms": 100, "tool-call.parallelism": 2}
+        {"async.batch.timeout.ms": 100, "async.batch.parallelism": 2}
     )
     ctx = _create_runner_context(j_runner_context, config=config, executor_workers=2)
 
@@ -1134,7 +1134,7 @@ def test_flink_runner_context_gather_timeout_leaves_queued_slots_pending() -> No
     # Parallelism budget exceeds the worker count, so two suppliers are handed to a
     # saturated pool and wait in its queue without ever starting before the deadline.
     config = AgentConfiguration(
-        {"tool-call.batch.timeout.ms": 100, "tool-call.parallelism": 4}
+        {"async.batch.timeout.ms": 100, "async.batch.parallelism": 4}
     )
     ctx = _create_runner_context(j_runner_context, config=config, executor_workers=2)
 
@@ -1309,7 +1309,7 @@ def test_flink_runner_context_gather_recovers_three_slot_partial_batch() -> None
 def test_flink_runner_context_gather_respects_max_parallelism() -> None:
     j_runner_context = _FakeJavaRunnerContext()
     config = AgentConfiguration(
-        {"tool-call.batch.timeout.ms": -1, "tool-call.parallelism": 2}
+        {"async.batch.timeout.ms": -1, "async.batch.parallelism": 2}
     )
     ctx = _create_runner_context(j_runner_context, config=config, executor_workers=4)
     active_count = 0

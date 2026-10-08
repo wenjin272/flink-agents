@@ -262,10 +262,10 @@ public class JavaRunnerContextImpl extends RunnerContextImpl {
             Arrays.fill(started, true);
             return new BatchExecutionResult<>(outcomes, started);
         }
-        Long timeoutMs = getConfig().get(AgentExecutionOptions.TOOL_CALL_BATCH_TIMEOUT_MS);
+        Long timeoutMs = getConfig().get(AgentExecutionOptions.ASYNC_BATCH_TIMEOUT_MS);
         Duration timeout =
                 timeoutMs == null || timeoutMs <= 0 ? null : Duration.ofMillis(timeoutMs);
-        Integer parallelism = getConfig().get(AgentExecutionOptions.TOOL_CALL_PARALLELISM);
+        Integer parallelism = getConfig().get(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM);
         int parallelismCap = parallelism == null ? 1 : Math.max(parallelism, 1);
         return continuationExecutor.executeAllAsync(
                 continuationContext, suppliers, timeout, parallelismCap);

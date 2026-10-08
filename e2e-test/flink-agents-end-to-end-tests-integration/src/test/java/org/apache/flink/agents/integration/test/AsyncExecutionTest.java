@@ -356,7 +356,7 @@ public class AsyncExecutionTest {
         AgentsExecutionEnvironment agentsEnv =
                 AgentsExecutionEnvironment.getExecutionEnvironment(env);
         agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_ASYNC, true);
-        agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 3);
+        agentsEnv.getConfig().set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, 3);
 
         DataStream<Object> outputStream =
                 agentsEnv
@@ -419,7 +419,7 @@ public class AsyncExecutionTest {
                 AgentsExecutionEnvironment.getExecutionEnvironment(env);
         agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_ASYNC, true);
         agentsEnv.getConfig().set(AgentExecutionOptions.NUM_ASYNC_THREADS, 8);
-        agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, maxParallelism);
+        agentsEnv.getConfig().set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, maxParallelism);
 
         DataStream<Object> outputStream =
                 agentsEnv
@@ -509,8 +509,8 @@ public class AsyncExecutionTest {
         AgentsExecutionEnvironment agentsEnv =
                 AgentsExecutionEnvironment.getExecutionEnvironment(env);
         agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_ASYNC, true);
-        agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 2);
-        agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_BATCH_TIMEOUT_MS, 100L);
+        agentsEnv.getConfig().set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, 2);
+        agentsEnv.getConfig().set(AgentExecutionOptions.ASYNC_BATCH_TIMEOUT_MS, 100L);
 
         DataStream<Object> outputStream =
                 agentsEnv
@@ -550,7 +550,7 @@ public class AsyncExecutionTest {
      * Drives the production batch timeout path with a queued-but-unstarted slot, which {@link
      * #testToolCallBatchTimeoutKeepsCompletedOutcomes()} cannot reach: both of its calls start
      * because parallelism never exceeds the pool size. Here {@code num-async-threads = 1} is below
-     * {@code tool-call.parallelism = 2}, so while one slow tool holds the only worker past the
+     * {@code async.batch.parallelism = 2}, so while one slow tool holds the only worker past the
      * deadline the second slot sits in the pool queue, and the timeout collector must cancel it in
      * runtime/src/main/java21 ContinuationActionExecutor. Both slots are reported as timeout
      * failures; whether the cancelled supplier is skipped by the JVM is an implementation detail
@@ -575,8 +575,8 @@ public class AsyncExecutionTest {
         AgentsExecutionEnvironment agentsEnv =
                 AgentsExecutionEnvironment.getExecutionEnvironment(env);
         agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_ASYNC, true);
-        agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_PARALLELISM, 2);
-        agentsEnv.getConfig().set(AgentExecutionOptions.TOOL_CALL_BATCH_TIMEOUT_MS, 100L);
+        agentsEnv.getConfig().set(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM, 2);
+        agentsEnv.getConfig().set(AgentExecutionOptions.ASYNC_BATCH_TIMEOUT_MS, 100L);
         // One pool thread under the parallelism budget keeps the second slot queued.
         agentsEnv.getConfig().set(AgentExecutionOptions.NUM_ASYNC_THREADS, 1);
 

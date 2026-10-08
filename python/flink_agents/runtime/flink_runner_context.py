@@ -357,9 +357,9 @@ class _DurableBatchAsyncExecutionResult(_AsyncExecutionResult):
 
     def __await__(self) -> Any:
         plan = self._ctx._prepare_batch_execution(self._calls)
-        parallelism = self._ctx.config.get(AgentExecutionOptions.TOOL_CALL_PARALLELISM)
+        parallelism = self._ctx.config.get(AgentExecutionOptions.ASYNC_BATCH_PARALLELISM)
         timeout_ms = self._ctx.config.get(
-            AgentExecutionOptions.TOOL_CALL_BATCH_TIMEOUT_MS
+            AgentExecutionOptions.ASYNC_BATCH_TIMEOUT_MS
         )
         deadline = time.monotonic() + timeout_ms / 1000 if timeout_ms > 0 else None
         suppliers = [supplier for _, supplier in plan.suppliers]

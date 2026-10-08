@@ -74,14 +74,14 @@ public class AgentExecutionOptions {
      * per key. Built-in actions for one key run one at a time, so a chat async call and a tool
      * batch on the same key do not overlap in the usual chat → tool flow; contention shows up
      * mainly across keys on the same subtask (or when several keys each run large parallel
-     * batches). With defaults ({@code num-async-threads = 2 × cores}, {@code tool-call.parallelism
-     * = cores}), one batch can hold up to half of the pool; multiple busy keys can still saturate
-     * it. Lower this value (for example {@code 1} or {@code 2}) or raise {@link #NUM_ASYNC_THREADS}
-     * when mixing heavy tool batches with chat/RAG on hot subtasks.
+     * batches). With defaults ({@code num-async-threads = 2 × cores}, {@code
+     * async.batch.parallelism = cores}), one batch can hold up to half of the pool; multiple busy
+     * keys can still saturate it. Lower this value (for example {@code 1} or {@code 2}) or raise
+     * {@link #NUM_ASYNC_THREADS} when mixing heavy tool batches with chat/RAG on hot subtasks.
      */
-    public static final ConfigOption<Integer> TOOL_CALL_PARALLELISM =
+    public static final ConfigOption<Integer> ASYNC_BATCH_PARALLELISM =
             new ConfigOption<>(
-                    "tool-call.parallelism",
+                    "async.batch.parallelism",
                     Integer.class,
                     Runtime.getRuntime().availableProcessors());
 
@@ -102,8 +102,8 @@ public class AgentExecutionOptions {
      * permanently reduces pool capacity. Bound blocking work inside the tool itself (for example an
      * HTTP client read timeout) rather than relying on this batch timeout to free the thread.
      */
-    public static final ConfigOption<Long> TOOL_CALL_BATCH_TIMEOUT_MS =
-            new ConfigOption<>("tool-call.batch.timeout.ms", Long.class, -1L);
+    public static final ConfigOption<Long> ASYNC_BATCH_TIMEOUT_MS =
+            new ConfigOption<>("async.batch.timeout.ms", Long.class, -1L);
 
     public static final ConfigOption<Boolean> RAG_ASYNC =
             new ConfigOption<>("rag.async", Boolean.class, true);
