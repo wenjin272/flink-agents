@@ -25,6 +25,7 @@ import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.apache.flink.agents.plan.tools.FunctionTool;
 import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
+import org.apache.flink.agents.runtime.python.utils.PythonInterpreterManager;
 import org.apache.flink.agents.runtime.resource.ResourceContextImpl;
 import org.apache.flink.agents.runtime.subagent.BaseSubagentSetup;
 import org.apache.flink.util.ExceptionUtils;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -65,6 +67,14 @@ public class ResourceCache implements AutoCloseable {
     public ResourceCache(
             Map<ResourceType, Map<String, ResourceProvider>> resourceProviders,
             ClassLoader classLoader) {
+        this(resourceProviders, classLoader, () -> null);
+    }
+
+    /** The interpreter becomes available during operator initialization, before resource use. */
+    public ResourceCache(
+            Map<ResourceType, Map<String, ResourceProvider>> resourceProviders,
+            ClassLoader classLoader,
+            Supplier<PythonInterpreterManager> interpreterManagerSupplier) {
         // Defensive copy: the cache must not be affected by later mutations to the source map.
         this.resourceProviders = new HashMap<>();
         for (Map.Entry<ResourceType, Map<String, ResourceProvider>> entry :
@@ -81,7 +91,8 @@ public class ResourceCache implements AutoCloseable {
                                 throw new RuntimeException(e);
                             }
                         },
-                        classLoader);
+                        classLoader,
+                        interpreterManagerSupplier);
     }
 
     /** Convenience overload that uses the current thread's context class loader. */

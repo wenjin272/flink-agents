@@ -289,10 +289,12 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         // down so classpath: skill sources resolve against the Flink user JAR regardless of
         // which thread (mailbox / Python interpreter / async pool) later triggers the lazy
         // SkillManager construction.
+        pythonBridge = new PythonBridgeManager();
         resourceCache =
                 new ResourceCache(
                         agentPlan.getResourceProviders(),
-                        getRuntimeContext().getUserCodeClassLoader());
+                        getRuntimeContext().getUserCodeClassLoader(),
+                        pythonBridge::getPythonInterpreterManager);
 
         metricGroup = new FlinkAgentsMetricGroupImpl(getMetricGroup());
         builtInMetrics =
@@ -336,7 +338,6 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         }
 
         // init PythonActionExecutor and PythonResourceAdapter
-        pythonBridge = new PythonBridgeManager();
         // On the parallel engine the execution invariant is "holds the ParallelExecutionLock",
         // not "is the physical mailbox thread".
         pythonBridge.open(
