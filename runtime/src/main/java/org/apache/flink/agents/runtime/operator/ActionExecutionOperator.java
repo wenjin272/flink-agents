@@ -32,6 +32,7 @@ import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.agents.plan.PythonFunction;
 import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.plan.resourceprovider.PythonResourceProvider;
+import org.apache.flink.agents.plan.utils.CancellationUtils;
 import org.apache.flink.agents.runtime.ResourceCache;
 import org.apache.flink.agents.runtime.actionstate.ActionState;
 import org.apache.flink.agents.runtime.actionstate.ActionStateStore;
@@ -1568,7 +1569,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 }
             } catch (Throwable t) {
                 failure = t;
-                if (t instanceof InterruptedException) {
+                if (CancellationUtils.isInterruption(t)) {
                     Thread.currentThread().interrupt();
                 }
             }

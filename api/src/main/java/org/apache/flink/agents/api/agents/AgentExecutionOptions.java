@@ -61,7 +61,7 @@ public class AgentExecutionOptions {
 
     /**
      * Maximum in-flight calls in one async batch composed with RunnerContext.gather, including
-     * durable and built-in tool calls.
+     * ordinary, durable, and built-in tool calls.
      *
      * <p>The default is {@code availableProcessors()}; {@code 1} runs calls serially. The shared
      * {@link #NUM_ASYNC_THREADS} pool also limits actual concurrency. Lower this per-batch limit to
@@ -75,7 +75,7 @@ public class AgentExecutionOptions {
 
     /**
      * Overall timeout for one async batch composed with RunnerContext.gather, in milliseconds.
-     * Applies to durable and built-in tool calls. Non-positive values disable it.
+     * Applies to ordinary, durable, and built-in tool calls. Non-positive values disable it.
      *
      * <p>Completed calls keep their outcomes; unfinished calls receive timeout failures. For
      * durable calls, started calls are finalized as failures while unstarted calls remain pending

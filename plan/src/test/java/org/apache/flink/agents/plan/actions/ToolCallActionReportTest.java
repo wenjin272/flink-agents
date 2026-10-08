@@ -19,8 +19,8 @@ package org.apache.flink.agents.plan.actions;
 
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.agents.AgentExecutionOptions;
+import org.apache.flink.agents.api.context.AsyncFuture;
 import org.apache.flink.agents.api.context.DurableCallable;
-import org.apache.flink.agents.api.context.DurableFuture;
 import org.apache.flink.agents.api.context.Outcome;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.event.ToolRequestEvent;
@@ -759,7 +759,7 @@ class ToolCallActionReportTest {
                 .durableExecuteAsync(any());
         doAnswer(
                         invocation -> {
-                            List<? extends DurableFuture<ToolResponse>> futures =
+                            List<? extends AsyncFuture<ToolResponse>> futures =
                                     invocation.getArgument(0);
                             assertThat(futures).hasSameSizeAs(callables);
                             List<DurableCallable<ToolResponse>> batch = List.copyOf(callables);

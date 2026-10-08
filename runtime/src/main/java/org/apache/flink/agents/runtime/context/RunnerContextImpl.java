@@ -24,6 +24,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.EventContext;
 import org.apache.flink.agents.api.configuration.ReadableConfiguration;
+import org.apache.flink.agents.api.context.AsyncFuture;
 import org.apache.flink.agents.api.context.DurableCallable;
 import org.apache.flink.agents.api.context.DurableFuture;
 import org.apache.flink.agents.api.context.MemoryObject;
@@ -37,6 +38,7 @@ import org.apache.flink.agents.api.trace.ExecutionLifecycleEvents;
 import org.apache.flink.agents.api.trace.ExecutionReporter;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.plan.actions.Action;
+import org.apache.flink.agents.plan.utils.CancellationUtils;
 import org.apache.flink.agents.plan.utils.JsonUtils;
 import org.apache.flink.agents.runtime.ResourceCache;
 import org.apache.flink.agents.runtime.actionstate.ActionState;
@@ -562,13 +564,22 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
     }
 
     @Override
+    public <T> AsyncFuture<T> executeAsync(Callable<T> callable) {
+        return new SingleAsyncFuture<>(this, Preconditions.checkNotNull(callable));
+    }
+
+    protected <T> T resolveAsync(Callable<T> callable) throws Exception {
+        return callable.call();
+    }
+
+    @Override
     public <T> DurableFuture<T> durableExecuteAsync(DurableCallable<T> callable) {
         return new SingleDurableFuture<>(this, Preconditions.checkNotNull(callable));
     }
 
     @Override
-    public <T> DurableFuture<List<Outcome<T>>> gather(List<? extends DurableFuture<T>> futures) {
-        return new GatherDurableFuture<>(this, futures);
+    public <T> AsyncFuture<List<Outcome<T>>> gather(List<? extends AsyncFuture<T>> futures) {
+        return new GatherAsyncFuture<>(this, futures);
     }
 
     /**
@@ -581,20 +592,20 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         return durableExecute(callable);
     }
 
-    /** Resolves a durable batch. Java contexts override this with Continuation support. */
-    protected <T> List<Outcome<T>> resolveDurableBatch(List<DurableCallable<T>> callables)
+    /** Resolves a mixed batch. Java contexts override this with Continuation support. */
+    protected <T> List<Outcome<T>> resolveAsyncBatch(List<SingleAsyncFuture<T>> futures)
             throws Exception {
-        List<Outcome<T>> outcomes = new ArrayList<>(callables.size());
-        for (DurableCallable<T> callable : callables) {
+        List<Outcome<T>> outcomes = new ArrayList<>(futures.size());
+        for (SingleAsyncFuture<T> future : futures) {
             try {
-                outcomes.add(Outcome.success(durableExecute(callable)));
-            } catch (InterruptedException e) {
-                // A cancellation signal, not a genuine call failure: stop scheduling the
-                // remaining callables and propagate immediately, instead of recording it as a
-                // failed outcome and continuing on to the rest of the batch.
-                Thread.currentThread().interrupt();
-                throw e;
+                outcomes.add(Outcome.success(future.resolveValue()));
             } catch (Exception e) {
+                if (CancellationUtils.isCancellation(e)) {
+                    if (CancellationUtils.isInterruption(e)) {
+                        Thread.currentThread().interrupt();
+                    }
+                    throw e;
+                }
                 outcomes.add(Outcome.failure(e));
             }
         }
@@ -628,13 +639,13 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         Exception exception = null;
         try {
             result = executionCallable.call();
-        } catch (InterruptedException e) {
-            // A cancellation signal, not a genuine call failure: leave the durable slot
-            // unfinished so recovery re-executes or reconciles the call instead of replaying a
-            // stale interruption as a completed success or failure.
-            Thread.currentThread().interrupt();
-            throw e;
         } catch (Exception e) {
+            if (CancellationUtils.isCancellation(e)) {
+                if (CancellationUtils.isInterruption(e)) {
+                    Thread.currentThread().interrupt();
+                }
+                throw e;
+            }
             exception = e;
         }
 
@@ -993,13 +1004,13 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         Exception exception = null;
         try {
             result = callSupplier.call();
-        } catch (InterruptedException e) {
-            // A cancellation signal, not a genuine call failure: leave the pending call
-            // unfinalized so recovery re-executes or reconciles it instead of replaying a stale
-            // interruption as a completed success or failure.
-            Thread.currentThread().interrupt();
-            throw e;
         } catch (Exception e) {
+            if (CancellationUtils.isCancellation(e)) {
+                if (CancellationUtils.isInterruption(e)) {
+                    Thread.currentThread().interrupt();
+                }
+                throw e;
+            }
             exception = e;
         }
 
