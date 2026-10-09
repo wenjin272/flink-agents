@@ -19,12 +19,12 @@ import importlib
 import json
 import typing
 from functools import lru_cache
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, cast
 
 import cloudpickle
 
 from flink_agents.api.chat_message import ChatMessage, MessageRole
-from flink_agents.api.events.event import Event, InputEvent, OutputEvent
+from flink_agents.api.events.event import Event, InputEvent
 from flink_agents.api.memory.long_term_memory import MemorySet, MemorySetItem
 from flink_agents.api.resource import Resource, ResourceType, get_resource_class
 from flink_agents.api.tools.tool import Tool, ToolMetadata
@@ -53,6 +53,9 @@ from flink_agents.plan.resource.java.java_resource_wrapper import (
 from flink_agents.plan.resource_provider import JAVA_RESOURCE_MAPPING
 from flink_agents.runtime.memory.event_attachment_utils import load_event_attachments
 
+if TYPE_CHECKING:
+    from flink_agents.api.events.event import OutputEvent
+
 
 def convert_to_python_object(bytesObject: bytes) -> Any:
     """Used for deserializing Python objects (e.g. durable execution results)."""
@@ -67,12 +70,14 @@ def convert_to_python_key_text(bytes_object: bytes, serialization: str) -> str:
 
 
 def convert_json_to_python_event(event_json: str) -> Event:
-    """Deserialize a JSON string into a base Python Event object.
+    """Deserialize a JSON string into a Python Event object.
 
     Called from Java via PythonActionExecutor to convert a Java Event
-    (serialized as JSON) into a Python Event for action dispatch.
-    Actions that need a typed subclass should call
-    ``SubClass.from_event(event)`` themselves.
+    (serialized as JSON) into a Python Event for action dispatch. Known
+    built-in event types are restored to their concrete subclass by
+    ``Event.from_json``; user-defined types remain generic ``Event``
+    instances. ``SubClass.from_event(event)`` is idempotent, so actions that
+    still reconstruct their own subtype keep working.
     """
     return Event.from_json(event_json)
 
@@ -95,7 +100,9 @@ def wrap_to_input_event(bytesObject: bytes) -> str:
 
 def get_output_from_output_event(event_json: str) -> Any:
     """Get output data from OutputEvent JSON and serialize."""
-    event = OutputEvent.from_event(convert_json_to_python_event(event_json))
+    # convert_json_to_python_event restores built-in events to their concrete
+    # subclass (the registry reconstructs and validates them), so it is used directly.
+    event = cast("OutputEvent", convert_json_to_python_event(event_json))
     return cloudpickle.dumps(event.output)
 
 

@@ -26,6 +26,7 @@ import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.tools.ToolResponse;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -33,6 +34,15 @@ import java.util.UUID;
 public class ToolResponseEvent extends Event {
 
     public static final String EVENT_TYPE = "_tool_response_event";
+
+    private static final List<BuiltInAttribute> ATTRIBUTE_SCHEMA =
+            List.of(
+                    BuiltInAttribute.requiredUuid("request_id"),
+                    BuiltInAttribute.required("responses", Map.class),
+                    BuiltInAttribute.optional("success", Map.class),
+                    BuiltInAttribute.optional("error", Map.class),
+                    BuiltInAttribute.optional("external_ids", Map.class),
+                    BuiltInAttribute.optional("timestamp", Number.class));
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -66,34 +76,20 @@ public class ToolResponseEvent extends Event {
         super(id, EVENT_TYPE, normalizeAttributes(attributes));
     }
 
-    /** Converts nested attributes back to their typed forms. */
-    @SuppressWarnings("unchecked")
+    /**
+     * Converts the {@code request_id} back to a {@link UUID} after JSON deserialization.
+     *
+     * <p>Response values are deliberately left in their serialized form so the event round-trips
+     * faithfully across the language boundary: the Python runtime records the raw value it shows
+     * the model, while native Java records {@link ToolResponse} objects. Rewriting them here would
+     * turn a Python event that merely transits a Java operator into the Java object form on
+     * re-serialization, which Python then reads back as a map instead of the raw value. {@link
+     * #getResponses()} normalizes both forms on read instead.
+     */
     private static Map<String, Object> normalizeAttributes(Map<String, Object> attributes) {
         Object rawId = attributes.get("request_id");
         if (rawId instanceof String) {
             attributes.put("request_id", UUID.fromString((String) rawId));
-        }
-        Map<String, ?> rawResponses = (Map<String, ?>) attributes.get("responses");
-        if (rawResponses != null) {
-            Object rawSuccess = attributes.get("success");
-            Map<?, ?> success = rawSuccess instanceof Map ? (Map<?, ?>) rawSuccess : Map.of();
-            Map<String, ToolResponse> responses = new HashMap<>();
-            for (Map.Entry<String, ?> entry : rawResponses.entrySet()) {
-                Object v = entry.getValue();
-                if (v instanceof ToolResponse) {
-                    responses.put(entry.getKey(), (ToolResponse) v);
-                } else if (v instanceof Map) {
-                    responses.put(entry.getKey(), MAPPER.convertValue(v, ToolResponse.class));
-                } else if (Boolean.FALSE.equals(success.get(entry.getKey()))) {
-                    // The Python runtime records a failed call as the text it shows the model in
-                    // `responses`, with `success` false and the diagnostic in `error`. Keep that
-                    // text as the error so Java consumers show the model the same thing.
-                    responses.put(entry.getKey(), ToolResponse.error(String.valueOf(v)));
-                } else {
-                    responses.put(entry.getKey(), ToolResponse.success(v));
-                }
-            }
-            attributes.put("responses", responses);
         }
         return attributes;
     }
@@ -101,10 +97,18 @@ public class ToolResponseEvent extends Event {
     /**
      * Reconstructs a typed ToolResponseEvent from a base Event, deserializing nested types.
      *
+     * <p>Enforces the fixed cross-language schema: {@code request_id} and {@code responses} are
+     * required; {@code success}, {@code error}, {@code external_ids}, and {@code timestamp} are
+     * optional; no other attribute is allowed. {@code timestamp} is written only by the Java
+     * runtime, so it is accepted here to stay compatible with Java-produced events and is otherwise
+     * left as-is.
+     *
      * @param event the base event containing tool response data in attributes
      * @return a typed ToolResponseEvent
+     * @throws IllegalArgumentException if the event violates the schema
      */
     public static ToolResponseEvent fromEvent(Event event) {
+        validateAttributeSchema(EVENT_TYPE, event.getAttributes(), ATTRIBUTE_SCHEMA);
         return reconstructFrom(event, ToolResponseEvent::new);
     }
 
@@ -117,10 +121,39 @@ public class ToolResponseEvent extends Event {
         return (UUID) val;
     }
 
+    /**
+     * Returns the tool responses keyed by call id, normalizing the serialized form on read.
+     *
+     * <p>Responses arrive either as {@link ToolResponse} objects (native Java), as maps (Java
+     * JSON), or as raw scalars (the Python runtime records the value it shows the model). A call
+     * Python marked as failed — a scalar with {@code success} false and the diagnostic in {@code
+     * error} — is kept as {@link ToolResponse#error} so Java consumers show the model the same
+     * text.
+     */
     @JsonIgnore
     @SuppressWarnings("unchecked")
     public Map<String, ToolResponse> getResponses() {
-        return (Map<String, ToolResponse>) getAttr("responses");
+        Object raw = getAttr("responses");
+        if (!(raw instanceof Map)) {
+            return Map.of();
+        }
+        Map<String, ?> rawResponses = (Map<String, ?>) raw;
+        Object rawSuccess = getAttr("success");
+        Map<?, ?> success = rawSuccess instanceof Map ? (Map<?, ?>) rawSuccess : Map.of();
+        Map<String, ToolResponse> responses = new HashMap<>();
+        for (Map.Entry<String, ?> entry : rawResponses.entrySet()) {
+            Object v = entry.getValue();
+            if (v instanceof ToolResponse) {
+                responses.put(entry.getKey(), (ToolResponse) v);
+            } else if (v instanceof Map) {
+                responses.put(entry.getKey(), MAPPER.convertValue(v, ToolResponse.class));
+            } else if (Boolean.FALSE.equals(success.get(entry.getKey()))) {
+                responses.put(entry.getKey(), ToolResponse.error(String.valueOf(v)));
+            } else {
+                responses.put(entry.getKey(), ToolResponse.success(v));
+            }
+        }
+        return responses;
     }
 
     @JsonIgnore
