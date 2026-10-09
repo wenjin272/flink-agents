@@ -32,7 +32,6 @@ import org.apache.flink.agents.api.resource.ResourceContext;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.resource.SerializableResource;
-import org.apache.flink.agents.api.skills.SkillSourceSpec;
 import org.apache.flink.agents.api.skills.Skills;
 import org.apache.flink.agents.api.subagent.SubagentFuture;
 import org.apache.flink.agents.api.vectorstores.Document;
@@ -49,9 +48,10 @@ import org.apache.flink.agents.runtime.resource.ResourceContextImpl;
 import org.apache.flink.agents.runtime.skill.AgentSkill;
 import org.apache.flink.agents.runtime.skill.SkillManager;
 import org.apache.flink.agents.runtime.skill.SkillRepository;
-import org.apache.flink.agents.runtime.skill.SkillSourceRegistry;
+import org.apache.flink.agents.runtime.skill.repository.FileSystemSkillRepository;
 import org.apache.flink.agents.runtime.subagent.BaseSubagentSetup;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 import pemja.core.object.PyObject;
 
 import java.lang.reflect.Field;
@@ -59,13 +59,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -439,31 +439,39 @@ public class ResourceCacheTest {
         Error secondBoom = new Error("other repo close failed");
         RecordingRepo failing = new RecordingRepo("alpha", firstBoom);
         RecordingRepo surviving = new RecordingRepo("beta", secondBoom);
-        AtomicInteger seq = new AtomicInteger();
         List<RecordingRepo> ordered = List.of(failing, surviving);
-        SkillSourceRegistry.register(
-                "test-resource-cache-close-error",
-                (params, cl) -> ordered.get(seq.getAndIncrement()));
-        Skills skills =
-                new Skills(
-                        List.of(
-                                new SkillSourceSpec("test-resource-cache-close-error", Map.of()),
-                                new SkillSourceSpec("test-resource-cache-close-error", Map.of())));
+        Skills skills = Skills.fromLocalDir("first", "second");
+        try (MockedConstruction<FileSystemSkillRepository> ignored =
+                mockConstruction(
+                        FileSystemSkillRepository.class,
+                        (repo, context) -> {
+                            RecordingRepo recording = ordered.get(context.getCount() - 1);
+                            when(repo.getSkills()).thenAnswer(invocation -> recording.getSkills());
+                            when(repo.getSkillDir(org.mockito.ArgumentMatchers.anyString()))
+                                    .thenReturn(java.nio.file.Path.of("unused"));
+                            org.mockito.Mockito.doAnswer(
+                                            invocation -> {
+                                                recording.close();
+                                                return null;
+                                            })
+                                    .when(repo)
+                                    .close();
+                        })) {
+            ResourceCache cache = new ResourceCache(new HashMap<>());
+            cache.put(Skills.SKILLS_CONFIG, ResourceType.SKILLS, skills);
+            // Force the lazily-cached SkillManager to exist, so close() has repos to release.
+            cache.getResourceContext().getSkillDirs(List.of("alpha"));
 
-        ResourceCache cache = new ResourceCache(new HashMap<>());
-        cache.put(Skills.SKILLS_CONFIG, ResourceType.SKILLS, skills);
-        // Force the lazily-cached SkillManager to exist, so close() has repos to release.
-        cache.getResourceContext().getSkillDirs(List.of("alpha"));
+            // The Error reaches the caller unwrapped, through both intervening close() methods.
+            Throwable thrown = catchThrowable(cache::close);
 
-        // The Error reaches the caller unwrapped, through both intervening close() methods.
-        Throwable thrown = catchThrowable(cache::close);
-
-        assertThat(thrown).isInstanceOf(Error.class);
-        assertThat(failing.closed).isTrue();
-        assertThat(surviving.closed).isTrue();
-        assertThat(thrown.getSuppressed()).hasSize(1);
-        assertThat(List.of(thrown, thrown.getSuppressed()[0]))
-                .containsExactlyInAnyOrder(firstBoom, secondBoom);
+            assertThat(thrown).isInstanceOf(Error.class);
+            assertThat(failing.closed).isTrue();
+            assertThat(surviving.closed).isTrue();
+            assertThat(thrown.getSuppressed()).hasSize(1);
+            assertThat(List.of(thrown, thrown.getSuppressed()[0]))
+                    .containsExactlyInAnyOrder(firstBoom, secondBoom);
+        }
     }
 
     /** A skill repository that records its close and can be made to fail it. */

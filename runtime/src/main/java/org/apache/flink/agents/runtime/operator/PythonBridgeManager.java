@@ -17,11 +17,15 @@
  */
 package org.apache.flink.agents.runtime.operator;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.agents.api.agents.AgentExecutionOptions;
 import org.apache.flink.agents.api.memory.LongTermMemoryOptions;
+import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.skills.Skills;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.agents.plan.PythonFunction;
+import org.apache.flink.agents.plan.resourceprovider.JavaSerializableResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.apache.flink.agents.runtime.PythonMCPResourceDiscovery;
 import org.apache.flink.agents.runtime.ResourceCache;
@@ -46,6 +50,7 @@ import pemja.core.object.PyObject;
 
 import javax.annotation.Nullable;
 
+import java.io.IOException;
 import java.util.HashMap;
 
 import static org.apache.flink.agents.plan.actions.Utils.requiredVersions;
@@ -53,7 +58,7 @@ import static org.apache.flink.agents.plan.actions.Utils.supportAsync;
 
 /**
  * Owns the embedded Python runtime used by {@link ActionExecutionOperator} when an agent plan
- * contains Python actions or Python-defined resources.
+ * contains Python actions, Python-defined resources, or Python package skill sources.
  *
  * <p>Owned state:
  *
@@ -69,11 +74,11 @@ import static org.apache.flink.agents.plan.actions.Utils.supportAsync;
  *
  * <p>Lifecycle: instantiated by the operator's {@code open()} (lazy — not in the operator
  * constructor), then immediately initialized via {@link #open} in the same call. {@link #open} is a
- * no-op when the agent plan contains no Python actions, Python resources, or Mem0 configuration —
- * in that case all accessors return {@code null} and {@link #isInitialized()} returns {@code
- * false}. {@link #close()} closes the owned resources in the reverse order of creation: {@code
- * longTermMemory} → {@code pythonActionExecutor} → {@code pythonResourceAdapter} → {@code
- * pythonInterpreterManager} → {@code pythonEnvironmentManager}.
+ * no-op when the agent plan contains no Python actions, Python resources, Python package skill
+ * sources, or Mem0 configuration — in that case all accessors return {@code null} and {@link
+ * #isInitialized()} returns {@code false}. {@link #close()} closes the owned resources in the
+ * reverse order of creation: {@code longTermMemory} → {@code pythonActionExecutor} → {@code
+ * pythonResourceAdapter} → {@code pythonInterpreterManager} → {@code pythonEnvironmentManager}.
  *
  * <p>Design constraint: package-private; no manager-to-manager held references. Other managers
  * receive what they need (e.g. the Python runner context, the action executor) via method
@@ -101,18 +106,18 @@ class PythonBridgeManager implements AutoCloseable {
      * Initializes the Python runtime if the agent plan needs it.
      *
      * <p>Scans the agent plan for any {@link PythonFunction} action or Python-owned resource
-     * provider. If neither is present and Mem0 is not configured, this method is a no-op and {@link
-     * #isInitialized()} stays {@code false}. Otherwise it builds the {@link
-     * PythonEnvironmentManager}, opens an owner {@link PythonInterpreter}, refreshes the shared
-     * import state for the current dependency generation, and creates a {@link
-     * PythonInterpreterManager} that binds interpreters to managed Java workers and routes other
-     * callers through bounded callback workers. It then constructs the shared {@link
-     * PythonRunnerContextImpl}, wires the Java/Python resource adapters, and conditionally
-     * initializes the Python resource adapter (when Python-owned resources or Mem0 are present) and
-     * the Python action executor (when Python actions, Python-owned resources, or Mem0 are present,
-     * since the executor is also the bridge that materializes Python-owned resources). The
-     * generation guard runs immediately after owner-interpreter construction and before any user
-     * module import.
+     * provider. If none of those or Python package skill sources are present and Mem0 is not
+     * configured, this method is a no-op and {@link #isInitialized()} stays {@code false}.
+     * Otherwise it builds the {@link PythonEnvironmentManager}, opens an owner {@link
+     * PythonInterpreter}, refreshes the shared import state for the current dependency generation,
+     * and creates a {@link PythonInterpreterManager} that binds interpreters to managed Java
+     * workers and routes other callers through bounded callback workers. It then constructs the
+     * shared {@link PythonRunnerContextImpl}, wires the Java/Python resource adapters, and
+     * conditionally initializes the Python resource adapter (when Python-owned resources or Mem0
+     * are present) and the Python action executor (when Python actions, Python-owned resources, or
+     * Mem0 are present, since the executor is also the bridge that materializes Python-owned
+     * resources). The generation guard runs immediately after owner-interpreter construction and
+     * before any user module import.
      *
      * @param agentPlan the agent plan describing actions and resources.
      * @param resourceCache the resource cache visible to both languages.
@@ -151,8 +156,9 @@ class PythonBridgeManager implements AutoCloseable {
                                                 .anyMatch(ResourceProvider::isPythonOwned));
 
         boolean mem0Configured = isMem0Configured(agentPlan);
+        boolean packageSkills = hasPackageSkills(agentPlan);
 
-        if (containPythonAction || containPythonResource || mem0Configured) {
+        if (containPythonAction || containPythonResource || mem0Configured || packageSkills) {
             LOG.debug("Begin initialize PythonEnvironmentManager.");
             PythonDependencyInfo dependencyInfo =
                     PythonDependencyInfo.create(
@@ -211,6 +217,27 @@ class PythonBridgeManager implements AutoCloseable {
             }
             initialized = true;
         }
+    }
+
+    /** Inspect serialized configuration only; do not initialize user resources during bootstrap. */
+    static boolean hasPackageSkills(AgentPlan agentPlan) throws IOException {
+        ResourceProvider provider =
+                agentPlan
+                        .getResourceProviders()
+                        .getOrDefault(ResourceType.SKILLS, java.util.Collections.emptyMap())
+                        .get(Skills.SKILLS_CONFIG);
+        if (!(provider instanceof JavaSerializableResourceProvider)) {
+            // Python-owned providers already trigger initialization through isPythonOwned().
+            return false;
+        }
+        Skills skills =
+                new ObjectMapper()
+                        .readValue(
+                                ((JavaSerializableResourceProvider) provider)
+                                        .getSerializedResource(),
+                                Skills.class);
+        return skills.getSources().stream()
+                .anyMatch(source -> "package".equalsIgnoreCase(source.getScheme()));
     }
 
     /**
@@ -303,6 +330,12 @@ class PythonBridgeManager implements AutoCloseable {
         pythonResourceAdapter.open();
         PythonMCPResourceDiscovery.discoverPythonMCPResources(
                 agentPlan.getResourceProviders(), pythonResourceAdapter, resourceCache);
+    }
+
+    /** The operator's interpreter manager, or null before initialization or for Java-only plans. */
+    @Nullable
+    PythonInterpreterManager getPythonInterpreterManager() {
+        return pythonInterpreterManager;
     }
 
     /**

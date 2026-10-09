@@ -18,6 +18,9 @@
 package org.apache.flink.agents.runtime.operator;
 
 import org.apache.flink.agents.api.InputEvent;
+import org.apache.flink.agents.api.agents.Agent;
+import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.skills.Skills;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.runtime.env.PythonEnvironmentManager;
@@ -43,6 +46,25 @@ import static org.mockito.Mockito.verify;
 
 /** Contract tests for {@link PythonBridgeManager}. */
 class PythonBridgeManagerTest {
+
+    @Test
+    void packageSourcesRequirePythonEvenWithOnlyJavaProviders() throws Exception {
+        Agent agent = new Agent();
+        agent.addResource("skills", ResourceType.SKILLS, Skills.fromPackage("pkg", "skills"));
+        AgentPlan plan = new AgentPlan(agent);
+        assertThat(
+                        plan.getResourceProviders().values().stream()
+                                .flatMap(providers -> providers.values().stream())
+                                .anyMatch(
+                                        org.apache.flink.agents.plan.resourceprovider
+                                                        .ResourceProvider
+                                                ::isPythonOwned))
+                .isFalse();
+        assertThat(PythonBridgeManager.hasPackageSkills(plan)).isTrue();
+        Agent nativeAgent = new Agent();
+        nativeAgent.addResource("skills", ResourceType.SKILLS, Skills.fromClasspath("skills"));
+        assertThat(PythonBridgeManager.hasPackageSkills(new AgentPlan(nativeAgent))).isFalse();
+    }
 
     @Test
     void closeAttemptsAllResourcesAndSuppressesLaterFailures() throws Exception {
