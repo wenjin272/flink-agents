@@ -293,8 +293,9 @@ public class ChatCallTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 2, 3})
+    @ValueSource(ints = {0, 1, 2, 3, 4})
     void checkpointRecoveryBeforeDispatchAfterResponseAndAfterAwait(int phase) throws Exception {
+        boolean toolRound = phase >= 3;
         AgentPlan plan = plan("recoveryCaller");
         // Deterministically stop between event dispatches; the caller still uses a continuation.
         plan.getConfig().set(AgentExecutionOptions.CHAT_ASYNC, false);
@@ -305,7 +306,7 @@ public class ChatCallTest {
         try (KeyedOneInputStreamOperatorTestHarness<String, String, Object> original =
                 harness(plan, store)) {
             original.open();
-            original.processElement(new StreamRecord<>(phase == 3 ? "tool" : "key"));
+            original.processElement(new StreamRecord<>(toolRound ? "tool" : "key"));
             original.getTaskMailbox().take(TaskMailbox.MIN_PRIORITY).run();
             if (phase >= 1) {
                 original.getTaskMailbox().take(TaskMailbox.MIN_PRIORITY).run();
@@ -321,6 +322,16 @@ public class ChatCallTest {
                     original.getTaskMailbox().take(TaskMailbox.MIN_PRIORITY).run();
                 }
                 assertThat(TOOL_CALLS.get()).isEqualTo(1);
+            }
+            if (phase == 4) {
+                // Snapshot after the tool completes, before the second model turn is dispatched.
+                while (TOOL_CALLS.get() < 1) {
+                    original.getTaskMailbox().take(TaskMailbox.MIN_PRIORITY).run();
+                }
+                assertThat(TOOL_CALLS.get()).isEqualTo(1);
+                assertThat(MODEL_CALLS.get()).isEqualTo(1);
+                assertThat(tailStarted).isFalse();
+                assertThat(original.getRecordOutput()).isEmpty();
             }
             checkpoint = original.snapshot(1, 1);
             store.getKeyedActionStates()
@@ -344,11 +355,11 @@ public class ChatCallTest {
             restored.initializeState(checkpoint);
             restored.open();
             ((ActionExecutionOperator<?, ?>) restored.getOperator()).waitInFlightEventsFinished();
-            assertThat(MODEL_CALLS.get()).isEqualTo(phase == 3 ? 2 : 1);
+            assertThat(MODEL_CALLS.get()).isEqualTo(toolRound ? 2 : 1);
             assertThat(restored.getRecordOutput()).hasSize(1);
             assertThat(restored.getRecordOutput().iterator().next().getValue())
-                    .isEqualTo(phase == 3 ? "answer:tool" : "answer:hello");
-            if (phase == 3) {
+                    .isEqualTo(toolRound ? "answer:tool" : "answer:hello");
+            if (toolRound) {
                 assertThat(TOOL_CALLS.get()).isEqualTo(1);
             }
         }

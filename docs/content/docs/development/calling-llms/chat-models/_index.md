@@ -232,7 +232,7 @@ The result is a full `ChatMessage`, including content blocks, not just text. A f
 
 `ctx.chat` uses the calling action's resources and memory. Its response is returned to the caller and does not trigger actions subscribed to `ChatResponseEvent`. Use the event-style API when you want a separate action to handle the response.
 
-With durable execution enabled, recorded results are reused after recovery. Requests whose results were not recorded may execute again, so external provider or tool effects are not guaranteed to occur exactly once.
+With durable execution enabled, recorded results are reused after recovery. Replay matches calls by the calling action's execution identity and the order in which chat calls are first awaited; it does not compare the model, messages, or prompt arguments. Changing a request at the same call position therefore still reuses its recorded response when the caller identity is unchanged. Requests whose results were not recorded may execute again, so external provider or tool effects are not guaranteed to occur exactly once.
 
 Java chat calls require JDK 21 and `--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED` in `env.java.opts.all`. Python chat calls do not require JDK 21. Java calls are currently affected by the known deadlock limitation in [#1213](https://github.com/apache/flink-agents/issues/1213).
 
