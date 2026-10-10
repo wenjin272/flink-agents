@@ -26,8 +26,6 @@ import org.apache.flink.agents.runtime.memory.EventAttachmentUtils;
 import org.apache.flink.agents.runtime.python.utils.PythonActionExecutor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 
-import java.util.Collections;
-
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
@@ -81,7 +79,7 @@ public class JavaActionTask extends ActionTask {
             runnerContext.checkNoPendingEvents();
             invocationEvent =
                     EventAttachmentUtils.loadEventAttachments(
-                            event, runnerContext, eventSerializer);
+                            getDelegateEvent(), runnerContext, eventSerializer);
         }
 
         JavaRunnerContextImpl javaRunnerContext = (JavaRunnerContextImpl) runnerContext;
@@ -113,7 +111,10 @@ public class JavaActionTask extends ActionTask {
                     runnerContext.drainEventsAtActionFinish(event.getSourceTimestamp()),
                     null);
         } else {
-            return new ActionTaskResult(false, Collections.emptyList(), this);
+            return new ActionTaskResult(
+                    false,
+                    runnerContext.drainEventsAtActionYield(event.getSourceTimestamp()),
+                    this);
         }
     }
 }

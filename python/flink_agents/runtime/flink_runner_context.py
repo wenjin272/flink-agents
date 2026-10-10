@@ -638,11 +638,19 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
         )
         self.__resource_cache.set_java_resource_adapter(j_resource_adapter)
         self.__config = self.__agent_plan.config
+        self.__j_resource_adapter = j_resource_adapter
+        # Resource caches for sub-agent scopes, keyed by the child plan JSON.
+        self.__scoped_resource_caches: dict = {}
         self.executor = executor
         # Task lifecycle listeners the operator's callbacks fan out to,
         # registered via add_task_lifecycle_listener() (aligned with the Java
         # operator's taskLifecycleListeners).
         self.__task_lifecycle_listeners: list = []
+        # The namespace of the task the operator last reported prepared, extracted
+        # eagerly so no pemja reference is retained across calls. Replayed onto a
+        # sub-agent handle materialized lazily during the action body — see
+        # __observe_subagent_setup().
+        self.__prepared_namespace: Any = None
 
     def set_long_term_memory(self, ltm: InternalBaseLongTermMemory) -> None:
         """Set long term memory instance to this context.
@@ -701,29 +709,118 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
         self, name: str, type: ResourceType, metric_group: MetricGroup = None
     ) -> Resource:
         self._j_runner_context.checkMailboxThread()
-        resource = self.__resource_cache.get_resource(name, type)
+        cache = self.__active_resource_cache()
+        resource = cache.get_resource(name, type)
         # Bind metric group to the resource
         resource.set_metric_group(metric_group or self.action_metric_group)
+        self.__observe_subagent_setup(resource)
         return resource
 
-    def eager_materialize(self, resource_type: str) -> Dict[str, Resource]:
+    def __active_resource_cache(self) -> ResourceCache:
+        """The resource cache in effect: the child plan's while inside a
+        sub-agent call (so a child agent resolves its own resources, including
+        any nested sub-agents), else the root plan's.
+        """
+        plan_json = self._j_runner_context.getActiveScopePlanJson()
+        if plan_json is None:
+            return self.__resource_cache
+        return self.__scoped_plan_and_cache(plan_json)[1]
+
+    def __scoped_plan_and_cache(self, plan_json: str) -> tuple:
+        """The ``(plan, cache)`` pair of a sub-agent scope, built once.
+
+        Keyed by the child plan JSON so the eager materialization the operator
+        runs at open and the lazy resolution a child action performs at call
+        time share one cache: a Python-owned resource of the scope is built a
+        single time and every later lookup resolves to that same instance.
+        """
+        entry = self.__scoped_resource_caches.get(plan_json)
+        if entry is None:
+            from flink_agents.plan.agent_plan import AgentPlan
+
+            scoped_plan = AgentPlan.model_validate_json(plan_json)
+            cache = ResourceCache(scoped_plan.resource_providers, scoped_plan.config)
+            cache.set_java_resource_adapter(self.__j_resource_adapter)
+            entry = (scoped_plan, cache)
+            self.__scoped_resource_caches[plan_json] = entry
+        return entry
+
+    def __observe_subagent_setup(self, resource: Any) -> None:
+        """Wire a lazily materialized sub-agent handle into the task lifecycle.
+
+        An external Python setup is materialized eagerly at open and registered
+        before the first action, so it already observes the lifecycle. A
+        Python-compiled internal sub-agent is Java-owned (its child plan
+        dispatches on the Java side), so its caller-facing handle is first built
+        here, mid-action, after ``on_action_prepared`` has fanned out. Register it
+        now and replay the prepared namespace so a no-id ``submit`` can mint
+        deterministic identities; later tasks reach it through the ordinary
+        fan-out.
+        """
+        from flink_agents.runtime.base_subagent import BaseSubagentSetup
+
+        if not isinstance(resource, BaseSubagentSetup):
+            return
+        if any(resource is listener for listener in self.__task_lifecycle_listeners):
+            # Eagerly registered (external setup) or already wired on a prior
+            # get_resource: the ordinary fan-out covers it.
+            return
+        self.add_task_lifecycle_listener(resource)
+        if self.__prepared_namespace is not None:
+            resource.adopt_prepared_namespace(self.__prepared_namespace)
+
+    def __capture_prepared_namespace(self, task: Any) -> None:
+        """Record ``task``'s namespace as the id-assignment source, best-effort.
+
+        A live ``ActionTask`` proxy always yields a namespace, extracted eagerly
+        here (plain Python values, no pemja reference retained) so a sub-agent
+        handle built later in the action body can adopt it — see
+        __observe_subagent_setup(). The lifecycle-bridge fan-out is also
+        exercised with opaque placeholder tasks that expose no accessor surface
+        (see test_task_lifecycle_bridge); those carry no facts to mint a
+        sub-agent identity from, so the capture yields nothing rather than
+        raising, leaving the pure fan-out to forward them untouched.
+        """
+        from flink_agents.runtime.base_subagent import Namespace
+
+        try:
+            self.__prepared_namespace = Namespace.from_task(task)
+        except AttributeError:
+            self.__prepared_namespace = None
+
+    def eager_materialize(
+        self, resource_type: str, plan_json: str | None = None
+    ) -> Dict[str, Resource]:
         """Materialize every Python-owned resource of ``resource_type``.
 
         The Python-side counterpart of the Java ``ResourceCache.eagerMaterialize``:
         resources declared by Python providers are built, cached and closed here,
         so the Java side asks for them instead of building its own. Returns them
         keyed by resource name.
+
+        ``plan_json`` identifies a sub-agent scope: the resources are then
+        materialized from that child plan into the scope's cache -- the same one
+        a child action resolves through at call time -- so an internal child's
+        Python-owned resources are built against its own plan rather than the
+        root plan, where they do not exist.
         """
         from flink_agents.plan.resource_provider import is_python_owned
 
         type_ = ResourceType(resource_type)
+        if plan_json is None:
+            plan = self.__agent_plan
+            cache = self.__resource_cache
+        else:
+            plan, cache = self.__scoped_plan_and_cache(plan_json)
         materialized = {}
-        providers = self.__agent_plan.resource_providers.get(type_, {})
+        providers = (
+            plan.resource_providers.get(type_, {}) if plan.resource_providers else {}
+        )
         for name, provider in providers.items():
             if not is_python_owned(provider):
                 # Java-owned resources are materialized by the Java resource cache.
                 continue
-            materialized[name] = self.__resource_cache.get_resource(name, type_)
+            materialized[name] = cache.get_resource(name, type_)
         return materialized
 
     def add_task_lifecycle_listener(self, listener: Any) -> None:
@@ -737,6 +834,7 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
 
     def notify_action_prepared(self, task: Any) -> None:
         """Fan out the operator's onActionPrepared to the task lifecycle listeners."""
+        self.__capture_prepared_namespace(task)
         for listener in self.__task_lifecycle_listeners:
             listener.on_action_prepared(task)
 
@@ -747,11 +845,13 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
 
     def notify_action_transferred(self, from_task: Any, to_task: Any) -> None:
         """Fan out the operator's onActionTransferred to the listeners."""
+        self.__capture_prepared_namespace(to_task)
         for listener in self.__task_lifecycle_listeners:
             listener.on_action_transferred(from_task, to_task)
 
     def notify_action_finishing(self, task: Any) -> None:
         """Fan out the operator's onActionFinishing to the task lifecycle listeners."""
+        self.__prepared_namespace = None
         for listener in self.__task_lifecycle_listeners:
             listener.on_action_finishing(task)
 
@@ -762,6 +862,7 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
 
     def notify_action_reused(self, task: Any) -> None:
         """Fan out the operator's onActionReused to the task lifecycle listeners."""
+        self.__prepared_namespace = None
         for listener in self.__task_lifecycle_listeners:
             listener.on_action_reused(task)
 
@@ -1574,6 +1675,32 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
             kwargs,
         )
 
+    def bootstrap_subagent_call(
+        self, scope: str, session_id: str, call_id: str, prompt: Any
+    ) -> None:
+        """Bootstrap an internal sub-agent call under the assigned identity.
+
+        Implements
+        :class:`~flink_agents.runtime.internal_subagent.InternalSubagentCallFactory`.
+        Delegates to the Java ``RunnerContextImpl.bootstrapSubagentCallForScope``,
+        which resolves the materialized sub-agent setup by ``scope`` and sends
+        the bootstrap event. Must run on the mailbox thread.
+        """
+        self._j_runner_context.bootstrapSubagentCallForScope(
+            scope, session_id, call_id, prompt
+        )
+
+    def await_subagent_call(self, session_id: str, call_id: str) -> list:
+        """Block until the identified internal sub-agent call quiesces.
+
+        Implements
+        :class:`~flink_agents.runtime.internal_subagent.InternalSubagentCallFactory`.
+        Delegates to the Java ``RunnerContextImpl.awaitSubagentCall``. Must run
+        off the mailbox thread (e.g. on the durable-execution async worker) so
+        the mailbox stays free to dispatch the child agent's actions.
+        """
+        return list(self._j_runner_context.awaitSubagentCall(session_id, call_id))
+
     @property
     @override
     def config(self) -> ReadableConfiguration:
@@ -1602,6 +1729,19 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
             first_failure,
             "runner context resource cache",
         )
+
+        # Close the sub-agent scope caches too: each holds the Python-owned
+        # resources of its scope, materialized eagerly at open or lazily at
+        # call time, which are distinct from the root cache's and would
+        # otherwise leak when the context closes.
+        scoped_caches = self.__scoped_resource_caches
+        self.__scoped_resource_caches = {}
+        for scoped in scoped_caches.values():
+            first_failure = _first_or_logged(
+                _failure_of(scoped[1].close),
+                first_failure,
+                "sub-agent scope resource cache",
+            )
 
         if first_failure is not None:
             raise first_failure
@@ -1672,10 +1812,14 @@ def close_flink_runner_context(
 
 
 def eager_materialize(
-    ctx: FlinkRunnerContext, resource_type: str
+    ctx: FlinkRunnerContext, resource_type: str, plan_json: str | None = None
 ) -> Dict[str, Resource]:
-    """Java entry: materialize the Python-owned resources of ``resource_type``."""
-    return ctx.eager_materialize(resource_type)
+    """Java entry: materialize the Python-owned resources of ``resource_type``.
+
+    ``plan_json`` identifies a sub-agent scope, so an internal child's
+    Python-owned resources are materialized against its own plan.
+    """
+    return ctx.eager_materialize(resource_type, plan_json)
 
 
 def add_task_lifecycle_listener(ctx: FlinkRunnerContext, listener: Any) -> bool:

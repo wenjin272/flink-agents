@@ -456,7 +456,9 @@ class ActionTaskContextManagerTest {
             invokeCreateAndSetRunnerContext(mgr, to);
 
             assertThat(to.getRunnerContext().getPendingEvents()).isSameAs(liveBuffer);
-            assertThat(to.getRunnerContext().drainEvents(null))
+            assertThat(to.getRunnerContext().drainEventsAtActionYield(null)).isEmpty();
+            assertThat(liveBuffer).containsExactly(bufferedBeforeYield);
+            assertThat(to.getRunnerContext().drainEventsAtActionFinish(null))
                     .containsExactly(bufferedBeforeYield);
             assertThat(liveBuffer).isEmpty();
         }
@@ -598,6 +600,7 @@ class ActionTaskContextManagerTest {
                 shortTermMem,
                 /* pythonRunnerContext */ null,
                 longTermMemory,
+                /* subagentScope */ null,
                 componentListenerFactory);
     }
 
