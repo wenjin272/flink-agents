@@ -458,18 +458,26 @@ class ActionTaskContextManager implements AutoCloseable {
         requireContexts(actionTask).pythonAwaitableRef = ref;
     }
 
+    /** Stops async workers without closing the runner context or waiting for thread cleanup. */
+    void shutdownAsyncExecutor() {
+        if (continuationActionExecutor != null) {
+            continuationActionExecutor.shutdown();
+        }
+    }
+
     /** Closes the shared runner context and the continuation executor. */
     @Override
     public void close() throws Exception {
-        // Close the continuation executor even when the runner context fails to close. The first
-        // failure is rethrown with the later one suppressed.
-        //
-        // The ladder catches Throwable, not Exception, so a non-Exception Throwable from the
-        // runner context cannot strand the executor's thread pool. Neither type implements
-        // AutoCloseable, so the aggregation is spelled out rather than delegated. Both rungs go
-        // through firstOrSuppressed even though the first one cannot yet have a previous failure,
-        // so that a close inserted above it later suppresses rather than overwrites.
+        // Drain async callbacks before closing resources they may still be using. Close every
+        // component even after a failure, preserving later failures as suppressed exceptions.
         Throwable firstFailure = null;
+        if (continuationActionExecutor != null) {
+            try {
+                continuationActionExecutor.close();
+            } catch (Throwable t) {
+                firstFailure = ExceptionUtils.firstOrSuppressed(t, firstFailure);
+            }
+        }
         if (runnerContext != null) {
             try {
                 runnerContext.close();
@@ -477,13 +485,6 @@ class ActionTaskContextManager implements AutoCloseable {
                 firstFailure = ExceptionUtils.firstOrSuppressed(t, firstFailure);
             } finally {
                 runnerContext = null;
-            }
-        }
-        if (continuationActionExecutor != null) {
-            try {
-                continuationActionExecutor.close();
-            } catch (Throwable t) {
-                firstFailure = ExceptionUtils.firstOrSuppressed(t, firstFailure);
             }
         }
         if (firstFailure != null) {
