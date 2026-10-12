@@ -30,7 +30,11 @@ import org.apache.flink.agents.api.annotation.ChatModelSetup;
 import org.apache.flink.agents.api.annotation.Tool;
 import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.ChatResult;
 import org.apache.flink.agents.api.chat.messages.MessageRole;
+import org.apache.flink.agents.api.chat.messages.TextBlock;
+import org.apache.flink.agents.api.chat.messages.ToolCallBlock;
+import org.apache.flink.agents.api.chat.messages.ToolResultBlock;
 import org.apache.flink.agents.api.chat.model.BaseChatModelConnection;
 import org.apache.flink.agents.api.chat.model.BaseChatModelSetup;
 import org.apache.flink.agents.api.context.DurableFuture;
@@ -170,7 +174,7 @@ class ChatCallIntegrationTest {
             ctx.chat("model", List.of(ChatMessage.user("unused")));
             String result;
             if ("failure".equals(key)) {
-                DurableFuture<ChatMessage> failed =
+                DurableFuture<ChatResult> failed =
                         ctx.chat("model", List.of(ChatMessage.user("fail")));
                 for (int i = 0; i < 2; i++) {
                     assertThatThrownBy(failed::await)
@@ -185,11 +189,11 @@ class ChatCallIntegrationTest {
             } else {
                 List<ChatMessage> messages = new ArrayList<>();
                 messages.add(ChatMessage.user(key + ":1"));
-                DurableFuture<ChatMessage> first = ctx.chat("model", messages);
+                DurableFuture<ChatResult> first = ctx.chat("model", messages);
                 messages.clear(); // The future owns the request snapshot, not this mutable list.
-                ChatMessage response = first.await();
+                ChatResult response = first.await();
                 assertThat(first.await()).isSameAs(response);
-                ChatMessage second =
+                ChatResult second =
                         ctx.chat(
                                         new ChatRequestEvent(
                                                 "model", List.of(ChatMessage.user(key + ":2"))))
@@ -240,7 +244,7 @@ class ChatCallIntegrationTest {
         }
 
         @Override
-        public ChatMessage chat(
+        public ChatResult chat(
                 List<ChatMessage> messages,
                 List<org.apache.flink.agents.api.tools.Tool> tools,
                 Map<String, Object> params) {
@@ -251,22 +255,19 @@ class ChatCallIntegrationTest {
             ChatMessage last = messages.get(messages.size() - 1);
             if (last.getRole() == MessageRole.TOOL) {
                 assertThat(attempt).isEqualTo(2);
-                return ChatMessage.assistant("answer:" + last.getText());
+                ToolResultBlock toolResult = (ToolResultBlock) last.getBlocks().get(0);
+                TextBlock toolText = (TextBlock) toolResult.getBlocks().get(0);
+                return new ChatResult(ChatMessage.assistant("answer:" + toolText.getText()));
             }
             assertThat(attempt).isEqualTo(1);
             if ("fail".equals(prompt)) {
                 throw new IllegalArgumentException("provider refused");
             }
-            return ChatMessage.assistant(
-                    "",
-                    List.of(
-                            Map.of(
-                                    "id",
-                                    "tool-" + prompt,
-                                    "type",
-                                    "function",
-                                    "function",
-                                    Map.of("name", "echo", "arguments", Map.of("value", prompt)))));
+            return new ChatResult(
+                    ChatMessage.assistant(
+                            List.of(
+                                    new ToolCallBlock(
+                                            "tool-" + prompt, "echo", Map.of("value", prompt)))));
         }
     }
 }

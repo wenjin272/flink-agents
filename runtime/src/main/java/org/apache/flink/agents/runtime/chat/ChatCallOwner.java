@@ -18,7 +18,7 @@
 package org.apache.flink.agents.runtime.chat;
 
 import org.apache.flink.agents.api.Event;
-import org.apache.flink.agents.runtime.subagent.SubagentIdAllocator;
+import org.apache.flink.agents.runtime.utils.DeterministicIdAllocator;
 
 /**
  * Caller key and chat-call counter for one action execution: one action processing one event. This
@@ -39,7 +39,7 @@ import org.apache.flink.agents.runtime.subagent.SubagentIdAllocator;
  * <p>Call ID allocation is confined to the action/mailbox thread.
  */
 public final class ChatCallOwner {
-    private final SubagentIdAllocator ids;
+    private final DeterministicIdAllocator ids;
     private final Object key;
 
     /**
@@ -52,7 +52,7 @@ public final class ChatCallOwner {
      */
     public ChatCallOwner(Object key, long sequenceNumber, String actionName, Event event) {
         this.key = key;
-        ids = new SubagentIdAllocator(key, sequenceNumber, actionName, event, "builtin-chat");
+        ids = new DeterministicIdAllocator(key, sequenceNumber, actionName, event, "builtin-chat");
     }
 
     /** Returns the next replay-stable chat invocation ID; advances this owner's call ordinal. */

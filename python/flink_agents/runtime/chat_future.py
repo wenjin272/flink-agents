@@ -17,7 +17,7 @@
 ################################################################################
 from typing import Any
 
-from flink_agents.api.chat_message import ChatMessage
+from flink_agents.api.chat_result import ChatResult
 from flink_agents.api.events.chat_event import (
     ChatRequestEvent,
     ChatResponseError,
@@ -27,7 +27,7 @@ from flink_agents.api.events.event import Event
 from flink_agents.api.runner_context import DurableFuture, Outcome
 
 
-class _ChatFuture(DurableFuture[ChatMessage]):
+class _ChatFuture(DurableFuture[ChatResult]):
     """Resolve through the Java chat coordinator, without occupying a worker."""
 
     def __init__(self, ctx: Any, request: ChatRequestEvent) -> None:

@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, TypeVar
 
 from flink_agents.api.agents.types import OutputSchema
 from flink_agents.api.chat_message import ChatMessage
+from flink_agents.api.chat_result import ChatResult
 from flink_agents.api.configuration import ReadableConfiguration
 from flink_agents.api.events.event import Event
 from flink_agents.api.memory.long_term_memory import BaseLongTermMemory
@@ -440,7 +441,7 @@ class RunnerContext(ABC):
         *,
         prompt_args: dict[str, Any] | None = None,
         output_schema: OutputSchema | None = None,
-    ) -> DurableFuture[ChatMessage]:
+    ) -> DurableFuture[ChatResult]:
         """Call the chat/tool event loop using this action's resources and memory.
 
         The runtime records the terminal response when durable execution is enabled.
@@ -450,7 +451,7 @@ class RunnerContext(ABC):
         another action execution. Cross-execution use is unsupported and is not
         checked at runtime. Suspending and resuming the creating action is still
         the same execution.
-        Repeated awaits return the same ChatMessage or raise ChatResponseError for
+        Repeated awaits return the same ChatResult or raise ChatResponseError for
         a FAILED response. Parallel composition with gather is not supported yet.
         """
         msg = "Chat calls require an event-backed runtime"

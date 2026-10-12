@@ -29,8 +29,15 @@ from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.datastream.connectors.file_system import StreamingFileSink
 
 from flink_agents.api.agents.agent import Agent
-from flink_agents.api.chat_message import ChatMessage, MessageRole
+from flink_agents.api.chat_message import (
+    ChatMessage,
+    MessageRole,
+    TextBlock,
+    ToolCallBlock,
+    ToolResultBlock,
+)
 from flink_agents.api.chat_models.chat_model import BaseChatModelSetup
+from flink_agents.api.chat_result import ChatResult
 from flink_agents.api.core_options import AgentExecutionOptions
 from flink_agents.api.decorators import action, chat_model_setup, tool
 from flink_agents.api.events.chat_event import ChatResponseError, ChatResponseEvent
@@ -57,22 +64,21 @@ class Model(BaseChatModelSetup):
         """Return no provider options."""
         return {}
 
-    def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatMessage:
+    def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatResult:
         """Return one tool call, its final answer, or an ordinary provider failure."""
         if messages[0].text == "fail":
             msg = "provider refused"
             raise ValueError(msg)
         if messages[-1].role == MessageRole.TOOL:
-            return ChatMessage.assistant(f"answer:{messages[-1].text}")
-        return ChatMessage.assistant(
-            "",
-            tool_calls=[
-                {
-                    "id": "echo-1",
-                    "type": "function",
-                    "function": {"name": "echo", "arguments": {"value": "hello"}},
-                }
-            ],
+            tool_result = messages[-1].blocks[0]
+            assert isinstance(tool_result, ToolResultBlock)
+            tool_text = tool_result.blocks[0]
+            assert isinstance(tool_text, TextBlock)
+            return ChatResult(message=ChatMessage.assistant(f"answer:{tool_text.text}"))
+        return ChatResult(
+            message=ChatMessage.assistant(
+                [ToolCallBlock(call_id="echo-1", name="echo", input={"value": "hello"})]
+            )
         )
 
 

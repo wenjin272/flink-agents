@@ -1294,6 +1294,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
      */
     private void registerSubagentSetups() throws Exception {
         boolean pythonSetupRegistered = false;
+        boolean internalSetupRegistered = false;
         for (Resource setup : resourceCache.eagerMaterialize(ResourceType.AGENT)) {
             if (setup instanceof PythonRuntimeResource) {
                 pythonSetupRegistered |=
@@ -1305,13 +1306,14 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 addTaskLifecycleListener((TaskLifecycleListener) setup);
             }
             if (setup instanceof InternalSubagentSetup) {
+                internalSetupRegistered = true;
                 InternalSubagentSetup internalSetup = (InternalSubagentSetup) setup;
                 bootstrapAgentResources(
                         internalSetup.getOrCreateChildCache(
                                 getRuntimeContext().getUserCodeClassLoader(), resourceCache));
             }
         }
-        if (pythonSetupRegistered || (pythonBridge.isInitialized() && !internalSetups.isEmpty())) {
+        if (pythonSetupRegistered || (pythonBridge.isInitialized() && internalSetupRegistered)) {
             addTaskLifecycleListener(
                     new PythonTaskLifecycleListener(pythonBridge.getPythonActionExecutor()));
         }

@@ -29,9 +29,9 @@ import java.util.UUID;
  * Private event envelope shared by all internal graph calls. Only bootstraps can be dispatched
  * while their producing action is suspended. The delegate is what a business action receives.
  *
- * <p>The invocation and delegate identities participate in action-state lookup. A bootstrap's
- * delegate must have a replay-stable id; graph outputs retain their ids in completed ActionState.
- * This does not resolve the caller-identity collision tracked by issue 1084.
+ * <p>Action-state lookup uses the invocation id, bootstrap flag, and delegate type and attributes.
+ * The delegate's event id is retained on the event but is not part of the envelope attributes used
+ * for lookup. Event occurrence identity remains subject to the strategy tracked by issue 1084.
  */
 public final class SubgraphEvent extends Event {
     public static final String EVENT_TYPE = "_internal_subgraph";
@@ -39,7 +39,6 @@ public final class SubgraphEvent extends Event {
     private static final String BOOTSTRAP = "bootstrap";
     private static final String DELEGATE_TYPE = "delegate_type";
     private static final String DELEGATE_ATTRIBUTES = "delegate_attributes";
-    private static final String DELEGATE_ID = "delegate_id";
     private final Event delegate;
 
     public SubgraphEvent(String invocationId, Event delegate, boolean bootstrap) {
@@ -49,7 +48,6 @@ public final class SubgraphEvent extends Event {
         setAttr(BOOTSTRAP, bootstrap);
         setAttr(DELEGATE_TYPE, delegate.getType());
         setAttr(DELEGATE_ATTRIBUTES, delegate.getAttributes());
-        setAttr(DELEGATE_ID, delegate.getId().toString());
         if (delegate.hasSourceTimestamp()) {
             setSourceTimestamp(delegate.getSourceTimestamp());
         }

@@ -63,6 +63,8 @@ public final class ChatCallManager {
         String id = owner.nextCallId();
         Optional<Outcome<ChatResponseEvent>> cached =
                 context.tryGetCachedResult("builtin-chat:" + id, ChatResponseEvent.class);
+        // Replayed responses keep their original request id; use the same id to validate them.
+        // This is chat request/response correlation, not the subgraph's ActionState identity.
         UUID requestId = UUID.nameUUIDFromBytes(id.getBytes(StandardCharsets.UTF_8));
         RunnerContextImpl.MemoryContext memory = context.getMemoryContext();
         ChatInvocation call =

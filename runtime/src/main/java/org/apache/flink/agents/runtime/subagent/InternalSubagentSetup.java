@@ -43,12 +43,10 @@ import org.apache.flink.agents.runtime.subgraph.SubgraphEvent;
 
 import javax.annotation.Nullable;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Runtime setup for an internal sub-agent: a child {@link AgentPlan} compiled from an {@code Agent}
@@ -58,11 +56,11 @@ import java.util.UUID;
  *
  * <p>Execution mode is the deferred one, inherited from {@link BaseDeferredSubagentSetup}: {@link
  * #submit} returns a deferred handle whose request is prepared on first resolve. {@link #prepare}
- * then runs the mailbox-confined bootstrap — registering the call status and sending one {@code
- * SubgraphEvent} — and returns the durable callable that waits for the child to
- * quiesce. Unlike the other deferred setups, that callable runs inline on the mailbox thread and
- * releases it by yielding the caller's continuation, so the operator can dispatch the child agent's
- * actions in between while no async-pool worker is held.
+ * then runs the mailbox-confined bootstrap — registering the invocation and sending one {@code
+ * SubgraphEvent} — and returns the durable callable that waits for the child to quiesce. Unlike the
+ * other deferred setups, that callable runs inline on the mailbox thread and releases it by
+ * yielding the caller's continuation, so the operator can dispatch the child agent's actions in
+ * between while no async-pool worker is held.
  *
  * <p>This adapter retains the child resource caches and session/call index needed by public
  * handles. The common subgraph runtime owns dispatch, action accounting and result completion.
@@ -87,8 +85,8 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
 
     private final AgentPlan plan;
 
-    /** Nested map: sessionId → callId → callStatus. */
-    private final Map<String, Map<String, InternalSubagentCallStatus>> callStatuses =
+    /** Nested map: sessionId → callId → invocation. */
+    private final Map<String, Map<String, InternalSubagentInvocation>> invocations =
             new HashMap<>();
 
     private final Map<String, ResourceCache> childCaches = new HashMap<>();
@@ -223,7 +221,7 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
     }
 
     /**
-     * Registers the call status under the framework-assigned {@code (sessionId, callId)} identity
+     * Registers the invocation under the framework-assigned {@code (sessionId, callId)} identity
      * and sends the bootstrap event (mailbox-thread only), without blocking.
      *
      * <p>The identity is supplied rather than minted here so it is reproducible after failover: a
@@ -243,9 +241,10 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
         RunnerContextImpl.ResourceScope environment =
                 new RunnerContextImpl.ResourceScope(
                         runner.getAgentMetricGroup(), plan, childCache, getPlanJson());
-        InternalSubagentCallStatus cs = new InternalSubagentCallStatus(id, key, this, environment);
-        runner.getSubgraphCalls().register(cs);
-        callStatuses.computeIfAbsent(sessionId, k -> new HashMap<>()).put(callId, cs);
+        InternalSubagentInvocation invocation =
+                new InternalSubagentInvocation(id, key, this, environment);
+        runner.getSubgraphCalls().register(invocation);
+        invocations.computeIfAbsent(sessionId, k -> new HashMap<>()).put(callId, invocation);
         if (key != null) {
             keySessionIds.computeIfAbsent(key, k -> new ArrayList<>()).add(sessionId);
         }
@@ -256,12 +255,7 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
             runnerContext.registerInternalCallOwner(sessionId, this);
             ownerContexts.put(sessionId, runnerContext);
         }
-        // Rebuilding a bootstrap must preserve its delegate id for child ActionState lookup.
-        InputEvent input =
-                new InputEvent(
-                        UUID.nameUUIDFromBytes(id.getBytes(StandardCharsets.UTF_8)),
-                        new InputEvent(prompt).getAttributes());
-        ctx.sendEvent(new SubgraphEvent(id, input, true));
+        ctx.sendEvent(new SubgraphEvent(id, new InputEvent(prompt), true));
     }
 
     /** Namespaces the public session/call pair; allocation itself remains replay-stable. */
@@ -275,7 +269,7 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
      */
     public List<Object> awaitSubagentCall(String sessionId, String callId) throws Exception {
         try {
-            return requireCallStatus(sessionId, callId).awaitResult();
+            return requireInvocation(sessionId, callId).awaitResult();
         } catch (java.util.concurrent.ExecutionException e) {
             throw unwrapChildFailure(e);
         }
@@ -292,20 +286,20 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
      */
     private List<Object> awaitSubagentCallYielding(
             RunnerContext ctx, String sessionId, String callId) throws Exception {
-        InternalSubagentCallStatus cs = requireCallStatus(sessionId, callId);
-        return cs.awaitResult((JavaRunnerContextImpl) ctx);
+        InternalSubagentInvocation invocation = requireInvocation(sessionId, callId);
+        return invocation.awaitResult((JavaRunnerContextImpl) ctx);
     }
 
-    private InternalSubagentCallStatus requireCallStatus(String sessionId, String callId) {
-        InternalSubagentCallStatus cs = getCallStatus(sessionId, callId);
-        if (cs == null) {
+    private InternalSubagentInvocation requireInvocation(String sessionId, String callId) {
+        InternalSubagentInvocation invocation = getInvocation(sessionId, callId);
+        if (invocation == null) {
             throw new IllegalStateException(
                     "No internal sub-agent call registered for sessionId="
                             + sessionId
                             + ", callId="
                             + callId);
         }
-        return cs;
+        return invocation;
     }
 
     /**
@@ -317,10 +311,10 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
         return cause instanceof Exception ? (Exception) cause : e;
     }
 
-    /** The quiesce status of the identified call, or {@code null} when this setup owns none. */
+    /** The identified invocation, or {@code null} when this setup owns none. */
     @Nullable
-    public InternalSubagentCallStatus getCallStatus(String sessionId, String callId) {
-        Map<String, InternalSubagentCallStatus> calls = callStatuses.get(sessionId);
+    public InternalSubagentInvocation getInvocation(String sessionId, String callId) {
+        Map<String, InternalSubagentInvocation> calls = invocations.get(sessionId);
         if (calls == null) {
             return null;
         }
@@ -354,7 +348,7 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
         List<String> sessionIds = keySessionIds.remove(key);
         if (sessionIds != null) {
             for (String sid : sessionIds) {
-                callStatuses.remove(sid);
+                invocations.remove(sid);
                 RunnerContextImpl owner = ownerContexts.remove(sid);
                 if (owner != null) {
                     owner.unregisterInternalCallOwner(sid);

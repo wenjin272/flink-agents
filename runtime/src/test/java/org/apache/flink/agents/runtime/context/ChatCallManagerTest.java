@@ -20,6 +20,8 @@ package org.apache.flink.agents.runtime.context;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.ChatResult;
+import org.apache.flink.agents.api.chat.messages.TokenUsage;
 import org.apache.flink.agents.api.context.DurableFuture;
 import org.apache.flink.agents.api.event.ChatRequestEvent;
 import org.apache.flink.agents.api.event.ChatResponseEvent;
@@ -45,6 +47,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,10 +73,11 @@ class ChatCallManagerTest {
         ChatInvocation secondCall = manager.get(secondId);
         firstCall.complete(
                 ChatResponseEvent.success(
-                        firstCall.getRequestId(), ChatMessage.assistant("first")));
+                        firstCall.getRequestId(), new ChatResult(ChatMessage.assistant("first"))));
         secondCall.complete(
                 ChatResponseEvent.success(
-                        secondCall.getRequestId(), ChatMessage.assistant("second")));
+                        secondCall.getRequestId(),
+                        new ChatResult(ChatMessage.assistant("second"))));
 
         assertThat(firstState.getCallResults()).isEmpty();
         assertThat(secondState.getCallResults()).isEmpty();
@@ -118,6 +122,26 @@ class ChatCallManagerTest {
                 .hasMessageContaining("Missing subgraph call");
     }
 
+    @Test
+    void replayedBootstrapKeepsRequestId() throws Exception {
+        RunnerContextImpl original =
+                context(new ActionState(new Event("input")), (k, seq, action, event, saved) -> {});
+        String id = manager.prepareCall(original, request());
+        SubgraphEvent bootstrap = (SubgraphEvent) original.getPendingEvents().get(0);
+        UUID requestId = bootstrap.getDelegate().getId();
+        assertThat(manager.get(id).getRequestId()).isEqualTo(requestId);
+        manager.clear();
+
+        RunnerContextImpl restored =
+                context(new ActionState(new Event("input")), (k, seq, action, event, saved) -> {});
+        String replayId = manager.prepareCall(restored, request());
+        SubgraphEvent replay = (SubgraphEvent) restored.getPendingEvents().get(0);
+        assertThat(replayId).isEqualTo(id);
+        assertThat(replay.getDelegate().getId()).isEqualTo(requestId);
+        assertThat(manager.get(replayId).getRequestId()).isEqualTo(requestId);
+        assertThat(replay.getAttributes()).doesNotContainKey("delegate_id");
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void terminalResponseReplaysWithoutBootstrap(boolean failed) throws Exception {
@@ -125,11 +149,18 @@ class ChatCallManagerTest {
         RunnerContextImpl context = context(state, (k, seq, action, event, saved) -> {});
         String id = manager.prepareCall(context, request());
         ChatInvocation call = manager.get(id);
+        ChatResult result =
+                new ChatResult(
+                        ChatMessage.assistant("answer"),
+                        "test-model",
+                        "response-1",
+                        new TokenUsage(11L, 7L),
+                        "stop",
+                        Map.of("provider", "test"));
         ChatResponseEvent response =
                 failed
                         ? ChatResponseEvent.failed(call.getRequestId(), "provider refused", 2, 3)
-                        : ChatResponseEvent.success(
-                                call.getRequestId(), ChatMessage.assistant("answer"));
+                        : ChatResponseEvent.success(call.getRequestId(), result);
         call.complete(response);
         manager.tryCompleteCall(context, id);
         assertThat(state.getCallResults()).hasSize(1);
@@ -153,7 +184,7 @@ class ChatCallManagerTest {
                     .isInstanceOf(ChatResponseEvent.ChatResponseException.class)
                     .hasMessage("provider refused");
         } else {
-            assertThat(replay.getResponse().getText()).isEqualTo("answer");
+            assertThat(replay.getResponse()).isEqualTo(result);
         }
     }
 
@@ -184,7 +215,8 @@ class ChatCallManagerTest {
         String id = manager.prepareCall(context, request());
         ChatInvocation call = manager.get(id);
         call.complete(
-                ChatResponseEvent.success(call.getRequestId(), ChatMessage.assistant("answer")));
+                ChatResponseEvent.success(
+                        call.getRequestId(), new ChatResult(ChatMessage.assistant("answer"))));
         assertThatThrownBy(() -> manager.tryCompleteCall(context, id))
                 .hasMessage("state unavailable");
         assertThat(call.awaitResponse().isSuccess()).isTrue();
@@ -199,10 +231,12 @@ class ChatCallManagerTest {
                         () ->
                                 call.complete(
                                         ChatResponseEvent.success(
-                                                UUID.randomUUID(), ChatMessage.assistant("wrong"))))
+                                                UUID.randomUUID(),
+                                                new ChatResult(ChatMessage.assistant("wrong")))))
                 .hasMessageContaining("does not match");
         ChatResponseEvent response =
-                ChatResponseEvent.success(call.getRequestId(), ChatMessage.assistant("answer"));
+                ChatResponseEvent.success(
+                        call.getRequestId(), new ChatResult(ChatMessage.assistant("answer")));
         call.complete(response);
         assertThatThrownBy(() -> call.complete(response)).hasMessageContaining("Duplicate");
     }
@@ -210,7 +244,7 @@ class ChatCallManagerTest {
     @Test
     void chatHandleRejectsGatherWithoutStartingCall() {
         JavaRunnerContextImpl context = javaContext();
-        DurableFuture<ChatMessage> future = context.chat("model", List.of());
+        DurableFuture<ChatResult> future = context.chat("model", List.of());
         assertThat(future).isInstanceOf(ChatDurableFuture.class);
         assertThatThrownBy(() -> context.gather(List.of(future)))
                 .isInstanceOf(IllegalArgumentException.class)

@@ -19,6 +19,8 @@ package org.apache.flink.agents.runtime.context;
 
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.ChatResult;
+import org.apache.flink.agents.api.chat.messages.TokenUsage;
 import org.apache.flink.agents.api.context.DurableFuture;
 import org.apache.flink.agents.api.event.ChatResponseEvent;
 import org.apache.flink.agents.plan.AgentPlan;
@@ -44,6 +46,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -69,7 +72,7 @@ class ChatDurableFutureTest {
             AtomicInteger writes = new AtomicInteger();
             JavaRunnerContextImpl context =
                     context(executor, state, (k, s, a, e, saved) -> writes.incrementAndGet());
-            DurableFuture<ChatMessage> handle = context.chat("model", List.of());
+            DurableFuture<ChatResult> handle = context.chat("model", List.of());
             Event ordinary = new Event("ordinary");
             context.sendEvent(ordinary);
             Runnable action = () -> awaitTwice(handle, failed);
@@ -84,8 +87,7 @@ class ChatDurableFutureTest {
                     failed
                             ? ChatResponseEvent.failed(
                                     call.getRequestId(), "provider refused", 1, 1)
-                            : ChatResponseEvent.success(
-                                    call.getRequestId(), ChatMessage.assistant("answer")));
+                            : ChatResponseEvent.success(call.getRequestId(), resultWithMetadata()));
             finish(executor, context, action);
 
             assertThat(executor.submissions).isEqualTo(1);
@@ -104,7 +106,7 @@ class ChatDurableFutureTest {
                             (k, s, a, e, saved) -> {
                                 throw new AssertionError("Replay must not persist again");
                             });
-            DurableFuture<ChatMessage> replay = restored.chat("model", List.of());
+            DurableFuture<ChatResult> replay = restored.chat("model", List.of());
             assertThat(
                             executor.executeAction(
                                     restored.getContinuationContext(),
@@ -165,7 +167,7 @@ class ChatDurableFutureTest {
             ChatInvocation call = dispatchedCall(context);
             call.complete(
                     ChatResponseEvent.success(
-                            call.getRequestId(), ChatMessage.assistant("answer")));
+                            call.getRequestId(), new ChatResult(ChatMessage.assistant("answer"))));
             finish(executor, context, action);
             assertThat(error.get()).isSameAs(failure);
             assertThat(call.awaitResponse().isSuccess()).isTrue();
@@ -174,7 +176,7 @@ class ChatDurableFutureTest {
         }
     }
 
-    private static void awaitTwice(DurableFuture<ChatMessage> handle, boolean failed) {
+    private static void awaitTwice(DurableFuture<ChatResult> handle, boolean failed) {
         if (failed) {
             for (int i = 0; i < 2; i++) {
                 assertThatThrownBy(handle::await)
@@ -183,8 +185,8 @@ class ChatDurableFutureTest {
             }
         } else {
             try {
-                ChatMessage response = handle.await();
-                assertThat(response.getText()).isEqualTo("answer");
+                ChatResult response = handle.await();
+                assertThat(response).isEqualTo(resultWithMetadata());
                 assertThat(handle.await()).isSameAs(response);
             } catch (Exception e) {
                 throw new AssertionError(e);
@@ -192,8 +194,18 @@ class ChatDurableFutureTest {
         }
     }
 
+    private static ChatResult resultWithMetadata() {
+        return new ChatResult(
+                ChatMessage.assistant("answer"),
+                "test-model",
+                "response-1",
+                new TokenUsage(11L, 7L),
+                "stop",
+                Map.of("provider", "test"));
+    }
+
     private static Runnable captureFailure(
-            DurableFuture<ChatMessage> handle, AtomicReference<Exception> error) {
+            DurableFuture<ChatResult> handle, AtomicReference<Exception> error) {
         return () -> {
             try {
                 handle.await();

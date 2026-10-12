@@ -20,6 +20,7 @@ package org.apache.flink.agents.api.context;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.agents.AgentExecutionOptions;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.ChatResult;
 import org.apache.flink.agents.api.configuration.ReadableConfiguration;
 import org.apache.flink.agents.api.event.ChatRequestEvent;
 import org.apache.flink.agents.api.memory.BaseLongTermMemory;
@@ -222,12 +223,12 @@ public interface RunnerContext {
      * not supported by {@link #gather} yet. Java chat awaits require the JDK 21 continuation
      * runtime and reject unsupported runtimes before dispatching a request.
      */
-    default DurableFuture<ChatMessage> chat(ChatRequestEvent request) {
+    default DurableFuture<ChatResult> chat(ChatRequestEvent request) {
         throw new UnsupportedOperationException("Chat calls require an event-backed runtime");
     }
 
     /** Convenience overload for a chat without prompt arguments or an output schema. */
-    default DurableFuture<ChatMessage> chat(String model, List<ChatMessage> messages) {
+    default DurableFuture<ChatResult> chat(String model, List<ChatMessage> messages) {
         return chat(new ChatRequestEvent(model, messages));
     }
 

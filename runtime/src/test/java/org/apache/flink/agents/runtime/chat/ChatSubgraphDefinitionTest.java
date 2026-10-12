@@ -20,6 +20,7 @@ package org.apache.flink.agents.runtime.chat;
 
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.ChatResult;
 import org.apache.flink.agents.api.event.ChatResponseEvent;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ class ChatSubgraphDefinitionTest {
     @Test
     void requiresExactlyOneMatchingResponse() {
         ChatResponseEvent response =
-                ChatResponseEvent.success(requestId, ChatMessage.assistant("ok"));
+                ChatResponseEvent.success(requestId, new ChatResult(ChatMessage.assistant("ok")));
         // Event conversion reconstructs the typed event; identity is not part of the contract.
         assertThat(definition.finish(List.of(response))).isEqualTo(response);
         assertThatThrownBy(() -> definition.finish(List.of()))
@@ -52,7 +53,8 @@ class ChatSubgraphDefinitionTest {
                                         List.of(
                                                 ChatResponseEvent.success(
                                                         UUID.randomUUID(),
-                                                        ChatMessage.assistant("other")))))
+                                                        new ChatResult(
+                                                                ChatMessage.assistant("other"))))))
                 .hasMessageContaining("does not match");
     }
 

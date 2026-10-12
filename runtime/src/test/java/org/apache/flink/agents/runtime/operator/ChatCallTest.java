@@ -24,6 +24,8 @@ import org.apache.flink.agents.api.agents.Agent;
 import org.apache.flink.agents.api.agents.AgentExecutionOptions;
 import org.apache.flink.agents.api.annotation.ToolParam;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.ChatResult;
+import org.apache.flink.agents.api.chat.messages.ToolCallBlock;
 import org.apache.flink.agents.api.chat.model.BaseChatModelSetup;
 import org.apache.flink.agents.api.context.DurableCallable;
 import org.apache.flink.agents.api.context.DurableFuture;
@@ -99,7 +101,7 @@ public class ChatCallTest {
         }
 
         @Override
-        public ChatMessage chat(
+        public ChatResult chat(
                 List<ChatMessage> messages, Map<String, Object> args, Map<String, Object> params) {
             MODEL_CALLS.incrementAndGet();
             String text = messages.get(0).getText();
@@ -110,23 +112,14 @@ public class ChatCallTest {
                 throw new AssertionError("provider fatal");
             }
             if ("tool".equals(text) && messages.size() == 1) {
-                return ChatMessage.assistant(
-                        "",
-                        List.of(
-                                Map.of(
-                                        "id",
-                                        "tool-1",
-                                        "type",
-                                        "function",
-                                        "function",
-                                        Map.of(
-                                                "name",
-                                                "echo",
-                                                "arguments",
-                                                Map.of("value", "hello")))));
+                return new ChatResult(
+                        ChatMessage.assistant(
+                                List.of(
+                                        new ToolCallBlock(
+                                                "tool-1", "echo", Map.of("value", "hello")))));
             }
             ORDER.add("model");
-            return ChatMessage.assistant("answer:" + text);
+            return new ChatResult(ChatMessage.assistant("answer:" + text));
         }
     }
 
@@ -147,9 +140,9 @@ public class ChatCallTest {
         ctx.getShortTermMemory().set("caller", "visible");
         ctx.sendEvent(new Event("ordinary"));
         ctx.chat("model", List.of(ChatMessage.user("unused")));
-        DurableFuture<ChatMessage> call = ctx.chat("model", List.of(ChatMessage.user(input)));
+        DurableFuture<ChatResult> call = ctx.chat("model", List.of(ChatMessage.user(input)));
         try {
-            ChatMessage response = call.await();
+            ChatResult response = call.await();
             assertThat(call.await()).isSameAs(response);
             ctx.sendEvent(new OutputEvent(response.getText()));
         } catch (ChatResponseEvent.ChatResponseException error) {
@@ -172,7 +165,7 @@ public class ChatCallTest {
     public static void recoveryCaller(Event event, RunnerContext ctx) throws Exception {
         ctx.getShortTermMemory().set("caller", "visible");
         String prompt = "tool".equals(InputEvent.fromEvent(event).getInput()) ? "tool" : "hello";
-        ChatMessage response = ctx.chat("model", List.of(ChatMessage.user(prompt))).await();
+        ChatResult response = ctx.chat("model", List.of(ChatMessage.user(prompt))).await();
         ctx.durableExecuteAsync(
                         new DurableCallable<String>() {
                             @Override

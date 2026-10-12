@@ -214,7 +214,7 @@ Use the optional `prompt_args` and `output_schema` arguments for prompt paramete
 @Action(EventType.InputEvent)
 public static void processInput(Event event, RunnerContext ctx) throws Exception {
     InputEvent inputEvent = InputEvent.fromEvent(event);
-    ChatMessage response = ctx.chat(
+    ChatResult response = ctx.chat(
             "ollamaChatModel",
             List.of(ChatMessage.user(String.valueOf(inputEvent.getInput()))))
             .await();
@@ -226,9 +226,9 @@ For prompt arguments or structured output, pass a `ChatRequestEvent` to `ctx.cha
 {{< /tab >}}
 {{< /tabs >}}
 
-The returned `DurableFuture<ChatMessage>` (Python: `DurableFuture[ChatMessage]`) starts the request only when awaited. Await it directly, without wrapping it in `durable_execute_async` / `durableExecuteAsync`. Use the future only within the action execution that created it; do not store it for a later event or pass it to another action execution. Repeated awaits within that execution reuse the same result. Passing chat futures to `gather` is not supported yet.
+The returned `DurableFuture<ChatResult>` (Python: `DurableFuture[ChatResult]`) starts the request only when awaited. Await it directly, without wrapping it in `durable_execute_async` / `durableExecuteAsync`. Use the future only within the action execution that created it; do not store it for a later event or pass it to another action execution. Repeated awaits within that execution reuse the same result. Passing chat futures to `gather` is not supported yet.
 
-The result is a full `ChatMessage`, including content blocks, not just text. A failed chat response raises `ChatResponseError` in Python or `ChatResponseEvent.ChatResponseException` in Java, which the calling action can catch. Existing model and tool timeout settings still apply; there is no additional whole-call timeout.
+The result is a full `ChatResult`, including the assistant message and its content blocks, plus available model, token usage and invocation metadata. Use `response.message` in Python or `response.getMessage()` in Java to access the message; `response.text` / `response.getText()` provides its text. A failed chat response raises `ChatResponseError` in Python or `ChatResponseEvent.ChatResponseException` in Java, which the calling action can catch. Existing model and tool timeout settings still apply; there is no additional whole-call timeout.
 
 `ctx.chat` uses the calling action's resources and memory. Its response is returned to the caller and does not trigger actions subscribed to `ChatResponseEvent`. Use the event-style API when you want a separate action to handle the response.
 

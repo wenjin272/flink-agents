@@ -18,7 +18,7 @@
 package org.apache.flink.agents.runtime.context;
 
 import org.apache.flink.agents.api.Event;
-import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.ChatResult;
 import org.apache.flink.agents.api.context.DurableFuture;
 import org.apache.flink.agents.api.event.ChatRequestEvent;
 import org.apache.flink.agents.api.event.ChatResponseEvent;
@@ -27,7 +27,7 @@ import org.apache.flink.agents.runtime.chat.ChatCallManager;
 import org.apache.flink.agents.runtime.chat.ChatInvocation;
 
 /** Durable chat future for use within its creating action execution. */
-final class ChatDurableFuture implements DurableFuture<ChatMessage> {
+final class ChatDurableFuture implements DurableFuture<ChatResult> {
     private final JavaRunnerContextImpl context;
     private final ChatCallManager calls;
     private final String requestJson;
@@ -45,7 +45,7 @@ final class ChatDurableFuture implements DurableFuture<ChatMessage> {
     }
 
     @Override
-    public ChatMessage await() throws Exception {
+    public ChatResult await() throws Exception {
         context.mailboxThreadChecker.run();
         if (response == null) {
             if (!ContinuationActionExecutor.isContinuationSupported()

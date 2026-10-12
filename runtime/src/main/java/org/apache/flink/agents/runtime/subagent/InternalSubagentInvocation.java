@@ -31,8 +31,8 @@ import java.util.stream.Collectors;
  * Subagent-specific result adapter. The common invocation owns action accounting and completion;
  * the setup retains this reference only to implement session/call lookup for public handles.
  */
-public final class InternalSubagentCallStatus extends SubgraphInvocation<List<Object>> {
-    public InternalSubagentCallStatus(
+public final class InternalSubagentInvocation extends SubgraphInvocation<List<Object>> {
+    public InternalSubagentInvocation(
             String id,
             Object key,
             InternalSubagentSetup setup,

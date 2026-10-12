@@ -20,6 +20,7 @@ from uuid import uuid4
 import pytest
 
 from flink_agents.api.chat_message import ChatMessage
+from flink_agents.api.chat_result import ChatResult, TokenUsage
 from flink_agents.api.events.chat_event import ChatResponseError, ChatResponseEvent
 from flink_agents.api.events.event import Event
 from flink_agents.api.runner_context import DurableFuture
@@ -72,12 +73,18 @@ def test_lazy_snapshot_yield_and_repeated_await():
     assert bridge.request.messages[0].text == "hello"
     assert bridge.request.prompt_args == {"name": "Ada"}
     assert next(waiter) is None
-    bridge.response = ChatResponseEvent.success(
-        uuid4(), ChatMessage.assistant("answer")
+    expected = ChatResult(
+        message=ChatMessage.assistant("answer"),
+        model="test-model",
+        response_id="response-1",
+        usage=TokenUsage(prompt_tokens=11, completion_tokens=7),
+        finish_reason="stop",
+        metadata={"provider": "test"},
     )
+    bridge.response = ChatResponseEvent.success(uuid4(), expected)
     with pytest.raises(StopIteration) as result:
         next(waiter)
-    assert result.value.value.text == "answer"
+    assert result.value.value == expected
     polls = bridge.polls
     with pytest.raises(StopIteration) as repeated:
         next(future.__await__())
