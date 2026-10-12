@@ -252,11 +252,12 @@ class ActionTaskContextManagerTest {
             ChatContext activeChat = context.getChatContext();
             assertThat(activeChat.getManager()).isSameAs(callerChat.getManager());
             assertThat(activeChat.getOwner()).isNotSameAs(callerChat.getOwner());
-            assertThat(activeChat.getActiveCall()).isSameAs(mgr.getChatCallManager().get(callId));
+            assertThat(context.getSubgraphInvocation())
+                    .isSameAs(mgr.getChatCallManager().get(callId));
 
             mgr.restore("k", caller);
             assertThat(context.getChatContext()).isSameAs(callerChat);
-            assertThat(context.getChatContext().getActiveCall()).isNull();
+            assertThat(context.getSubgraphInvocation()).isNull();
             mgr.restore("k", chatTask);
             assertThat(context.getChatContext()).isSameAs(activeChat);
 
@@ -266,7 +267,7 @@ class ActionTaskContextManagerTest {
             mgr.transferContexts(chatTask, continuation, new DurableExecutionManager(null));
             invokeCreateAndSetRunnerContext(mgr, continuation);
             assertThat(context.getChatContext()).isSameAs(activeChat);
-            assertThat(context.getChatContext().getActiveCall())
+            assertThat(context.getSubgraphInvocation())
                     .isSameAs(mgr.getChatCallManager().get(callId));
             mgr.restore("k", caller);
             assertThat(context.getChatContext()).isSameAs(callerChat);
@@ -653,7 +654,7 @@ class ActionTaskContextManagerTest {
                 shortTermMem,
                 /* pythonRunnerContext */ null,
                 longTermMemory,
-                /* subagentScope */ null,
+                /* resourceScope */ null,
                 componentListenerFactory);
     }
 

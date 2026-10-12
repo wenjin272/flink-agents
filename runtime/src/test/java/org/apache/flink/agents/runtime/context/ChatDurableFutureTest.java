@@ -27,12 +27,12 @@ import org.apache.flink.agents.runtime.actionstate.ActionState;
 import org.apache.flink.agents.runtime.actionstate.ActionStateSerde;
 import org.apache.flink.agents.runtime.async.ContinuationActionExecutor;
 import org.apache.flink.agents.runtime.async.ContinuationContext;
-import org.apache.flink.agents.runtime.chat.ChatCallEvent;
 import org.apache.flink.agents.runtime.chat.ChatCallManager;
 import org.apache.flink.agents.runtime.chat.ChatCallOwner;
 import org.apache.flink.agents.runtime.chat.ChatContext;
 import org.apache.flink.agents.runtime.chat.ChatInvocation;
 import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
+import org.apache.flink.agents.runtime.subgraph.SubgraphEvent;
 import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -95,7 +95,7 @@ class ChatDurableFutureTest {
             assertThat(state.getCallResults().get(0).isSuccess()).isTrue();
             assertThat(context.getDurableExecutionContext().getCurrentCallIndex()).isEqualTo(1);
             assertThatThrownBy(() -> manager.get(call.getId()))
-                    .hasMessageContaining("Missing chat call");
+                    .hasMessageContaining("Missing subgraph call");
 
             JavaRunnerContextImpl restored =
                     context(
@@ -205,8 +205,8 @@ class ChatDurableFutureTest {
 
     private ChatInvocation dispatchedCall(JavaRunnerContextImpl context) {
         List<Event> events = context.drainEventsAtActionYield(null);
-        assertThat(events).singleElement().isInstanceOf(ChatCallEvent.class);
-        return manager.get(((ChatCallEvent) events.get(0)).getCallId());
+        assertThat(events).singleElement().isInstanceOf(SubgraphEvent.class);
+        return manager.get(((SubgraphEvent) events.get(0)).getInvocationId());
     }
 
     private static void finish(
@@ -240,7 +240,7 @@ class ChatDurableFutureTest {
                 null);
         context.setContinuationContext(new ContinuationContext());
         context.setChatContext(
-                new ChatContext(manager, new ChatCallOwner("key", 1, "action", input), null));
+                new ChatContext(manager, new ChatCallOwner("key", 1, "action", input)));
         context.setDurableExecutionContext(
                 new RunnerContextImpl.DurableExecutionContext(
                         "key", 1, mock(Action.class), input, state, persister));

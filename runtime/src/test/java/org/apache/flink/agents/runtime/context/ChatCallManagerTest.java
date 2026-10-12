@@ -29,12 +29,12 @@ import org.apache.flink.agents.runtime.actionstate.ActionState;
 import org.apache.flink.agents.runtime.actionstate.ActionStateSerde;
 import org.apache.flink.agents.runtime.async.ContinuationActionExecutor;
 import org.apache.flink.agents.runtime.async.ContinuationContext;
-import org.apache.flink.agents.runtime.chat.ChatCallEvent;
 import org.apache.flink.agents.runtime.chat.ChatCallManager;
 import org.apache.flink.agents.runtime.chat.ChatCallOwner;
 import org.apache.flink.agents.runtime.chat.ChatContext;
 import org.apache.flink.agents.runtime.chat.ChatInvocation;
 import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
+import org.apache.flink.agents.runtime.subgraph.SubgraphEvent;
 import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledForJreRange;
@@ -63,9 +63,7 @@ class ChatCallManagerTest {
         RunnerContextImpl second = context(secondState, (k, s, a, e, saved) -> {});
         second.setChatContext(
                 new ChatContext(
-                        manager,
-                        new ChatCallOwner("second-key", 1, "action", new Event("input")),
-                        null));
+                        manager, new ChatCallOwner("second-key", 1, "action", new Event("input"))));
         String firstId = manager.prepareCall(first, request());
         String secondId = manager.prepareCall(second, request());
         ChatInvocation firstCall = manager.get(firstId);
@@ -94,8 +92,10 @@ class ChatCallManagerTest {
                                 .getText())
                 .isEqualTo("first");
         assertThat(firstState.getCallResults()).hasSize(1);
-        assertThatThrownBy(() -> manager.get(firstId)).hasMessageContaining("Missing chat call");
-        assertThatThrownBy(() -> manager.get(secondId)).hasMessageContaining("Missing chat call");
+        assertThatThrownBy(() -> manager.get(firstId))
+                .hasMessageContaining("Missing subgraph call");
+        assertThatThrownBy(() -> manager.get(secondId))
+                .hasMessageContaining("Missing subgraph call");
     }
 
     @Test
@@ -106,16 +106,16 @@ class ChatCallManagerTest {
                 context(new ActionState(new Event("input")), (k, s, a, e, saved) -> {});
         second.setChatContext(
                 new ChatContext(
-                        manager,
-                        new ChatCallOwner("second-key", 1, "action", new Event("input")),
-                        null));
+                        manager, new ChatCallOwner("second-key", 1, "action", new Event("input"))));
         String firstId = manager.prepareCall(first, request());
         String secondId = manager.prepareCall(second, request());
         manager.finishRecord("key");
-        assertThatThrownBy(() -> manager.get(firstId)).hasMessageContaining("Missing chat call");
+        assertThatThrownBy(() -> manager.get(firstId))
+                .hasMessageContaining("Missing subgraph call");
         assertThat(manager.get(secondId).getId()).isEqualTo(secondId);
         manager.clear();
-        assertThatThrownBy(() -> manager.get(secondId)).hasMessageContaining("Missing chat call");
+        assertThatThrownBy(() -> manager.get(secondId))
+                .hasMessageContaining("Missing subgraph call");
     }
 
     @ParameterizedTest
@@ -168,7 +168,7 @@ class ChatCallManagerTest {
         assertThat(state.getCallResults()).isEmpty();
         List<Event> dispatched = context.drainEventsAtActionYield(42L);
         assertThat(dispatched).hasSize(1);
-        assertThat(dispatched.get(0)).isInstanceOf(ChatCallEvent.class);
+        assertThat(dispatched.get(0)).isInstanceOf(SubgraphEvent.class);
         assertThat(context.getPendingEvents()).containsExactly(ordinary);
         assertThat(manager.get(id).isDone()).isFalse();
     }
@@ -226,11 +226,12 @@ class ChatCallManagerTest {
         ChatCallManager chats = callerContext.getManager();
         ChatInvocation call = manager.get(chats.prepareCall(context, request()));
         context.getPendingEvents().clear();
-        context.setChatContext(new ChatContext(manager, callerContext.getOwner(), call));
+        context.setSubgraphInvocation(call);
         context.sendEvent(new ChatRequestEvent("model", List.of()));
-        assertThat(context.getPendingEvents()).singleElement().isInstanceOf(ChatCallEvent.class);
+        assertThat(context.getPendingEvents()).singleElement().isInstanceOf(SubgraphEvent.class);
         context.getPendingEvents().clear();
         context.setChatContext(callerContext);
+        context.setSubgraphInvocation(null);
         ChatRequestEvent ordinary = new ChatRequestEvent("model", List.of());
         context.sendEvent(ordinary);
         assertThat(context.getPendingEvents()).containsExactly(ordinary);
@@ -248,7 +249,7 @@ class ChatCallManagerTest {
                         null);
         context.setChatContext(
                 new ChatContext(
-                        manager, new ChatCallOwner("key", 1, "action", new Event("input")), null));
+                        manager, new ChatCallOwner("key", 1, "action", new Event("input"))));
         return context;
     }
 
@@ -268,9 +269,7 @@ class ChatCallManagerTest {
             context.setContinuationContext(new ContinuationContext());
             context.setChatContext(
                     new ChatContext(
-                            manager,
-                            new ChatCallOwner("key", 1, "action", new Event("input")),
-                            null));
+                            manager, new ChatCallOwner("key", 1, "action", new Event("input"))));
             assertThatThrownBy(() -> context.chat("model", List.of()).await())
                     .isInstanceOf(UnsupportedOperationException.class)
                     .hasMessageContaining("JDK 21");
@@ -298,7 +297,7 @@ class ChatCallManagerTest {
                 false,
                 null);
         context.setChatContext(
-                new ChatContext(manager, new ChatCallOwner("key", 1, "action", input), null));
+                new ChatContext(manager, new ChatCallOwner("key", 1, "action", input)));
         context.setDurableExecutionContext(
                 new RunnerContextImpl.DurableExecutionContext(
                         "key", 1, mock(Action.class), input, state, persister));

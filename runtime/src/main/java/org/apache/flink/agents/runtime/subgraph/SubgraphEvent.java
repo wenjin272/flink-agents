@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.agents.runtime.chat;
+package org.apache.flink.agents.runtime.subgraph;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -25,29 +25,38 @@ import org.apache.flink.agents.api.Event;
 import java.util.Map;
 import java.util.UUID;
 
-/** Private routing envelope. Only its bootstrap may leave an unfinished action. */
-public class ChatCallEvent extends Event {
-    public static final String EVENT_TYPE = "_internal_chat_call";
-    private static final String CALL_ID = "call_id";
+/**
+ * Private event envelope shared by all internal graph calls. Only bootstraps can be dispatched
+ * while their producing action is suspended. The delegate is what a business action receives.
+ *
+ * <p>The invocation and delegate identities participate in action-state lookup. A bootstrap's
+ * delegate must have a replay-stable id; graph outputs retain their ids in completed ActionState.
+ * This does not resolve the caller-identity collision tracked by issue 1084.
+ */
+public final class SubgraphEvent extends Event {
+    public static final String EVENT_TYPE = "_internal_subgraph";
+    private static final String INVOCATION_ID = "invocation_id";
     private static final String BOOTSTRAP = "bootstrap";
     private static final String DELEGATE_TYPE = "delegate_type";
     private static final String DELEGATE_ATTRIBUTES = "delegate_attributes";
     private static final String DELEGATE_ID = "delegate_id";
     private final Event delegate;
 
-    public ChatCallEvent(String callId, Event delegate, boolean bootstrap) {
+    public SubgraphEvent(String invocationId, Event delegate, boolean bootstrap) {
         super(EVENT_TYPE);
         this.delegate = delegate;
-        setAttr(CALL_ID, callId);
+        setAttr(INVOCATION_ID, invocationId);
         setAttr(BOOTSTRAP, bootstrap);
         setAttr(DELEGATE_TYPE, delegate.getType());
         setAttr(DELEGATE_ATTRIBUTES, delegate.getAttributes());
-        // Child state keys must distinguish identical messages in separate model/tool turns.
         setAttr(DELEGATE_ID, delegate.getId().toString());
+        if (delegate.hasSourceTimestamp()) {
+            setSourceTimestamp(delegate.getSourceTimestamp());
+        }
     }
 
     @JsonCreator
-    public ChatCallEvent(
+    public SubgraphEvent(
             @JsonProperty("id") UUID id,
             @JsonProperty("attributes") Map<String, Object> attributes,
             @JsonProperty("delegate") Event delegate) {
@@ -60,8 +69,8 @@ public class ChatCallEvent extends Event {
     }
 
     @JsonIgnore
-    public String getCallId() {
-        return (String) getAttr(CALL_ID);
+    public String getInvocationId() {
+        return (String) getAttr(INVOCATION_ID);
     }
 
     @JsonIgnore

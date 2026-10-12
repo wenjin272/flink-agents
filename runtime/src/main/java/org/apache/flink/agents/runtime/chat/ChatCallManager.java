@@ -23,32 +23,35 @@ import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.context.Outcome;
 import org.apache.flink.agents.api.event.ChatRequestEvent;
 import org.apache.flink.agents.api.event.ChatResponseEvent;
-import org.apache.flink.agents.api.event.ToolRequestEvent;
-import org.apache.flink.agents.api.event.ToolResponseEvent;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
 import org.apache.flink.agents.runtime.memory.EventAttachmentUtils;
-import org.apache.flink.agents.runtime.subagent.InternalSubagentCallEvent;
+import org.apache.flink.agents.runtime.subgraph.SubgraphCallManager;
+import org.apache.flink.agents.runtime.subgraph.SubgraphEvent;
 import org.apache.flink.util.Preconditions;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Operator-owned, mailbox-confined manager for event-backed chat calls.
+ * Mailbox-confined chat adapter over the operator's common subgraph registry.
  *
- * <p>The invocation table is shared by Java and Python. The current action's call counter and
- * active chat call stay on its runner context and are passed explicitly, never stored as mutable
- * current-context fields in this manager.
+ * <p>Supplies request identity, caller memory/resource scope and the durable terminal-response
+ * slot. Routing, completion accounting and active invocation lookup belong to the subgraph runtime.
  */
 public final class ChatCallManager {
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().registerModule(new JavaTimeModule());
 
-    private final Map<String, ChatInvocation> calls = new HashMap<>();
+    private final SubgraphCallManager calls;
+
+    public ChatCallManager() {
+        this(new SubgraphCallManager());
+    }
+
+    public ChatCallManager(SubgraphCallManager calls) {
+        this.calls = calls;
+    }
 
     /** Starts/replays a call on the action thread. Python uses the same persisted event format. */
     public String prepareCall(RunnerContextImpl context, String requestJson) throws Exception {
@@ -70,17 +73,17 @@ public final class ChatCallManager {
                         context.currentPlan(),
                         new RunnerContextImpl.MemoryContext(
                                 memory.getSensoryMemStore(), memory.getShortTermMemStore()),
-                        context.getSubagentScope(),
+                        context.getResourceScope(),
                         cached.isPresent());
-        register(call);
+        calls.register(call);
         if (cached.isPresent()) {
             call.complete(cached.get().getValue());
         } else {
             ChatRequestEvent request = new ChatRequestEvent(requestId, supplied.getAttributes());
             request.getAttachments().putAll(supplied.getAttachments());
             EventAttachmentUtils.storeEventAttachments(request, context);
-            // Bypass sub-agent routing/accounting: the caller remains in flight while awaiting.
-            context.addPendingEvent(new ChatCallEvent(id, request, true));
+            // Start a nested graph; the caller remains in flight while awaiting its result.
+            context.addPendingEvent(new SubgraphEvent(id, request, true));
         }
         return id;
     }
@@ -104,39 +107,8 @@ public final class ChatCallManager {
         return json;
     }
 
-    /** Returns whether the event was handled by the active chat invocation. */
-    public boolean forwardEvent(RunnerContextImpl context, Event event) {
-        ChatInvocation activeChatCall = context.getChatContext().getActiveCall();
-        if (activeChatCall == null) {
-            return false;
-        }
-        if (event instanceof InternalSubagentCallEvent) {
-            context.addPendingEvent(event);
-            return true;
-        }
-        if (ChatRequestEvent.EVENT_TYPE.equals(event.getType())
-                || ChatResponseEvent.EVENT_TYPE.equals(event.getType())
-                || ToolRequestEvent.EVENT_TYPE.equals(event.getType())
-                || ToolResponseEvent.EVENT_TYPE.equals(event.getType())) {
-            try {
-                EventAttachmentUtils.storeEventAttachments(event, context);
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to store chat event attachments", e);
-            }
-            context.addPendingEvent(new ChatCallEvent(activeChatCall.getId(), event, false));
-            return true;
-        }
-        return false;
-    }
-
-    private void register(ChatInvocation call) {
-        if (calls.putIfAbsent(call.getId(), call) != null) {
-            throw new IllegalStateException("Duplicate chat call: " + call.getId());
-        }
-    }
-
     public ChatInvocation get(String id) {
-        return Objects.requireNonNull(calls.get(id), "Missing chat call: " + id);
+        return (ChatInvocation) calls.get(id);
     }
 
     public void clear() {
@@ -145,6 +117,6 @@ public final class ChatCallManager {
 
     /** Also releases handles abandoned by user code before it finishes processing a record. */
     public void finishRecord(Object key) {
-        calls.values().removeIf(call -> Objects.equals(call.getOwner().getKey(), key));
+        calls.finishRecord(key);
     }
 }

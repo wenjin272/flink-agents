@@ -40,6 +40,7 @@ from flink_agents.api.resource import ResourceDescriptor
 from flink_agents.api.runner_context import RunnerContext
 from flink_agents.e2e_tests.e2e_tests_integration.internal_subagent_test import (
     InputKeySelector,
+    _run_and_collect,
 )
 
 os.environ["PYTHONPATH"] = sysconfig.get_paths()["purelib"]
@@ -141,4 +142,10 @@ def test_python_chat_call_end_to_end(tmp_path: Path) -> None:
     result = "".join(
         path.read_text() for path in result_dir.rglob("*") if path.is_file()
     )
+    assert result.strip() == "answer:hello"
+
+
+def test_python_chat_inside_internal_subagent(tmp_path: Path) -> None:
+    """Nested chat keeps child resources and private routing on the shared runtime."""
+    result = _run_and_collect(ChatAgent(), tmp_path)
     assert result.strip() == "answer:hello"
