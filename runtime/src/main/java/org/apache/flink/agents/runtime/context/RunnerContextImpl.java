@@ -771,7 +771,7 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         if (subagentScope == null) {
             return null;
         }
-        return subagentScope.getCallStatus().getSetup().getChildPlanJson();
+        return subagentScope.getCallStatus().getSetup().getPlanJson();
     }
 
     @Override

@@ -90,7 +90,13 @@ class ResourceCache:
             raise KeyError(msg)
         resource_provider = providers[name]
         if isinstance(resource_provider, JavaResourceProvider):
-            resource_provider.set_java_resource_adapter(self._j_resource_adapter)
+            from flink_agents.runtime.java_resource_adapter import (
+                JavaResourceAdapterImpl,
+            )
+
+            resource_provider.set_java_resource_adapter(
+                self._j_resource_adapter or JavaResourceAdapterImpl(None)
+            )
         resource = resource_provider.provide(
             resource_context=self._resource_context, config=self._config
         )

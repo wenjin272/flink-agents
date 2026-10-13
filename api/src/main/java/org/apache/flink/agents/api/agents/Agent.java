@@ -23,6 +23,7 @@ import org.apache.flink.agents.api.function.JavaFunction;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
 import org.apache.flink.agents.api.resource.SerializableResource;
+import org.apache.flink.agents.api.subagent.InternalSubagentResourceDescriptorBuilder;
 import org.apache.flink.api.java.tuple.Tuple3;
 
 import javax.annotation.Nullable;
@@ -114,7 +115,8 @@ public class Agent {
      * @param name The name indicate the resource.
      * @param type The type of the resource.
      * @param instance The serializable resource object, the resource descriptor, or — for an {@code
-     *     AGENT} resource — an {@link Agent} to compile into an internal sub-agent.
+     *     AGENT} resource — an {@link Agent} wrapped in a descriptor and compiled into an internal
+     *     sub-agent during plan construction.
      */
     public Agent addResource(String name, ResourceType type, Object instance) {
         if (resources.get(type).containsKey(name)) {
@@ -122,11 +124,13 @@ public class Agent {
         }
         checkNoChatModelRouterNameClash(name, type, resources);
 
+        if (type == ResourceType.AGENT && instance instanceof Agent) {
+            instance =
+                    new InternalSubagentResourceDescriptorBuilder().agent((Agent) instance).build();
+        }
         if (instance instanceof SerializableResource) {
             resources.get(type).put(name, instance);
         } else if (instance instanceof ResourceDescriptor) {
-            resources.get(type).put(name, instance);
-        } else if (instance instanceof Agent) {
             resources.get(type).put(name, instance);
         } else {
             throw new IllegalArgumentException(

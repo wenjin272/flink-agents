@@ -58,7 +58,7 @@ import org.apache.flink.agents.plan.resourceprovider.ResourceProvider;
 import org.apache.flink.agents.plan.serializer.AgentPlanJsonDeserializer;
 import org.apache.flink.agents.plan.serializer.AgentPlanJsonSerializer;
 import org.apache.flink.agents.plan.subagent.InternalSubagentCompilationHelper;
-import org.apache.flink.agents.plan.subagent.InternalSubagentProvider;
+import org.apache.flink.agents.plan.subagent.InternalSubagentPlans;
 import org.apache.flink.agents.plan.tools.FunctionTool;
 import org.apache.flink.agents.plan.tools.bash.BashTool;
 import org.slf4j.Logger;
@@ -652,41 +652,13 @@ public class AgentPlan implements Serializable {
             } else if (type == ResourceType.AGENT) {
                 for (Map.Entry<String, Object> kv : entry.getValue().entrySet()) {
                     String name = kv.getKey();
-                    Object value = kv.getValue();
-                    if (value instanceof SubagentSetup) {
-                        // A live setup registered programmatically travels as its descriptor, so a
-                        // remote task rebuilds it through the (ResourceDescriptor, ResourceContext)
-                        // constructor.
-                        addResourceProvider(
-                                createDescriptorResourceProvider(
-                                        name,
-                                        ResourceType.AGENT,
-                                        ((SubagentSetup) value).getDescriptor()));
-                    } else if (value instanceof ResourceDescriptor) {
-                        // Declared via YAML: the descriptor names a SubagentSetup subclass that is
-                        // instantiated when the resource is first resolved.
-                        addResourceProvider(
-                                createDescriptorResourceProvider(
-                                        name, ResourceType.AGENT, (ResourceDescriptor) value));
-                    } else if (value instanceof Agent) {
-                        // Compile a directly-registered child Agent into an internal sub-agent.
-                        // The child's compiled plan is reused across names and cycles are
-                        // rejected by InternalSubagentCompilationHelper. The resource name
-                        // doubles as the sub-agent scope used for runtime resolution.
-                        Agent child = (Agent) value;
-                        AgentPlan childPlan =
-                                InternalSubagentCompilationHelper.getOrCompile(
-                                        child, name, a -> new AgentPlan(a, this.config));
-                        addResourceProvider(new InternalSubagentProvider(name, childPlan));
-                    } else {
-                        throw new IllegalArgumentException(
-                                "AGENT resource '"
-                                        + name
-                                        + "' must be a SubagentSetup, a ResourceDescriptor, or an"
-                                        + " Agent, but got "
-                                        + value.getClass().getName()
-                                        + ".");
-                    }
+                    ResourceDescriptor descriptor =
+                            requireResourceDescriptor(name, type, kv.getValue());
+                    descriptor =
+                            InternalSubagentPlans.compile(
+                                    name, descriptor, child -> new AgentPlan(child, this.config));
+                    addResourceProvider(
+                            createDescriptorResourceProvider(name, ResourceType.AGENT, descriptor));
                 }
             } else {
                 for (Map.Entry<String, Object> kv : entry.getValue().entrySet()) {
