@@ -1,7 +1,9 @@
 ---
-title: Sub-agents
-weight: 13
+title: "Sub-Agents"
+weight: 1
 type: docs
+aliases:
+  - /docs/development/subagents/
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one

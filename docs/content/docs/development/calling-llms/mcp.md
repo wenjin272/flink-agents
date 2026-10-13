@@ -1,7 +1,9 @@
 ---
-title: MCP
-weight: 11
+title: "MCP"
+weight: 6
 type: docs
+aliases:
+  - /docs/development/mcp/
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one
@@ -206,7 +208,7 @@ public class ReviewAnalysisAgent extends Agent {
 
 **Key points:**
 - All tools and prompts from the MCP server are automatically registered.
-- Reference MCP prompts and tools by their names, like reference [local prompt]({{< ref "docs/development/prompts#using-prompts-in-agents" >}}) and [function tool]({{< ref "docs/development/tool_use#define-tool-as-static-method-in-agent-class" >}}) .
+- Reference MCP prompts and tools by their names, like reference [local prompt]({{< ref "docs/development/calling-llms/prompts#using-prompts-in-agents" >}}) and [function tool]({{< ref "docs/development/calling-llms/tool_use#define-tool-as-static-method-in-agent-class" >}}) .
 
 ## Appendix
 

@@ -153,7 +153,7 @@ Here is the list of all built-in core configuration options.
 
 ### Memory Event Options
 
-The eight `memory.generate-event*` options have no raw `ConfigOption` default. When a sub-key and the master switch are both unset, the runtime uses the effective default shown below. See [Memory Events]({{< ref "docs/development/memory/memory_events" >}}) for resolution order, event payloads, and subscription examples.
+The eight `memory.generate-event*` options have no raw `ConfigOption` default. When a sub-key and the master switch are both unset, the runtime uses the effective default shown below. See [Memory Observability]({{< ref "docs/development/memory/memory_events" >}}) for resolution order, event payloads, and subscription examples.
 
 | Key | Raw default | Effective default | Type | Description |
 |-----|-------------|-------------------|------|-------------|

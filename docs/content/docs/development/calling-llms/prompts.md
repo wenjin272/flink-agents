@@ -1,7 +1,9 @@
 ---
-title: Prompts
-weight: 6
+title: "Prompts"
+weight: 2
 type: docs
+aliases:
+  - /docs/development/prompts/
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one
@@ -40,7 +42,7 @@ Local prompts are templates defined directly in your code. They support variable
 
 MCP (Model Context Protocol) prompts are managed by external MCP servers. They enable dynamic prompt retrieval, centralized prompt management, and integration with external prompt repositories.
 
-See [MCP]({{< ref "docs/development/mcp" >}}) for details.
+See [MCP]({{< ref "docs/development/calling-llms/mcp" >}}) for details.
 ## Local Prompt
 
 ### Creating from Text

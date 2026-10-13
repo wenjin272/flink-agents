@@ -1,7 +1,11 @@
 ---
-title: Skills
-weight: 12
+title: "Skills"
+weight: 7
 type: docs
+aliases:
+  - /docs/development/calling-llms/skills/example/
+  - /docs/get-started/quickstart/skills_agent/
+  - /docs/development/skills/
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one
@@ -32,7 +36,9 @@ Skills follow a **progressive disclosure** model, so that providing the agent wi
 2. **Activation** — when the agent judges a skill relevant, it calls the built-in `load_skill` tool to read the full `SKILL.md` instructions into the context.
 3. **Execution** — the agent follows the loaded instructions, running any bundled scripts or shell commands through the built-in `bash` tool, and reading additional reference files only on demand.
 
-Skills are a good fit when a capability is best described as a procedure (a runbook the agent follows) rather than a single function call. For a single, well-typed operation, prefer a [tool]({{< ref "docs/development/tool_use" >}}) instead.
+Skills are a good fit when a capability is best described as a procedure (a runbook the agent follows) rather than a single function call. For a single, well-typed operation, prefer a [tool]({{< ref "docs/development/calling-llms/tool_use" >}}) instead.
+
+The following sections use a `math-calculator` skill to show the complete setup: define its instructions, declare its source, and enable it on a chat model. The [complete example](#complete-example) includes the Agent and Flink job source.
 
 ## Skill Format
 
@@ -175,7 +181,57 @@ URL source hosts must use DNS-compatible ASCII syntax. Hostnames containing unde
 Remote skill archives are trusted instructions and code: their `SKILL.md` content is consumed by the agent, and their bundled scripts may become executable through the built-in `bash` tool when allowed by the chat model. Use HTTPS and pin the archive with `from_url_with_sha256` / `fromUrlWithSha256` whenever possible. Plain HTTP requires the explicit compatibility methods `from_url_unsafe` / `fromUrlUnsafe` (or their `*_unsafe_with_sha256` variants); these should be limited to trusted development networks. The integrity check protects the archive in transit and at rest at the source, but does not make untrusted skill content safe.
 {{< /hint >}}
 
+### Configure the Prompt
+
+The model below references a prompt named `system_prompt` in Python or `systemPrompt` in Java. Add the following method to `MathAgent` so it instructs the model to load the skill before calculating:
+
+{{< tabs "Skills Prompt" >}}
+
+{{< tab "Python" >}}
+```python
+from flink_agents.api.chat_message import ChatMessage
+from flink_agents.api.decorators import prompt
+from flink_agents.api.prompts.prompt import Prompt
+
+
+@prompt
+@staticmethod
+def system_prompt() -> Prompt:
+    return Prompt.from_messages(
+        messages=[
+            ChatMessage.system(
+                "Use the math-calculator skill to evaluate expressions. "
+                "Load the skill first and follow its instructions. "
+                "Reply with only the final numeric result."
+            )
+        ]
+    )
+```
+{{< /tab >}}
+
+{{< tab "Java" >}}
+```java
+import java.util.List;
+import org.apache.flink.agents.api.chat.messages.ChatMessage;
+import org.apache.flink.agents.api.chat.messages.MessageRole;
+
+@org.apache.flink.agents.api.annotation.Prompt
+public static org.apache.flink.agents.api.prompt.Prompt systemPrompt() {
+    return org.apache.flink.agents.api.prompt.Prompt.fromMessages(
+            List.of(new ChatMessage(
+                    MessageRole.SYSTEM,
+                    "Use the math-calculator skill to evaluate expressions. "
+                            + "Load the skill first and follow its instructions. "
+                            + "Reply with only the final numeric result.")));
+}
+```
+{{< /tab >}}
+
+{{< /tabs >}}
+
 ## Enable Skills on a Chat Model
+
+Add the following model setup to `MathAgent`, using the connection declaration described in [Chat Models]({{< ref "docs/development/calling-llms/chat-models" >}}). The examples assume an Ollama connection registered as `ollama_server` in Python or `ollamaChatModelConnection` in Java.
 
 A declared skill becomes usable only when a chat model opts in by listing it in `skills`. When `skills` is set, the framework automatically:
 
@@ -229,7 +285,7 @@ public static ResourceDescriptor mathModel() {
 - The `load_skill` and `bash` tools are added automatically — you do not declare them in `tools`. They are added alongside any tools you do declare.
 - Make sure the system prompt instructs the agent to load the relevant skill before acting, for example: *"You must load the skill first and strictly follow its instructions."* Without this nudge, smaller models may answer directly instead of consulting the skill.
 
-Skills work with both the [Workflow Agent]({{< ref "docs/development/workflow_agent" >}}) (configure the chat model via `@chat_model_setup`/`@ChatModelSetup` as above) and the [ReAct Agent]({{< ref "docs/development/react_agent" >}}). For the ReAct Agent, either pass the skill names to the `ReActAgent` constructor and register the sources on the execution environment with `add_resource(..., ResourceType.SKILLS, ...)`, or pass a `Skills` object, which registers its own sources on the agent. Set `allowed_commands` on the chat model descriptor either way. See [ReAct Agent Skills]({{< ref "docs/development/react_agent#skills" >}}) for how the two `skills` declarations combine and which declaration wins on a duplicate name.
+Skills work with both the [Agent]({{< ref "docs/development/create-agent/overview" >}}) (configure the chat model via `@chat_model_setup`/`@ChatModelSetup` as above) and the [Built-in ReAct Agent]({{< ref "docs/development/react_agent" >}}). For the built-in ReAct Agent, either pass the skill names to the `ReActAgent` constructor and register the sources on the execution environment with `add_resource(..., ResourceType.SKILLS, ...)`, or pass a `Skills` object, which registers its own sources on the agent. Set `allowed_commands` on the chat model descriptor either way. See [Built-in ReAct Agent Skills]({{< ref "docs/development/react_agent#skills" >}}) for how the two `skills` declarations combine and which declaration wins on a duplicate name.
 
 ## How Skills Work
 
@@ -249,3 +305,16 @@ Once enabled, a request flows through the three progressive-disclosure stages:
 3. **Execution.** Following the loaded instructions, the agent invokes `bash` to run commands (e.g. `echo "(2 + 3) * 4" | bc`) or bundled scripts (e.g. `python scripts/gen_joke.py`), and loads additional reference files only when an instruction points to them.
 
 This keeps each request lean — a skill the agent never activates costs only its one-line description.
+
+## Complete Example
+
+The complete example sends arithmetic questions such as `What is (2 + 3) * 4?` to `MathAgent`. Its model loads `math-calculator`, uses `bash` to run `bc`, and returns the numeric result through the normal chat response path. For the chat request and response Actions, see [Chat with Models]({{< ref "docs/development/calling-llms/chat" >}}).
+
+| Language | Flink job entry point | Agent definition | Skill instructions |
+|----------|-----------------------|------------------|--------------------|
+| Python | [skills_agent_example.py](https://github.com/apache/flink-agents/blob/main/python/flink_agents/examples/quickstart/skills_agent_example.py) | [MathAgent](https://github.com/apache/flink-agents/blob/main/python/flink_agents/examples/quickstart/agents/math_agent.py) | [SKILL.md](https://github.com/apache/flink-agents/blob/main/python/flink_agents/examples/quickstart/resources/skills/math-calculator/SKILL.md) |
+| Java | [SkillsAgentExample.java](https://github.com/apache/flink-agents/blob/main/examples/src/main/java/org/apache/flink/agents/examples/SkillsAgentExample.java) | [MathAgent](https://github.com/apache/flink-agents/blob/main/examples/src/main/java/org/apache/flink/agents/examples/agents/MathAgent.java) | [SKILL.md](https://github.com/apache/flink-agents/blob/main/examples/src/main/resources/skills/math-calculator/SKILL.md) |
+
+The Python example loads its bundled skill through `Skills.from_package`; the Java example uses `Skills.fromClasspath`. Make `bash` and `bc` available on the TaskManagers and prepare the Ollama model configured by the example (`qwen3.5:9b`).
+
+Follow [Setup]({{< ref "docs/get-started/setup" >}}) for dependencies and [Build Your First Agent]({{< ref "docs/get-started/quickstart/create-agent/single-agent#run-the-example" >}}) for the build and submission workflow, substituting the Skills job entry point above. See [Integrate with Flink]({{< ref "docs/development/integrate_with_flink" >}}) for stream integration details.

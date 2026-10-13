@@ -1,6 +1,6 @@
 ---
-title: ReAct Agent
-weight: 2
+title: "Built-in ReAct Agent"
+weight: 6
 type: docs
 ---
 <!--
@@ -24,6 +24,8 @@ under the License.
 
 ## Overview
 
+Flink Agents provides `ReActAgent` as a built-in subclass of `Agent` that implements the ReAct pattern.
+
 ReAct Agent is a general paradigm that combines reasoning and action capabilities to solve complex tasks. Leveraging this paradigm, the user only needs to specify the goal with prompt and provide available tools, and the LLM will decide how to achieve the goal and take actions autonomously.
 
 {{< hint info >}}
@@ -31,7 +33,7 @@ For guidance on choosing Java or Python, see [Should I choose Java or Python?]({
 {{< /hint >}}
 
 {{< hint info >}}
-The snippets on this page are fragments that each focus on a single concept. For an end-to-end runnable walkthrough, see the [ReAct Agent Quickstart]({{< ref "docs/get-started/quickstart/react_agent" >}}) and the full source: [`react_agent_example.py`](https://github.com/apache/flink-agents/blob/main/python/flink_agents/examples/quickstart/react_agent_example.py) (Python) and [`ReActAgentExample.java`](https://github.com/apache/flink-agents/blob/main/examples/src/main/java/org/apache/flink/agents/examples/ReActAgentExample.java) (Java).
+The snippets on this page are fragments that each focus on a single concept. For an end-to-end runnable walkthrough, see the [Use the Built-in ReAct Agent]({{< ref "docs/get-started/quickstart/react_agent" >}}) and the full source: [`react_agent_example.py`](https://github.com/apache/flink-agents/blob/main/python/flink_agents/examples/quickstart/react_agent_example.py) (Python) and [`ReActAgentExample.java`](https://github.com/apache/flink-agents/blob/main/examples/src/main/java/org/apache/flink/agents/examples/ReActAgentExample.java) (Java).
 {{< /hint >}}
 
 The snippets below assume the following imports:
@@ -110,7 +112,7 @@ ReActAgent myReActAgent =
 ### Chat Model
 User should specify the chat model used in the ReAct Agent.
 
-We use `ResourceDescriptor` to describe the chat model, includes chat model type and chat model arguments. See [Chat Model]({{< ref "docs/development/chat_models" >}}) for more details.
+We use `ResourceDescriptor` to describe the chat model, includes chat model type and chat model arguments. See [Chat Model]({{< ref "docs/development/calling-llms/chat-models" >}}) for more details.
 
 {{< tabs "ChatModel ResourceDescriptor" >}}
 
@@ -143,7 +145,7 @@ ResourceDescriptor chatModelDescriptor =
 The tools listed in `tools=[...]` must be registered on the `AgentsExecutionEnvironment` **before** the agent runs, using a name that matches the entry in the list — otherwise the agent fails at runtime with a "resource not found" error.
 {{< /hint >}}
 
-Register the referenced tools (this can also be done with a YAML file — see [Tool Use]({{< ref "docs/development/tool_use#register-tool-to-execution-environment" >}}) for the full guide):
+Register the referenced tools (this can also be done with a YAML file — see [Tool Use]({{< ref "docs/development/calling-llms/tool_use#register-tool-to-execution-environment" >}}) for the full guide):
 
 {{< tabs "Register Tools" >}}
 
@@ -252,7 +254,7 @@ new ChatMessage(MessageRole.USER, "{input}")
 
 {{< /tabs >}}
 
-See [Prompt]({{< ref "docs/development/prompts" >}}) for more details.
+See [Prompt]({{< ref "docs/development/calling-llms/prompts" >}}) for more details.
 
 ### Output Schema
 User can set output schema to configure the ReAct Agent output type. If output schema is set, the ReAct Agent will deserialize the llm response to expected type. 
@@ -333,7 +335,7 @@ RowTypeInfo myRowTypeInfo =
 {{< /tabs >}}
 
 ### Skills
-User can pass [skills]({{< ref "docs/development/skills" >}}) to the constructor instead of adding a `skills` argument to the chat model descriptor. Two forms are accepted: a list of skill names, or a `Skills` object declaring where the skills are loaded from.
+User can pass [skills]({{< ref "docs/development/calling-llms/skills" >}}) to the constructor instead of adding a `skills` argument to the chat model descriptor. Two forms are accepted: a list of skill names, or a `Skills` object declaring where the skills are loaded from.
 
 **Skill names.** Pass the names of skills that are already declared to the agent:
 

@@ -1,7 +1,9 @@
 ---
-title: 'Installation'
+title: "Setup"
 weight: 2
 type: docs
+aliases:
+  - /docs/get-started/installation/
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one
