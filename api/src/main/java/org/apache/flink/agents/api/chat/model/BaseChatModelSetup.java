@@ -18,6 +18,7 @@
 
 package org.apache.flink.agents.api.chat.model;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.agents.api.agents.OutputSchema;
 import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.ChatResult;
@@ -28,6 +29,7 @@ import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceContext;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.skills.SkillSourceSpec;
 import org.apache.flink.agents.api.skills.Skills;
 import org.apache.flink.agents.api.subagent.SubagentSetup;
 import org.apache.flink.agents.api.tools.Tool;
@@ -50,6 +52,9 @@ public abstract class BaseChatModelSetup extends Resource {
     private static final Set<String> TOOL_ONLY_PARAMS =
             Set.of("tool_choice", "tool_choice_option", "parallel_tool_calls");
 
+    /** Used to re-type the {@code skills_sources} marker on read (see below). */
+    private static final ObjectMapper SKILL_SOURCES_MAPPER = new ObjectMapper();
+
     protected final String connectionName;
     protected String model;
     protected Object prompt;
@@ -63,9 +68,11 @@ public abstract class BaseChatModelSetup extends Resource {
 
     @Nullable protected BaseChatModelConnection connection;
     protected final List<Tool> tools = new ArrayList<>();
+    protected final ResourceDescriptor descriptor;
 
     public BaseChatModelSetup(ResourceDescriptor descriptor, ResourceContext resourceContext) {
         super(descriptor, resourceContext);
+        this.descriptor = descriptor;
         this.connectionName = descriptor.getArgument("connection");
         this.model = descriptor.getArgument("model");
         this.prompt = descriptor.getArgument("prompt");
@@ -105,6 +112,11 @@ public abstract class BaseChatModelSetup extends Resource {
             this.prompt =
                     this.resourceContext.getResource((String) this.prompt, ResourceType.PROMPT);
         }
+
+        // Resolve the skills_sources marker (plan-time source declarations) into skill names and
+        // merge them with the descriptor's explicit "skills" list. See resolveSkillsFromSources.
+        resolveSkillsFromSources();
+
         if (this.skills != null) {
             this.skillDiscoveryPrompt =
                     nullIfEmpty(this.resourceContext.generateAvailableSkillsPrompt(this.skills));
@@ -164,6 +176,57 @@ public abstract class BaseChatModelSetup extends Resource {
     @Nullable
     private static String nullIfEmpty(@Nullable String value) {
         return value == null || value.isEmpty() ? null : value;
+    }
+
+    /**
+     * Resolve the {@code skills_sources} descriptor marker into concrete skill names and merge them
+     * into {@link #skills}: the descriptor's explicit names come first, resolved names are
+     * appended, and duplicates collapse while preserving order.
+     *
+     * <p>Separate from {@link #open()} because a cross-language wrapper overrides {@code open()} to
+     * delegate to the other language, so the base implementation never runs for that instance and
+     * its own {@code skills} field would stay at its construction-time value. The wrapper shares
+     * this setup's {@link ResourceContext}, so resolving here yields the same list the delegated
+     * setup computed — with no bridge round trip.
+     */
+    protected void resolveSkillsFromSources() throws Exception {
+        List<SkillSourceSpec> skillsSources =
+                toSkillSourceSpecs(descriptor.getArgument("skills_sources"));
+        if (skillsSources.isEmpty()) {
+            return;
+        }
+        List<String> resolved = this.resourceContext.resolveSkillNamesForSources(skillsSources);
+        Set<String> merged = new LinkedHashSet<>();
+        if (this.skills != null) {
+            merged.addAll(this.skills);
+        }
+        merged.addAll(resolved);
+        this.skills = new ArrayList<>(merged);
+    }
+
+    /**
+     * Re-type the {@code skills_sources} descriptor argument into {@link SkillSourceSpec} entries.
+     *
+     * <p>The marker is written as a {@code List<SkillSourceSpec>} at plan time, but it travels
+     * inside {@link ResourceDescriptor#getInitialArguments()} — a {@code Map<String, Object>} — so
+     * its element type is erased. An {@code AgentPlan} Java-serialization round trip re-reads the
+     * plan through Jackson, which leaves plain maps in the list; casting that list back to {@code
+     * List<SkillSourceSpec>} then fails with a {@link ClassCastException}. Re-typing each element
+     * at the read point keeps the marker usable across serialization boundaries.
+     */
+    private static List<SkillSourceSpec> toSkillSourceSpecs(@Nullable Object raw) {
+        if (!(raw instanceof List)) {
+            return Collections.emptyList();
+        }
+        List<SkillSourceSpec> specs = new ArrayList<>();
+        for (Object element : (List<?>) raw) {
+            if (element instanceof SkillSourceSpec) {
+                specs.add((SkillSourceSpec) element);
+            } else if (element != null) {
+                specs.add(SKILL_SOURCES_MAPPER.convertValue(element, SkillSourceSpec.class));
+            }
+        }
+        return specs;
     }
 
     public abstract Map<String, Object> getParameters();

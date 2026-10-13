@@ -131,6 +131,7 @@ public class MathAgent extends Agent {
   - In Python, use `@skills`.
   - In Java, use `@Skills`.
 - Declare more than one `@skills`/`@Skills` method on the same agent to combine sources; the runtime merges them and de-duplicates identical entries.
+  - The order in which those methods are merged is deterministic, but it differs between languages: Java orders them by method name, while Python keeps declaration order. When two sources provide the same skill name, the later source wins.
 - Declaring a skill source only makes the skills *available*. A skill is exposed to a chat model only when that model lists it in its `skills` (see [Enable Skills on a Chat Model](#enable-skills-on-a-chat-model)).
 
 ### Skill Sources
@@ -228,7 +229,7 @@ public static ResourceDescriptor mathModel() {
 - The `load_skill` and `bash` tools are added automatically — you do not declare them in `tools`. They are added alongside any tools you do declare.
 - Make sure the system prompt instructs the agent to load the relevant skill before acting, for example: *"You must load the skill first and strictly follow its instructions."* Without this nudge, smaller models may answer directly instead of consulting the skill.
 
-Skills work with both the [Workflow Agent]({{< ref "docs/development/workflow_agent" >}}) (configure the chat model via `@chat_model_setup`/`@ChatModelSetup` as above) and the [ReAct Agent]({{< ref "docs/development/react_agent" >}}) (set `skills` and `allowed_commands` on the `ReActAgent`'s chat model descriptor, and register the `Skills` resource on the execution environment with `add_resource(..., ResourceType.SKILLS, ...)`).
+Skills work with both the [Workflow Agent]({{< ref "docs/development/workflow_agent" >}}) (configure the chat model via `@chat_model_setup`/`@ChatModelSetup` as above) and the [ReAct Agent]({{< ref "docs/development/react_agent" >}}). For the ReAct Agent, either pass the skill names to the `ReActAgent` constructor and register the sources on the execution environment with `add_resource(..., ResourceType.SKILLS, ...)`, or pass a `Skills` object, which registers its own sources on the agent. Set `allowed_commands` on the chat model descriptor either way. See [ReAct Agent Skills]({{< ref "docs/development/react_agent#skills" >}}) for how the two `skills` declarations combine and which declaration wins on a duplicate name.
 
 ## How Skills Work
 
