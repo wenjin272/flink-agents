@@ -59,6 +59,11 @@ if TYPE_CHECKING:
 _TOOL_CALL_CONTEXT = "_TOOL_CALL_CONTEXT"
 _TOOL_REQUEST_EVENT_CONTEXT = "_TOOL_REQUEST_EVENT_CONTEXT"
 _RETRY_STATS_CONTEXT = "_RETRY_STATS_CONTEXT"
+# The identity of each chat model attempt, the same as the Java chat action's call id
+# for a plain chat model. Without it the identity is a digest of the pickled messages,
+# which can change between Python processes (#1190); attempts are told apart by their
+# position in the action's durable call sequence.
+_CHAT_DURABLE_ID = "chat"
 _PROMPT_ARGS = "prompt_args"
 _FINISH_REASON = "finish_reason"
 _TRUNCATED_FINISH_REASON = "length"
@@ -614,7 +619,12 @@ async def chat(
             # Persistence/recovery failures must escape the request-failure boundary,
             # so durable calls stay outside the try blocks below.
             response, failure = await _durable_invoke(
-                ctx, invoke, messages, chat_async=chat_async, prompt_args=prompt_args
+                ctx,
+                invoke,
+                messages,
+                chat_async=chat_async,
+                prompt_args=prompt_args,
+                durable_id=_CHAT_DURABLE_ID,
             )
             try:
                 response = _accept_model_response(
