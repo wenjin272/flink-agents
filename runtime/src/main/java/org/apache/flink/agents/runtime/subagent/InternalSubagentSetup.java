@@ -26,11 +26,14 @@ import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.context.DurableCallable;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.resource.Resource;
+import org.apache.flink.agents.api.resource.ResourceContext;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.subagent.InternalSubagentResourceDescriptorBuilder;
 import org.apache.flink.agents.api.subagent.SubagentResult;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.plan.actions.Action;
+import org.apache.flink.agents.plan.subagent.InternalSubagentPlans;
 import org.apache.flink.agents.runtime.ResourceCache;
 import org.apache.flink.agents.runtime.async.ContinuationActionExecutor;
 import org.apache.flink.agents.runtime.async.ContinuationNativeCallable;
@@ -49,7 +52,7 @@ import java.util.Map;
 /**
  * Runtime setup for an internal sub-agent: a child {@link AgentPlan} compiled from an {@code Agent}
  * registered as an {@code AGENT} resource. The plan module serializes the child plan and scope
- * (through {@code InternalSubagentProvider}); this runtime class owns everything the invocation
+ * (through an ordinary resource descriptor); this runtime class owns everything the invocation
  * needs at execution time.
  *
  * <p>Execution mode is the deferred one, inherited from {@link BaseDeferredSubagentSetup}: {@link
@@ -71,61 +74,53 @@ import java.util.Map;
  */
 public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
 
-    private static final long serialVersionUID = 1L;
-
     /**
      * Serializes the child plan with the same configuration {@code RunnerContextImpl} uses for the
      * active-scope plan JSON, so the eager materialization the operator runs at open and the lazy
      * resolution a child action performs at call time key the Python scope cache by one string.
      */
-    private static final ObjectMapper CHILD_PLAN_MAPPER =
+    private static final ObjectMapper PLAN_MAPPER =
             new ObjectMapper().registerModule(new JavaTimeModule());
 
     private final String scope;
 
-    private final AgentPlan childPlan;
+    private final AgentPlan plan;
 
     /** Nested map: sessionId → callId → callStatus. */
-    private final transient Map<String, Map<String, InternalSubagentCallStatus>> callStatuses =
+    private final Map<String, Map<String, InternalSubagentCallStatus>> callStatuses =
             new HashMap<>();
 
-    private final transient Map<String, ResourceCache> childCaches = new HashMap<>();
+    private final Map<String, ResourceCache> childCaches = new HashMap<>();
 
-    private final transient Map<Object, List<String>> keySessionIds = new HashMap<>();
+    private final Map<Object, List<String>> keySessionIds = new HashMap<>();
 
     /**
      * The runner contexts this setup registered a session-owner entry on, per session id. Used to
      * unregister those entries when the owning record finishes.
      */
-    private final transient Map<String, RunnerContextImpl> ownerContexts = new HashMap<>();
+    private final Map<String, RunnerContextImpl> ownerContexts = new HashMap<>();
 
-    /** Lazily built event-to-action matcher for the child plan; not part of the serialized form. */
-    private transient ActionMatcher actionMatcher;
+    /** Lazily built event-to-action matcher for the plan. */
+    private ActionMatcher actionMatcher;
 
-    /**
-     * Lazily serialized child plan JSON; not part of the serialized form. See {@link
-     * #getChildPlanJson()}.
-     */
-    private transient String childPlanJson;
+    /** Lazily serialized plan JSON. See {@link #getPlanJson()}. */
+    private String planJson;
 
-    public InternalSubagentSetup(String scope, AgentPlan childPlan) {
-        // An internal sub-agent is built from a compiled child plan rather than a caller
-        // descriptor, so it carries a synthetic self-named descriptor to satisfy the base
-        // rebuild contract; that contract never reads the resource context, so it stays null.
-        super(
-                ResourceDescriptor.Builder.newBuilder(InternalSubagentSetup.class.getName())
-                        .build(),
-                null);
-        this.scope = scope;
-        this.childPlan = childPlan;
+    public InternalSubagentSetup(ResourceDescriptor descriptor, ResourceContext context) {
+        super(descriptor, context);
+        this.scope = descriptor.getArgument(InternalSubagentResourceDescriptorBuilder.SCOPE);
+        if (scope == null || scope.isBlank()) {
+            throw new IllegalArgumentException("Internal sub-agent requires a scope");
+        }
+        this.plan = InternalSubagentPlans.decode(descriptor);
     }
 
     public String getScope() {
         return scope;
     }
 
-    public AgentPlan getChildPlan() {
-        return childPlan;
+    public AgentPlan getPlan() {
+        return plan;
     }
 
     /**
@@ -136,26 +131,26 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
      * resolves its resources against that plan. Both paths then key one Python scope cache, so a
      * Python-owned resource of the scope is built exactly once.
      */
-    public String getChildPlanJson() {
-        if (childPlanJson == null) {
+    public String getPlanJson() {
+        if (planJson == null) {
             try {
-                childPlanJson = CHILD_PLAN_MAPPER.writeValueAsString(childPlan);
+                planJson = PLAN_MAPPER.writeValueAsString(plan);
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException(
                         "Failed to serialize the child plan for scope " + scope, e);
             }
         }
-        return childPlanJson;
+        return planJson;
     }
 
     /**
      * Matches the child plan's actions against a forwarded event, applying the same event-type and
      * condition-expression filtering the root router uses. Built lazily because the index depends
-     * only on the immutable child plan, and this class is serialized as a resource.
+     * only on the immutable child plan.
      */
     public List<Action> matchActions(Event event) {
         if (actionMatcher == null) {
-            actionMatcher = new ActionMatcher(childPlan);
+            actionMatcher = new ActionMatcher(plan);
         }
         return actionMatcher.match(event);
     }
@@ -346,12 +341,12 @@ public class InternalSubagentSetup extends BaseDeferredSubagentSetup {
      */
     public ResourceCache getOrCreateChildCache(
             ClassLoader userCodeClassLoader, ResourceCache rootResourceCache) {
-        String planJson = getChildPlanJson();
+        String planJson = getPlanJson();
         return childCaches.computeIfAbsent(
                 scope,
                 k ->
                         new ResourceCache(
-                                childPlan.getResourceProviders(),
+                                plan.getResourceProviders(),
                                 userCodeClassLoader,
                                 rootResourceCache,
                                 planJson));

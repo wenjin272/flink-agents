@@ -17,9 +17,18 @@
 #################################################################################
 from typing import Any, Protocol
 
+from flink_agents.api.resource import Resource, ResourceDescriptor
+from flink_agents.api.resource_context import ResourceContext
+
 
 class JavaResourceAdapter(Protocol):
     """Services supplied by Runtime to Java-backed Plan resources."""
+
+    def create_subagent_resource(
+        self, descriptor: ResourceDescriptor, resource_context: ResourceContext
+    ) -> Resource:
+        """Create a Python caller for a Java-orchestrated sub-agent."""
+        ...
 
     def getResource(self, name: str, resource_type: str) -> Any:
         """Resolve a resource through its owning runtime."""
