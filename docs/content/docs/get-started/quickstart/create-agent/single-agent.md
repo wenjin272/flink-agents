@@ -1,5 +1,5 @@
 ---
-title: 'Workflow Agent'
+title: "Build Your First Agent"
 weight: 1
 type: docs
 ---
@@ -24,15 +24,7 @@ under the License.
 
 ## Overview
 
-A workflow style agent in Flink-Agents is an agent whose reasoning and behavior are organized as a directed workflow of modular steps, called actions, connected by events. This design is inspired by the need to orchestrate complex, multi-stage tasks in a transparent, extensible, and data-centric way, leveraging Apache Flink's streaming architecture.
-
-This quickstart introduces two small, progressive streaming examples that demonstrate how to build LLM-powered workflows with Flink Agents:
-
-- **Review Analysis**: Processes a stream of product reviews and uses a single agent to extract a rating (1–5) and unsatisfied reasons from each review.
-
-- **Product Improvement Suggestions**: Builds on the first example by aggregating per-review analysis in windows to produce product-level summaries (score distribution and common complaints), then applies a second agent to generate concrete improvement suggestions for each product.
-
-Together, these examples show how to build a multi-agent workflow with Flink Agents and run it on a Flink standalone cluster.
+Build an Agent that analyzes a stream of product reviews.
 
 ## Code Walkthrough
 
@@ -77,7 +69,7 @@ agentsEnv.addResource(
 
 ### Create the Agents
 
-Below is the example code for the `ReviewAnalysisAgent`, which is used to analyze the product reviews and generate a satisfaction score and potential reasons for dissatisfaction. It demonstrates how to define the prompt, tool, chat model, and action for the agent. Also, it shows how to process the chat response and send the output event. For more details, please refer to the [Workflow Agent]({{< ref "docs/development/workflow_agent" >}}) documentation.
+Below is the example code for the `ReviewAnalysisAgent`, which is used to analyze the product reviews and generate a satisfaction score and potential reasons for dissatisfaction. It demonstrates how to define the prompt, tool, chat model, and action for the agent. Also, it shows how to process the chat response and send the output event. For more details, please refer to the [Agent]({{< ref "docs/development/create-agent/overview" >}}) documentation.
 
 {{< tabs "Create the Agents" >}}
 
@@ -270,8 +262,6 @@ public class ReviewAnalysisAgent extends Agent {
 
 {{< /tabs >}}
 
-The code for the `ProductSuggestionAgent`, which is used to generate product improvement suggestions based on the aggregated analysis results, is similar to the `ReviewAnalysisAgent`.
-
 ### Integrate the Agents with Flink
 
 Create the input DataStream by reading the product reviews from a text file as a streaming source, and use the `ReviewAnalysisAgent` to analyze the product reviews and generate the result DataStream. Finally print the result DataStream.
@@ -346,95 +336,6 @@ agentsEnv.execute("Workflow Agent Example Job");
 
 {{< /tabs >}}
 
-### Read Input via the Table API
-
-The multiple-agent example reads product reviews through the Flink Table API instead of a DataStream. Because Table rows arrive as `Row` (Java) / `dict` (Python) instead of a `ProductReview` POJO, it uses a dedicated `TableReviewAnalysisAgent` — identical to `ReviewAnalysisAgent` except its `process_input` action reads the `id` and `review` columns out of the row, and it ships a key selector that extracts the key from that row.
-
-{{< tabs "Create the Table Agent" >}}
-
-{{< tab "Python" >}}
-```python
-class TableKeySelector(KeySelector):
-    """Extract the partition key from a Table row (dict)."""
-
-    def get_key(self, value: Any) -> str:
-        return str(value["id"])
-
-
-class TableReviewAnalysisAgent(Agent):
-    # prompt / tool / chat_model_setup are identical to ReviewAnalysisAgent.
-
-    @action(InputEvent.EVENT_TYPE)
-    @staticmethod
-    def process_input(event: Event, ctx: RunnerContext) -> None:
-        # Table input arrives as a dict keyed by column name, not a POJO.
-        input_dict = InputEvent.from_event(event).input
-        product_id = str(input_dict["id"])
-        review_text = str(input_dict["review"])
-        ...
-```
-{{< /tab >}}
-
-{{< tab "Java" >}}
-```java
-public class TableReviewAnalysisAgent extends Agent {
-
-    /** Extract the partition key from a Table Row. */
-    public static class RowKeySelector implements KeySelector<Object, String> {
-        @Override
-        public String getKey(Object value) {
-            return (String) ((Row) value).getField("id");
-        }
-    }
-
-    // prompt / tool / chat model setup are identical to ReviewAnalysisAgent.
-
-    @Action(EventType.InputEvent)
-    public static void processInput(Event event, RunnerContext ctx) {
-        // Table input arrives as a Row keyed by column name, not a POJO.
-        Row row = (Row) InputEvent.fromEvent(event).getInput();
-        String productId = (String) row.getField("id");
-        String reviewText = (String) row.getField("review");
-        ...
-    }
-}
-```
-{{< /tab >}}
-
-{{< /tabs >}}
-
-Register the input file as a table and feed it to the agent with `from_table` / `fromTable`, providing the key selector:
-
-{{< tabs "Integrate via Table API" >}}
-
-{{< tab "Python" >}}
-```python
-input_table = t_env.from_path("product_reviews")
-
-review_analysis_res_stream = (
-    agents_env.from_table(input=input_table, key_selector=TableKeySelector())
-    .apply(TableReviewAnalysisAgent())
-    .to_datastream(ProductReviewAnalysisRes)
-)
-```
-{{< /tab >}}
-
-{{< tab "Java" >}}
-```java
-Table inputTable = tableEnv.from("product_reviews");
-
-DataStream<ProductReviewAnalysisRes> reviewAnalysisResStream =
-        agentsEnv
-                .fromTable(inputTable, new TableReviewAnalysisAgent.RowKeySelector())
-                .apply(new TableReviewAnalysisAgent())
-                .toDataStream(ProductReviewAnalysisRes.class);
-```
-{{< /tab >}}
-
-{{< /tabs >}}
-
-See [Integrate with Flink]({{< ref "docs/development/integrate_with_flink" >}}#fromto-flink-table-api) for the full Table API integration reference.
-
 ## Run the Example
 
 ### Prerequisites
@@ -448,7 +349,7 @@ See [Integrate with Flink]({{< ref "docs/development/integrate_with_flink" >}}#f
 
 #### Prepare Flink and Flink Agents
 
-Follow the [installation]({{< ref "docs/get-started/installation" >}}) instructions to setup Flink and the Flink Agents.
+Follow the [Setup]({{< ref "docs/get-started/setup" >}}) instructions to setup Flink and the Flink Agents.
 
 #### Clone the Flink Agents Repository (if not done already)
 
@@ -475,7 +376,7 @@ $FLINK_HOME/bin/start-cluster.sh
 {{< /tab >}}
 
 {{< tab "Java" >}}
-1. Build Flink Agents from source to generate example jar. See [installation]({{< ref "docs/get-started/installation" >}}) for more details.
+1. Build Flink Agents from source to generate example jar. See [Setup]({{< ref "docs/get-started/setup" >}}) for more details.
 2. Start the Flink cluster
     ```bash
     $FLINK_HOME/bin/start-cluster.sh
@@ -521,11 +422,6 @@ export PYTHONPATH=$(python -c 'import sysconfig; print(sysconfig.get_paths()["pu
 $FLINK_HOME/bin/flink run -py ./flink-agents/python/flink_agents/examples/quickstart/workflow_single_agent_example.py
 # or submit the example python file in installed flink-agents wheel
 $FLINK_HOME/bin/flink run -py  $PYTHONPATH/flink_agents/examples/quickstart/workflow_single_agent_example.py
-
-# Run product suggestion example
-$FLINK_HOME/bin/flink run -py ./flink-agents/python/flink_agents/examples/quickstart/workflow_multiple_agent_example.py
-# or submit the example python file in installed flink-agents wheel
-$FLINK_HOME/bin/flink run -py  $PYTHONPATH/flink_agents/examples/quickstart/workflow_multiple_agent_example.py
 ```
 {{< /tab >}}
 
@@ -533,9 +429,6 @@ $FLINK_HOME/bin/flink run -py  $PYTHONPATH/flink_agents/examples/quickstart/work
 ```bash
 # Run review analysis example
 $FLINK_HOME/bin/flink run -c org.apache.flink.agents.examples.WorkflowSingleAgentExample ./flink-agents/examples/target/flink-agents-examples-$VERSION.jar
-
-# Run product suggestion example
-$FLINK_HOME/bin/flink run -c org.apache.flink.agents.examples.WorkflowMultipleAgentExample ./flink-agents/examples/target/flink-agents-examples-$VERSION.jar
 ```
 {{< /tab >}}
 
@@ -545,3 +438,5 @@ Now you should see a Flink job submitted to the Flink Cluster in Flink web UI [l
 localhost:8081)
 
 After a few minutes, you can check for the output in the TaskManager output log.
+
+Continue with [Connect Multiple Agents]({{< ref "docs/get-started/quickstart/create-agent/multiple-agents" >}}), or explore [Skills]({{< ref "docs/development/calling-llms/skills" >}}).

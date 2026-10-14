@@ -1,7 +1,9 @@
 ---
-title: Tool Use
-weight: 10
+title: "Tool Use"
+weight: 5
 type: docs
+aliases:
+  - /docs/development/tool_use/
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one
@@ -36,7 +38,7 @@ Flink Agents uses the docstring of the python tool function to generate the tool
 
 ### Define Tool as Static Method in Agent Class
 
-Developer can define the tool as a static method in the agent class while defining the workflow agent, and use the `@tool` decorator to mark the function as a tool in python (or `@Tool` annotation in java). The tool can be referenced by its name in the `tools` list of the `ResourceDescriptor` when creating the chat model in the agent.
+Developer can define the tool as a static method in the agent class while defining the Agent, and use the `@tool` decorator to mark the function as a tool in python (or `@Tool` annotation in java). The tool can be referenced by its name in the `tools` list of the `ResourceDescriptor` when creating the chat model in the agent.
 
 {{< tabs "Define Tool as Static Method in Agent Class" >}}
 
@@ -484,7 +486,7 @@ ToolResponse response = ToolResponse.success(
 
 ## MCP Tool
 
-See [MCP]({{< ref "docs/development/mcp" >}}) for details.
+See [MCP]({{< ref "docs/development/calling-llms/mcp" >}}) for details.
 
 ## Built-in Events and Actions
 
@@ -492,6 +494,6 @@ The built-in `tool_call_action` listens to `ToolRequestEvent`. For each tool cal
 
 Ordinary tool return values are converted to successful text responses as described in [Tool response content and metadata](#tool-response-content-and-metadata). A tool that completes normally but cannot perform the requested operation can return `ToolResponse.error("reason")`; an exception still represents an invocation failure. Both failure forms are recorded as failed tool calls in `ToolResponseEvent`.
 
-When the tool request comes from `chat_model_action`, the emitted `ToolResponseEvent` is automatically consumed by `chat_model_action` to continue the chat. See [Built-in Events and Actions in Chat Models]({{< ref "docs/development/chat_models#built-in-events-and-actions" >}}) for details on how `chat_model_action` handles tool responses.
+When the tool request comes from `chat_model_action`, the emitted `ToolResponseEvent` is automatically consumed by `chat_model_action` to continue the chat. See [Tool Calling in Chat with Models]({{< ref "docs/development/calling-llms/chat#built-in-events-and-actions" >}}) for details on how `chat_model_action` handles tool responses.
 
 Users can also send `ToolRequestEvent` directly when they want to invoke tools programmatically.

@@ -1,7 +1,9 @@
 ---
-title: YAML API
-weight: 3
+title: "YAML API"
+weight: 5
 type: docs
+aliases:
+  - /docs/development/yaml/
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one
@@ -37,7 +39,7 @@ A Flink Agents application is composed of three concepts; the YAML API exposes a
 
 A YAML file describes **Resources** and **Actions** declaratively; the **Event** types are referenced by name (built-in event aliases like `input` / `chat_response`, or your own event-type strings). The implementation classes (action functions, tool functions, custom types) still live in your Python or Java code; the YAML file only describes *how* those pieces are wired together.
 
-If you'd rather declare agents directly in code, see [Workflow Agent]({{< ref "docs/development/workflow_agent" >}}) and [ReAct Agent]({{< ref "docs/development/react_agent" >}}).
+If you'd rather declare agents directly in code, see [Agent]({{< ref "docs/development/create-agent/overview" >}}) and [Built-in ReAct Agent]({{< ref "docs/development/react_agent" >}}).
 
 ## Declaring an Agent
 
@@ -127,7 +129,7 @@ prompts:
     text: "this is the {value}"
 ```
 
-`{variable_name}` is the only substitution syntax, and there is no `{{` / `}}` escape — write JSON examples in prompt `content` with single braces. See [Brace Handling]({{< ref "docs/development/prompts#brace-handling" >}}).
+`{variable_name}` is the only substitution syntax, and there is no `{{` / `}}` escape — write JSON examples in prompt `content` with single braces. See [Brace Handling]({{< ref "docs/development/calling-llms/prompts#brace-handling" >}}).
 
 **Tool** — points at a callable that the chat model can invoke.
 
@@ -304,7 +306,7 @@ Inline action (map) fields:
 
 For built-in event types, prefer an [event alias](#event-aliases) such as `input`. Trigger-condition
 matching and expression semantics are shared with annotated and programmatically registered actions;
-see [Trigger Conditions]({{< ref "docs/development/workflow_agent#trigger-conditions" >}}).
+see [Trigger Conditions]({{< ref "docs/development/create-agent/actions#trigger-conditions" >}}).
 
 Every entry must remain a non-empty string after YAML parsing. Quote condition expressions, for
 example `"ready == true"`. Quotes are required for literal expressions such as `"true"`; without
@@ -489,7 +491,7 @@ agentsEnv.loadYaml(Paths.get("./shared.yaml"));
 
 A common pattern is to split a topology file (the agents themselves) from an infrastructure file (chat-model connections, vector stores, ...). The infrastructure file can be swapped per environment (dev / staging / prod) without touching the agent definitions. The `agents:` block is optional, so an infrastructure-only file (no `agents:` block) is loaded as shared resources.
 
-For an end-to-end runnable walkthrough that loads a YAML-declared agent and runs it on Flink, see [YAML Agent Quickstart]({{< ref "docs/get-started/quickstart/yaml_agent" >}}).
+For an end-to-end runnable walkthrough that loads a YAML-declared agent and runs it on Flink, see [Define an Agent with YAML]({{< ref "docs/get-started/quickstart/yaml_agent" >}}).
 
 ## Advanced Topics
 
@@ -555,7 +557,7 @@ For `clazz:` on resource descriptors and for complete event-type entries in `tri
 {{< hint warning >}}
 `output` resolves to `OutputEvent`, but output events are emitted directly downstream and bypass
 action matching. Therefore, using `output` as a trigger condition never invokes an action. See
-[Sending events]({{< ref "docs/development/workflow_agent#sending-events" >}}).
+[Sending events]({{< ref "docs/development/create-agent/actions#sending-events" >}}).
 {{< /hint >}}
 
 For custom event types defined in your code, write the event's full `EVENT_TYPE` string instead of an alias.

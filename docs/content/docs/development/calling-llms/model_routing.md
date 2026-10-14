@@ -1,7 +1,10 @@
 ---
-title: Model Routing
-weight: 5
+title: "Model Routing"
+weight: 4
 type: docs
+aliases:
+  - /docs/development/calling-llms/declare-resources/model_routing/
+  - /docs/development/model_routing/
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one

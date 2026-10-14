@@ -1,7 +1,9 @@
 ---
-title: Chat Models
-weight: 4
+title: "Built-in Chat Model Providers"
+weight: 1
 type: docs
+aliases:
+  - /docs/development/calling-llms/declare-resources/providers/
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one
@@ -22,222 +24,6 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# Chat Models
-
-## Overview
-
-Chat models enable agents to communicate with Large Language Models (LLMs) for natural language understanding, reasoning, and generation. In Flink Agents, chat models act as the "brain" of your agents, processing input messages and generating intelligent responses based on context, prompts, and available tools.
-
-## Getting Started
-
-To use chat models in your agents, you need to define both a connection and setup using decorators/annotations, then interact with the model through events.
-
-### Resource Declaration
-
-Flink Agents provides decorators in python and annotations in java to simplify chat model setup within agents:
-
-#### @chat_model_connection/@ChatModelConnection
-
-The `@chat_model_connection` decorator or `@ChatModelConnection` annotation marks a method that creates a chat model connection. This is typically defined once and shared across multiple chat model setups.
-
-#### @chat_model_setup/@ChatModelSetup
-
-The `@chat_model_setup` decorator or `@ChatModelSetup` annotation marks a method that creates a chat model setup. This references a connection and adds chat-specific configuration like prompts and tools.
-
-### Chat Events
-
-Chat models communicate through built-in events:
-
-- **ChatRequestEvent**: Sent by actions to request a chat completion from the LLM
-- **ChatResponseEvent**: Received by actions containing the LLM's response
-
-A `ChatRequestEvent` can name a model router instead of a chat model to pick the model per request; see [Model Routing]({{< ref "docs/development/model_routing" >}}).
-
-### Message content blocks
-
-Use `ChatMessage.blocks` to combine text and media in a single message, in the
-order you want them presented. Supported block types are `TextBlock`, `ImageBlock`,
-`AudioBlock`, `VideoBlock`, and `DocumentBlock`. Assistant messages can also contain
-`ReasoningBlock` and `ToolCallBlock`; a tool message contains one `ToolResultBlock`
-whose `call_id` matches the corresponding tool call and whose blocks hold the result.
-
-To read the complete content of a message or `ChatResult`, use `getBlocks()` (Java)
-or `blocks` (Python). Use `getText()` (Java) or `text` (Python) when you only need
-text: these accessors concatenate the message's text blocks and omit media,
-reasoning, tool calls, and text inside tool results.
-
-For tools that return text or media, see
-[Tool response content and metadata]({{< ref "docs/development/tool_use#tool-response-content-and-metadata" >}}).
-
-**Provider support:** The OpenAI Chat Completions integration, and the Azure OpenAI
-and vLLM integrations built on it, send media blocks to the model; see
-[Multimodal Input](#multimodal-input) for what each block becomes. Ollama sends
-Base64 images; see its section. The Anthropic, Gemini, Amazon Bedrock, IBM
-watsonx.ai, DashScope and OpenAI Responses integrations do not send media yet: a
-message with a media block raises `UnsupportedContentBlockException` (Java) or
-`UnsupportedContentBlockError` (Python).
-
-For example, a message can contain a question followed by an image:
-
-{{< tabs "Message content blocks" >}}
-
-{{< tab "Python" >}}
-```python
-from flink_agents.api.chat_message import ChatMessage, ImageBlock, TextBlock
-
-message = ChatMessage.user([
-    TextBlock(text="Describe this image"),
-    ImageBlock.from_url("image/png", "https://example.org/image.png"),
-])
-```
-{{< /tab >}}
-
-{{< tab "Java" >}}
-```java
-ChatMessage message = ChatMessage.user(List.of(
-        TextBlock.of("Describe this image"),
-        ImageBlock.fromUrl("image/png", "https://example.org/image.png")));
-```
-{{< /tab >}}
-
-{{< /tabs >}}
-
-Each media block requires a MIME type such as `image/png` and a media source.
-Use `from_url` (Python) or `fromUrl` (Java) for an externally managed URL, as above.
-For inline data, all four media block types provide two separate entry points:
-
-- `from_bytes(media_type, data)` (Python) or `fromBytes(mediaType, data)` (Java)
-  accepts non-empty raw `bytes` or `byte[]` and encodes them as standard Base64
-  without line wrapping at construction. Java does not retain the caller's array.
-- `from_base64(media_type, data)` or `fromBase64(mediaType, data)` accepts a
-  non-empty, already Base64-encoded string. It preserves the string without
-  encoding it again or validating its Base64 syntax.
-
-{{< tabs "Inline media" >}}
-{{< tab "Python" >}}
-```python
-from pathlib import Path
-from flink_agents.api.chat_message import ImageBlock
-
-image = ImageBlock.from_bytes("image/png", Path("image.png").read_bytes(), name="image.png")
-# If a service already returned Base64, pass that string directly.
-encoded_image = ImageBlock.from_base64("image/png", base64_from_service)
-```
-{{< /tab >}}
-{{< tab "Java" >}}
-```java
-import java.nio.file.Files;
-import java.nio.file.Path;
-import org.apache.flink.agents.api.chat.messages.ImageBlock;
-
-ImageBlock image = ImageBlock.fromBytes("image/png", Files.readAllBytes(Path.of("image.png")));
-// If a service already returned Base64, pass that string directly.
-ImageBlock encodedImage = ImageBlock.fromBase64("image/png", base64FromService);
-```
-{{< /tab >}}
-{{< /tabs >}}
-
-The framework does not verify that the contents match the declared media type.
-Choose a concrete block such as `ImageBlock`, rather than constructing the shared
-`MediaBlock` base class. Both inline factories produce the same Base64 source
-representation for serialization and provider conversion.
-
-Media blocks also accept optional metadata: `name` for a file name, `size_bytes`
-for the media size in bytes, and `sha256` for a content checksum.
-
-To read only the text, use `.text` (Python) or `getText()` (Java). These concatenate
-the text blocks and exclude media.
-
-### Usage Example
-
-Here's how to define and use chat models in a workflow agent:
-
-{{< tabs "Usage Example" >}}
-
-{{< tab "Python" >}}
-```python
-class MyAgent(Agent):
-
-    @chat_model_connection
-    @staticmethod
-    def ollama_connection() -> ResourceDescriptor:
-        return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.OLLAMA_CONNECTION,
-            base_url="http://localhost:11434",
-            request_timeout=30.0
-        )
-
-    @chat_model_setup
-    @staticmethod
-    def ollama_chat_model() -> ResourceDescriptor:
-        return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.OLLAMA_SETUP,
-            connection="ollama_connection",
-            model="qwen3:8b",
-            temperature=0.7
-        )
-
-    @action(EventType.InputEvent)
-    @staticmethod
-    def process_input(event: Event, ctx: RunnerContext) -> None:
-        input_event = InputEvent.from_event(event)
-        # Create a chat request with user message
-        user_message = ChatMessage.user(f"input: {input_event.input}")
-        ctx.send_event(
-            ChatRequestEvent(model="ollama_chat_model", messages=[user_message])
-        )
-
-    @action(EventType.ChatResponseEvent)
-    @staticmethod
-    def process_response(event: Event, ctx: RunnerContext) -> None:
-        chat_response = ChatResponseEvent.from_event(event)
-        response_content = chat_response.response.text
-        # Handle the LLM's response
-        # Process the response as needed for your use case
-```
-{{< /tab >}}
-
-{{< tab "Java" >}}
-```java
-public class MyAgent extends Agent {
-    @ChatModelConnection
-    public static ResourceDescriptor ollamaConnection() {
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_CONNECTION)
-                .addInitialArgument("endpoint", "http://localhost:11434")
-                .build();
-    }
-
-    @ChatModelSetup
-    public static ResourceDescriptor ollamaChatModel() {
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
-                .addInitialArgument("connection", "ollamaConnection")
-                .addInitialArgument("model", "qwen3:8b")
-                .build();
-    }
-
-    @Action(EventType.InputEvent)
-    public static void processInput(Event event, RunnerContext ctx) throws Exception {
-        InputEvent inputEvent = InputEvent.fromEvent(event);
-        ChatMessage userMessage =
-                new ChatMessage(MessageRole.USER, String.format("input: {%s}", inputEvent.getInput()));
-        ctx.sendEvent(new ChatRequestEvent("ollamaChatModel", List.of(userMessage)));
-    }
-
-    @Action(EventType.ChatResponseEvent)
-    public static void processResponse(Event event, RunnerContext ctx)
-            throws Exception {
-        ChatResponseEvent chatResponse = ChatResponseEvent.fromEvent(event);
-        String response = chatResponse.getResponse().getText();
-        // Handle the LLM's response
-        // Process the response as needed for your use case
-    }
-}
-```
-{{< /tab >}}
-
-{{< /tabs >}}
-
-
 ## Built-in Providers
 
 ### Amazon Bedrock
@@ -245,7 +31,7 @@ public class MyAgent extends Agent {
 Amazon Bedrock provides access to a wide range of foundation models from leading AI providers through a unified API. The Flink Agents Bedrock integration uses the [Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html), which provides a consistent interface across all supported models with native tool calling support. Authentication is handled via SigV4 using the AWS default credentials chain. No API keys are required.
 
 {{< hint info >}}
-Amazon Bedrock is only supported in Java currently. To use Amazon Bedrock from Python agents, see [Using Cross-Language Providers](#using-cross-language-providers).
+Amazon Bedrock is only supported in Java currently. To use Amazon Bedrock from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -667,7 +453,7 @@ Vertex AI support is experimental. The connection path has been smoke-tested dur
 {{< /hint >}}
 
 {{< hint info >}}
-Gemini is only supported in Java currently. To use Gemini from Python agents, see [Using Cross-Language Providers](#using-cross-language-providers).
+Gemini is only supported in Java currently. To use Gemini from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -881,7 +667,7 @@ public class MyAgent extends Agent {
                 .addInitialArgument("extract_reasoning", true)
                 .build();
     }
-    
+
     ...
 }
 ```
@@ -1074,7 +860,7 @@ The other built-in providers (Anthropic, Gemini, Amazon Bedrock, IBM watsonx.ai,
 #### Responses API
 
 {{< hint info >}}
-Responses API is only supported in Java currently. To use OpenAI Responses API from Python agents, see [Using Cross-Language Providers](#using-cross-language-providers).
+Responses API is only supported in Java currently. To use OpenAI Responses API from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}).
 {{< /hint >}}
 
 ##### OpenAIResponsesModelConnection Parameters
@@ -1172,7 +958,7 @@ Model availability and specifications may change. Always check the official Open
 This integration connects to Alibaba Cloud Model Studio (Bailian) through the DashScope SDK to access chat models.
 
 {{< hint info >}}
-The DashScope integration is currently supported in the Python API only. To use it from Java agents, see [Using Cross-Language Providers](#using-cross-language-providers).
+The DashScope integration is currently supported in the Python API only. To use it from Java agents, see [Using Cross-Language Providers]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -1511,279 +1297,3 @@ Some popular options include:
 {{< hint warning >}}
 Model availability and specifications may change. Always check the official IBM watsonx.ai documentation for the latest information before implementing in production.
 {{< /hint >}}
-
-## Using Cross-Language Providers
-
-Flink Agents supports cross-language chat model integration, allowing you to use chat models implemented in one language (Java or Python) from agents written in the other language. This is particularly useful when a chat model provider is only available in one language (e.g., the DashScope integration for Alibaba Cloud Model Studio is currently Python-only).
-
-{{< hint warning >}}
-**Limitations:**
-
-- Cross-language resources are currently supported only when [running in Flink]({{< ref "docs/operations/deployment#run-in-flink" >}}), not in local development mode
-- Complex object serialization between languages may have limitations
-{{< /hint >}}
-
-### How To Use
-
-To use a resource implemented in another language, declare its implementation class with the corresponding cross-language resource descriptor:
-
-- **Using Java chat models in Python**: Use `JavaResourceDescriptor(clazz=ResourceName.ChatModel.Java.OLLAMA_CONNECTION, ...)` (or the corresponding setup class).
-- **Using Python chat models in Java**: Use `PythonResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.Python.OLLAMA_CONNECTION)` (or the corresponding setup class).
-
-
-
-### Usage Example
-
-{{< tabs "Cross-Language Chat Model Usage Example" >}}
-
-{{< tab "Using Java Chat Model in Python" >}}
-```python
-class MyAgent(Agent):
-
-    @chat_model_connection
-    @staticmethod
-    def java_chat_model_connection() -> ResourceDescriptor:
-        # In pure Java, the equivalent ResourceDescriptor would be:
-        # ResourceDescriptor.Builder
-        #     .newBuilder(ResourceName.ChatModel.OLLAMA_CONNECTION)
-        #     .addInitialArgument("endpoint", "http://localhost:11434")
-        #     .addInitialArgument("requestTimeout", 120)
-        #     .build();
-        return JavaResourceDescriptor(
-            clazz=ResourceName.ChatModel.Java.OLLAMA_CONNECTION,
-            endpoint="http://localhost:11434",
-            requestTimeout=120,
-        )
-    
-    
-    @chat_model_setup
-    @staticmethod
-    def java_chat_model() -> ResourceDescriptor:
-        # In pure Java, the equivalent ResourceDescriptor would be:
-        # ResourceDescriptor.Builder
-        #     .newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
-        #     .addInitialArgument("connection", "java_chat_model_connection")
-        #     .addInitialArgument("model", "qwen3:8b")
-        #     .addInitialArgument("prompt", "my_prompt")
-        #     .addInitialArgument("tools", List.of("my_tool1", "my_tool2"))
-        #     .addInitialArgument("extractReasoning", true)
-        #     .build();
-        return JavaResourceDescriptor(
-            clazz=ResourceName.ChatModel.Java.OLLAMA_SETUP,
-            connection="java_chat_model_connection",
-            model="qwen3:8b",
-            prompt="my_prompt",
-            tools=["my_tool1", "my_tool2"],
-            extract_reasoning=True,
-        )
-
-    @action(EventType.InputEvent)
-    @staticmethod
-    def process_input(event: Event, ctx: RunnerContext) -> None:
-        input_event = InputEvent.from_event(event)
-        # Create a chat request with user message
-        user_message = ChatMessage.user(f"input: {input_event.input}")
-        ctx.send_event(
-            ChatRequestEvent(model="java_chat_model", messages=[user_message])
-        )
-
-    @action(EventType.ChatResponseEvent)
-    @staticmethod
-    def process_response(event: Event, ctx: RunnerContext) -> None:
-        chat_response = ChatResponseEvent.from_event(event)
-        response_content = chat_response.response.text
-        # Handle the LLM's response
-        # Process the response as needed for your use case
-```
-{{< /tab >}}
-
-{{< tab "Using Python Chat Model in Java" >}}
-```java
-public class MyAgent extends Agent {
-
-    @ChatModelConnection
-    public static ResourceDescriptor pythonChatModelConnection() {
-        // In pure Python, the equivalent ResourceDescriptor would be:
-        // ResourceDescriptor(
-        //     clazz=ResourceName.ChatModel.OLLAMA_CONNECTION,
-        //     request_timeout=120.0
-        // )
-        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.Python.OLLAMA_CONNECTION)
-                .addInitialArgument("request_timeout", 120.0)
-                .build();
-    }
-  
-  	@ChatModelSetup
-    public static ResourceDescriptor pythonChatModel() {
-        // In pure Python, the equivalent ResourceDescriptor would be:
-        // ResourceDescriptor(
-        //     clazz=ResourceName.ChatModel.OLLAMA_SETUP,
-        //     connection="pythonChatModelConnection",
-        //     model="qwen3:8b",
-        //     tools=["tool1", "tool2"],
-        //     extract_reasoning=True
-        // )
-        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.Python.OLLAMA_SETUP)
-                .addInitialArgument("connection", "pythonChatModelConnection")
-                .addInitialArgument("model", "qwen3:8b")
-                .addInitialArgument("tools", List.of("tool1", "tool2"))
-                .addInitialArgument("extract_reasoning", true)
-                .build();
-    }
-
-    @Action(EventType.InputEvent)
-    public static void processInput(Event event, RunnerContext ctx) throws Exception {
-        InputEvent inputEvent = InputEvent.fromEvent(event);
-        ChatMessage userMessage =
-                new ChatMessage(MessageRole.USER, String.format("input: {%s}", inputEvent.getInput()));
-        ctx.sendEvent(new ChatRequestEvent("pythonChatModel", List.of(userMessage)));
-    }
-
-    @Action(EventType.ChatResponseEvent)
-    public static void processResponse(Event event, RunnerContext ctx)
-            throws Exception {
-        ChatResponseEvent chatResponse = ChatResponseEvent.fromEvent(event);
-        String response = chatResponse.getResponse().getText();
-        // Handle the LLM's response
-        // Process the response as needed for your use case
-    }
-}
-```
-{{< /tab >}}
-
-{{< /tabs >}}
-
-## Custom Providers
-
-{{< hint warning >}}
-The custom provider APIs are experimental and unstable, subject to incompatible changes in future releases.
-{{< /hint >}}
-
-If you want to use chat models not offered by the built-in providers, you can extend the base chat classes and implement your own! The chat model system is built around two main abstract classes:
-
-### BaseChatModelConnection
-
-Handles the connection to chat model services and provides the core chat functionality.
-
-{{< tabs "Custom BaseChatModelConnection" >}}
-
-{{< tab "Python" >}}
-```python
-class MyChatModelConnection(BaseChatModelConnection):
-
-    def chat(
-        self,
-        messages: Sequence[ChatMessage],
-        tools: List[Tool] | None = None,
-        **kwargs: Any,
-    ) -> ChatResult:
-        # Core method: send messages to LLM and return response
-        # - messages: Input message sequence
-        # - tools: Optional list of tools available to the model
-        # - kwargs: Additional parameters from model_kwargs
-        # - Returns: ChatResult with the assistant message and available usage information
-        pass
-```
-{{< /tab >}}
-
-{{< tab "Java" >}}
-```java
-public class MyChatModelConnection extends BaseChatModelConnection {
-
-    /**
-     * Creates a new chat model connection.
-     *
-     * @param descriptor a resource descriptor contains the initial parameters
-     * @param resourceContext context for resolving resources (e.g., tools) by name and type
-     */
-    public MyChatModelConnection(
-            ResourceDescriptor descriptor, ResourceContext resourceContext) {
-        super(descriptor, resourceContext);
-        // get custom arguments from descriptor
-        String endpoint = descriptor.getArgument("endpoint");
-        ...
-    }
-    
-
-    @Override
-    public ChatResult chat(
-            List<ChatMessage> messages, List<Tool> tools, Map<String, Object> arguments) {
-        // Core method: send messages to LLM and return response
-        // - messages: Input message sequence
-        // - tools: Optional list of tools available to the model
-        // - arguments: Additional parameters from ChatModelSetup
-        // - Returns: ChatResult with the assistant message and available usage information
-    }
-}
-```
-{{< /tab >}}
-
-{{< /tabs >}}
-
-
-### BaseChatModelSetup
-
-The setup class acts as a high-level configuration interface that defines which connection to use and how to configure the chat model.
-
-{{< tabs "Prepare Agents Execution Environment" >}}
-
-{{< tab "Python" >}}
-```python
-class MyChatModelSetup(BaseChatModelSetup):
-    # Add your custom configuration fields here
-
-    @property
-    def model_kwargs(self) -> Dict[str, Any]:
-        # Return model-specific configuration passed to chat()
-        # This dictionary is passed as **kwargs to the chat() method
-        return {"model": self.model, "temperature": 0.7, ...}
-```
-{{< /tab >}}
-
-{{< tab "Java" >}}
-```java
-public class MyChatModelSetup extends BaseChatModelSetup {
-    // Add your custom configuration fields here
-    
-    @Override
-    public Map<String, Object> getParameters() {
-        Map<String, Object> params = new HashMap<>();
-        params.put("model", model);
-        ...
-        // Return model-specific configuration passed to chat()
-        // This dictionary is passed as arguments to the chat() method
-        return params;
-    }
-}
-```
-{{< /tab >}}
-
-{{< /tabs >}}
-
-## Built-in Events and Actions
-
-`ChatResponseEvent` reports whether a chat request succeeded or failed:
-
-- On success, `event.getResponse()` (Java) or `event.response` (Python) returns a
-  `ChatResult`. It contains the assistant message and, when available, the model
-  name, response ID, token usage, and finish reason. Use `getText()` / `text` to
-  read the answer as text, or `getBlocks()` / `blocks` to include all content.
-- On failure, `event.getError()` (Java) or `event.error` (Python) provides an error
-  description. Check `event.isFailed()` / `event.is_failed` before reading the
-  response: accessing the response of a failed event raises an exception.
-
-If you requested structured output, read the parsed result from
-`event.getStructuredOutput()` (Java) or `event.structured_output` (Python).
-
-Applications that need to recover from a failed chat request should handle the
-failed event explicitly. The built-in ReAct agent propagates the failure.
-
-Ordinary provider, resource-resolution, response-validation and structured-output errors produce a failed response after configured retries and routing fallbacks are exhausted. `max-retries` controls the number of additional attempts (default: 0), and `retry-wait-interval` controls exponential backoff. These settings also apply to routing judge calls. A judge call failure fails the request rather than selecting the default model; a normal abstaining verdict still selects the default. Intermediate attempts and Tool rounds do not emit terminal responses, and the final response always refers to the initial request ID.
-
-Cancellation, interruption and fatal errors propagate. Durable persistence/recovery, required Tool context, and event-delivery failures also propagate to Flink rather than becoming Chat failures. A response cannot be guaranteed during cancellation or an unrecoverable runtime failure. Recovery may replay physical events; consumers must correlate by request ID and complete idempotently.
-
-Create results with `ChatResponseEvent.success(...)` or `ChatResponseEvent.failed(...)`. This is a breaking event and durable-call format change: `status` is mandatory, and old events and old persisted Chat/routing call results are not supported. Update custom producers, consumers, and stored fixtures together.
-
-The built-in `chat_model_action` listens to `ChatRequestEvent` and `ToolResponseEvent`. To request a chat completion, send a `ChatRequestEvent`. If the model returns a final answer, the action sends a `ChatResponseEvent`.
-
-If the model asks to call tools, `chat_model_action` sends a `ToolRequestEvent` instead of a final `ChatResponseEvent`. After the tools finish, it receives the matching `ToolResponseEvent`, appends the tool results to the chat history, and calls the model again. This loop continues until the model returns a final response. For details on how tools are executed, see [Built-in Events and Actions in Tool Use]({{< ref "docs/development/tool_use#built-in-events-and-actions" >}}). When the request names a model router, `chat_model_action` selects the model first and emits a `ModelRoutingEvent`; see [Model Routing]({{< ref "docs/development/model_routing#observability" >}}).
