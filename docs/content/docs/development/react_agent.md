@@ -29,10 +29,6 @@ Flink Agents provides `ReActAgent` as a built-in subclass of `Agent` that implem
 ReAct Agent is a general paradigm that combines reasoning and action capabilities to solve complex tasks. Leveraging this paradigm, the user only needs to specify the goal with prompt and provide available tools, and the LLM will decide how to achieve the goal and take actions autonomously.
 
 {{< hint info >}}
-For guidance on choosing Java or Python, see [Should I choose Java or Python?]({{< ref "docs/faq/faq#q3-should-i-choose-java-or-python" >}}).
-{{< /hint >}}
-
-{{< hint info >}}
 The snippets on this page are fragments that each focus on a single concept. For an end-to-end runnable walkthrough, see the [Use the Built-in ReAct Agent]({{< ref "docs/get-started/quickstart/react_agent" >}}) and the full source: [`react_agent_example.py`](https://github.com/apache/flink-agents/blob/main/python/flink_agents/examples/quickstart/react_agent_example.py) (Python) and [`ReActAgentExample.java`](https://github.com/apache/flink-agents/blob/main/examples/src/main/java/org/apache/flink/agents/examples/ReActAgentExample.java) (Java).
 {{< /hint >}}
 
@@ -402,4 +398,3 @@ The constructor registers those sources on the agent, so they do not also need `
 ## As a Sub-Agent
 
 A ReActAgent can run as a sub-agent of another agent, delegated to by the parent's chat model or called from the parent's actions. See [Use a ReActAgent as the child]({{< ref "docs/development/multi-agent/subagents#use-a-reactagent-as-the-child" >}}).
-
