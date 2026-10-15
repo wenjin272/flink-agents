@@ -35,7 +35,11 @@ The **Parallel Sentiment Analysis** agent processes a restaurant review and judg
 
 ### Prepare Agents Execution Environment
 
-Create the agents execution environment, and register the available chat model connection to the environment.
+Create the agents execution environment and register the Ollama connection as a named
+Resource of type `CHAT_MODEL_CONNECTION`. The Agent's model setup references this connection
+as `ollama_server` in Python or `ollamaChatModelConnection` in Java. See
+[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}})
+for the shared registration and access model.
 
 {{< tabs "Prepare Agents Execution Environment" >}}
 
@@ -80,6 +84,11 @@ agentsEnv.addResource(
 {{< /tabs >}}
 
 ### Create the Agent
+
+The model Resource is named `sentiment_model` in Python or `sentimentModel` in Java.
+Each `ChatRequestEvent` references that name; the
+[built-in chat Action]({{< ref "docs/development/calling-llms/chat#chat-events" >}})
+gets the Resource and performs the model call.
 
 Below is the example code for the `ParallelChatAgent`. Two system prompts — `PARALLEL_SYSTEM_PROMPT` for the parallel aspect judgments and `AGGREGATE_SYSTEM_PROMPT` for the aggregation call — are packaged into `ChatRequestEvent`s by `_build_aspect_request` / `buildAspectRequest` and `_build_summarize_request` / `buildSummarizeRequest`. The agent defines a chat model and four actions: `request_aspect_judgments` stores the review `id` and `text` in sensory memory and emits a single generic `Event` of type `SENTIMENT_INPUT_EVENT_TYPE`; `handle_taste_input` and `handle_service_input` each listen on that event type and independently dispatch one `ChatRequestEvent`, recording a `{request_id → aspect}` entry using path-based memory access (`aspect_map.<request_id>`); and `handle_response` looks up the dispatched aspect, stores the result under `sentiments.<aspect>`, and triggers aggregation once all aspects are collected.
 
