@@ -31,11 +31,8 @@ Beyond the Python and Java programmatic APIs, Flink Agents offers a **declarativ
 - **Human-friendly**: low entry barrier and easy to templatize across deployments.
 - **Coding-agent-friendly**: a fixed schema reduces token cost, enables strict schema validation, and decouples configuration changes (declared parameters) from logic changes (action code).
 
-A Flink Agents application is composed of three concepts; the YAML API exposes all three as declarative sections:
-
-- **Events**: the messages flowing inside an agent. Every event has a type used for routing.
-- **Actions**: code snippets triggered by events and emitting new events. They carry the agent's business logic.
-- **Resources**: reusable components — Chat Models, Tools, Prompts, Vector Stores, MCP servers, etc. — referenced by actions at runtime.
+The YAML API uses the same Events, Actions, and Resources described in
+[Core Concepts]({{< ref "docs/development/create-agent/overview#core-concepts" >}}).
 
 A YAML file describes **Resources** and **Actions** declaratively; the **Event** types are referenced by name (built-in event aliases like `input` / `chat_response`, or your own event-type strings). The implementation classes (action functions, tool functions, custom types) still live in your Python or Java code; the YAML file only describes *how* those pieces are wired together.
 
@@ -109,7 +106,15 @@ agents:
 
 #### Resources
 
-All resource sections are declared as lists under the agent. Each entry has a `name` unique within its section.
+Declare Resources as lists under the agent, with a `name` unique within each section.
+The section determines the resource type: for example, `chat_model_setups` registers
+`CHAT_MODEL` Resources and `tools` registers `TOOL` Resources. The optional `type: python`
+or `type: java` field selects the implementation language.
+
+These declarations register Resources for use by name, just like decorators, annotations,
+or `add_resource` / `addResource`. Actions can get their instances through
+`ctx.get_resource` / `ctx.getResource`; see
+[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}}).
 
 **Prompt** — declarative prompt template; pick exactly one of `text` or `messages`.
 
@@ -256,14 +261,18 @@ skills:
 
 Remote skill archives contain trusted agent instructions and may contain executable scripts. Pin remote sources with `sha256`, or use `Skills.from_url_with_sha256(...)` (Python) / `Skills.fromUrlWithSha256(...)` (Java) in code.
 
-**ResourceDescriptor-backed resources** — `chat_model_connections`, `chat_model_setups`, `embedding_model_connections`, `embedding_model_setups`, `vector_stores`, `mcp_servers`. Unlike the resources above (which are constructed inline by the loader), these are described by a `ResourceDescriptor` and instantiated by the framework at runtime. They all share the same shape:
+**Resources configured by implementation class** — `chat_model_connections`,
+`chat_model_setups`, `embedding_model_connections`, `embedding_model_setups`, `vector_stores`,
+and `mcp_servers`. Declare the implementation and its configuration using the fields below.
+This corresponds to a `ResourceDescriptor` in Java or Python; the framework creates the
+Resource instance at runtime.
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | yes | Resource name (referenced by other resources or actions). |
 | `clazz` | yes | Either a built-in [alias](#class-aliases) (e.g. `ollama`, `openai`) or a fully-qualified class path. |
 | `type` | no | Implementation language: `python` or `java`. Defaults to `python` (see [Selecting the implementation language](#selecting-the-implementation-language)). |
-| *extras* | no | Any additional keys are forwarded verbatim as `ResourceDescriptor` init arguments (e.g. `base_url`, `endpoint`, `model`, `request_timeout`). |
+| *extras* | no | Additional configuration for the selected implementation (e.g. `base_url`, `endpoint`, `model`, `request_timeout`). |
 
 ```yaml
 chat_model_connections:
@@ -279,7 +288,9 @@ mcp_servers:
     endpoint: http://127.0.0.1:8000/mcp
 ```
 
-**Inter-resource references.** Several fields are not values but *name lookups* into another section, resolved within the agent first and then against shared resources. In the [single-agent example](#declaring-a-single-agent):
+**References between Resources.** Fields such as `connection`, `prompt`, and `tools`
+refer to registered Resource names. The Agent's own registrations take precedence over
+shared Resources from the execution environment. In the [single-agent example](#declaring-a-single-agent):
 
 | Field | Refers to | Example |
 |-------|-----------|---------|
@@ -288,11 +299,21 @@ mcp_servers:
 | `chat_model_setups[].tools` | a list of `tools[]` names | `tools: [notify_shipping_manager]` |
 | `embedding_model_setups[].connection` | an `embedding_model_connections[]` name | `connection: my_embedding_server` |
 
-The referenced name must exist in the same agent or be a shared resource at the file level; otherwise loading fails.
+The referenced Resource must be registered on the Agent or its execution environment.
+The setup's `name: review_analysis_model` identifies the Resource in your application;
+its `model: qwen3:8b` selects the model on the Ollama server.
+
+An Action can send a `ChatRequestEvent` naming `review_analysis_model` to use the
+[built-in chat Action]({{< ref "docs/development/calling-llms/chat#chat-events" >}}),
+which gets and calls the model Resource. This event-based path is provided by the built-in
+Action; registering a Resource alone does not create an Event handler for it.
 
 #### Actions
 
 `actions:` is a list. Each entry is either an inline action **map** or, when reusing a shared action, a bare **string** referring to the shared action's name.
+
+[Built-in Actions]({{< ref "docs/development/create-agent/events#built-in-events-and-actions" >}})
+are registered automatically; you do not need to list them under `actions:`.
 
 Inline action (map) fields:
 

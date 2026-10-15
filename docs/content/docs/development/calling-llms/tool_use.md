@@ -341,10 +341,9 @@ that subtask). On JDK 21+ and in Python, chat and RAG calls also use this pool. 
 Java batches use a separate pool from the Action workers. The default batch parallelism is
 the host CPU count.
 
-Built-in actions for a **single key** run one at a time. In the usual chat → tool path, a chat
-async call finishes before `tool_call_action` starts, so they do not overlap on the same key.
-Contention appears mainly **across keys** on the same subtask: one key's parallel tool batch can
-delay another key's chat or RAG async work.
+Parallel tool calls share execution capacity with other external calls. A large tool
+batch may delay other model calls or retrieval requests. Use `async.batch.parallelism`
+to limit how many tools run concurrently.
 
 {{< hint warning >}}
 **Cross-key impact:** with defaults (`num-async-threads = 2× cores`, `async.batch.parallelism =
@@ -494,6 +493,6 @@ The built-in `tool_call_action` listens to `ToolRequestEvent`. For each tool cal
 
 Ordinary tool return values are converted to successful text responses as described in [Tool response content and metadata](#tool-response-content-and-metadata). A tool that completes normally but cannot perform the requested operation can return `ToolResponse.error("reason")`; an exception still represents an invocation failure. Both failure forms are recorded as failed tool calls in `ToolResponseEvent`.
 
-When the tool request comes from `chat_model_action`, the emitted `ToolResponseEvent` is automatically consumed by `chat_model_action` to continue the chat. See [Tool Calling in Chat with Models]({{< ref "docs/development/calling-llms/chat#built-in-events-and-actions" >}}) for details on how `chat_model_action` handles tool responses.
+When the tool request comes from `chat_model_action`, that Action automatically handles the emitted `ToolResponseEvent` to continue the chat. See [Tool Calling in Chat with Models]({{< ref "docs/development/calling-llms/chat#built-in-events-and-actions" >}}) for details on how `chat_model_action` handles tool responses.
 
 Users can also send `ToolRequestEvent` directly when they want to invoke tools programmatically.
