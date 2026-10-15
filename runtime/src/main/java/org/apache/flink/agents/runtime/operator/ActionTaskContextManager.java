@@ -30,7 +30,7 @@ import org.apache.flink.agents.runtime.chat.ChatCallOwner;
 import org.apache.flink.agents.runtime.chat.ChatContext;
 import org.apache.flink.agents.runtime.context.JavaRunnerContextImpl;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
-import org.apache.flink.agents.runtime.lifecycle.ComponentExecutionListener;
+import org.apache.flink.agents.runtime.context.RunnerContextImpl.ExecutionReportingContext;
 import org.apache.flink.agents.runtime.memory.CachedMemoryStore;
 import org.apache.flink.agents.runtime.memory.InteranlBaseLongTermMemory;
 import org.apache.flink.agents.runtime.memory.MemoryObjectImpl;
@@ -62,8 +62,8 @@ import java.util.function.Function;
  *       RunnerContextImpl#switchActionContext}.
  *   <li>A single per-{@link ActionTask} contexts record ({@link ActionTaskContexts}) that survives
  *       across the boundary between a finishing action and the action it generates: memory context,
- *       continuation context (for async Java actions), the Python awaitable reference, and the
- *       component execution listeners, created, transferred, and removed as one unit.
+ *       continuation context (for async Java actions), the Python awaitable reference, and the call
+ *       reporting state, created, transferred, and removed as one unit.
  *   <li>The {@link ContinuationActionExecutor} thread pool used to run async Java continuations.
  * </ul>
  *
@@ -132,7 +132,7 @@ class ActionTaskContextManager implements AutoCloseable {
         @Nullable private ChatContext chatContext;
         @Nullable private SubgraphInvocation<?> subgraphInvocation;
         private List<Event> pendingEvents = new ArrayList<>();
-        @Nullable private List<ComponentExecutionListener> componentListeners;
+        @Nullable private ExecutionReportingContext executionReportingContext;
         @Nullable private String contextKey;
     }
 
@@ -246,10 +246,10 @@ class ActionTaskContextManager implements AutoCloseable {
      *   <li>Selects a Java or Python runner context based on the action's {@code Exec} type.
      *   <li>Reuses any existing {@link RunnerContextImpl.MemoryContext} for this task; otherwise
      *       builds a fresh one backed by the supplied sensory/short-term memory states.
-     *   <li>Creates or reuses the per-action-execution component listener list and wires it onto
-     *       the runner context.
+     *   <li>Creates or reuses the per-Action call reporting context and wires it onto the runner
+     *       context.
      *   <li>Calls {@link RunnerContextImpl#switchActionContext} so the shared context now points at
-     *       this action's name, memory, key namespace, and component listener list.
+     *       this Action's name, memory, key namespace, and call reporting context.
      *   <li>For Java contexts, attaches a continuation context (re-used if the task is resuming
      *       from an async suspend, fresh otherwise).
      *   <li>For Python contexts, attaches the per-task awaitable reference (or {@code null} if the
@@ -282,8 +282,8 @@ class ActionTaskContextManager implements AutoCloseable {
             @Nullable InteranlBaseLongTermMemory longTermMemory,
             @Nullable RunnerContextImpl.ResourceScope resourceScope,
             @Nullable
-                    Function<ActionTask, List<ComponentExecutionListener>>
-                            componentListenerFactory) {
+                    Function<ActionTask, ExecutionReportingContext>
+                            executionReportingContextFactory) {
         if (!hasContexts(actionTask)) {
             // First preparation of a root task materializes its contexts. Re-preparations of a
             // suspended task, or preparation of a generated successor, already have one (created by
@@ -361,7 +361,7 @@ class ActionTaskContextManager implements AutoCloseable {
                 contextKey,
                 actionTask.getObservationId(),
                 MemoryEvent.isMemoryType(actionTask.event.getType()),
-                getOrCreateComponentListeners(actionTask, componentListenerFactory));
+                getOrCreateExecutionReportingContext(actionTask, executionReportingContextFactory));
         // Applied on every switch (possibly null): the shared context must not inherit the scope
         // of whichever task was wired on previously.
         context.setResourceScope(getResourceScope(actionTask));
@@ -413,7 +413,7 @@ class ActionTaskContextManager implements AutoCloseable {
                 requireContexts(actionTask).contextKey,
                 actionTask.getObservationId(),
                 MemoryEvent.isMemoryType(actionTask.event.getType()),
-                requireContexts(actionTask).componentListeners);
+                requireContexts(actionTask).executionReportingContext);
         context.setResourceScope(getResourceScope(actionTask));
         context.setChatContext(requireContexts(actionTask).chatContext);
         context.setSubgraphCalls(subgraphCalls);
@@ -477,14 +477,12 @@ class ActionTaskContextManager implements AutoCloseable {
         // outlives the removed contexts, so events emitted before a suspend survive into the
         // generated task.
         requireContexts(toTask).pendingEvents = fromTask.getRunnerContext().getPendingEvents();
+        // Retain the parent Action context and listeners for reports emitted after suspension.
+        requireContexts(toTask).executionReportingContext =
+                fromTask.getRunnerContext().getExecutionReportingContext();
         requireContexts(toTask).chatContext = fromTask.getRunnerContext().getChatContext();
         requireContexts(toTask).subgraphInvocation =
                 fromTask.getRunnerContext().getSubgraphInvocation();
-        // Carry over the execution's very listener instances: one that pairs a component's start
-        // report with its terminal report keeps that pairing in itself, so rebuilding them here
-        // would orphan the reports of components that started before the suspend.
-        requireContexts(toTask).componentListeners =
-                fromTask.getRunnerContext().getComponentExecutionListeners();
         RunnerContextImpl.DurableExecutionContext durableContext =
                 fromTask.getRunnerContext().getDurableExecutionContext();
         if (durableContext != null) {
@@ -512,19 +510,19 @@ class ActionTaskContextManager implements AutoCloseable {
     }
 
     @Nullable
-    private List<ComponentExecutionListener> getOrCreateComponentListeners(
+    private ExecutionReportingContext getOrCreateExecutionReportingContext(
             ActionTask actionTask,
             @Nullable
-                    Function<ActionTask, List<ComponentExecutionListener>>
-                            componentListenerFactory) {
-        if (componentListenerFactory == null) {
+                    Function<ActionTask, ExecutionReportingContext>
+                            executionReportingContextFactory) {
+        if (executionReportingContextFactory == null) {
             return null;
         }
         ActionTaskContexts contexts = requireContexts(actionTask);
-        if (contexts.componentListeners == null) {
-            contexts.componentListeners = componentListenerFactory.apply(actionTask);
+        if (contexts.executionReportingContext == null) {
+            contexts.executionReportingContext = executionReportingContextFactory.apply(actionTask);
         }
-        return contexts.componentListeners;
+        return contexts.executionReportingContext;
     }
 
     @Nullable

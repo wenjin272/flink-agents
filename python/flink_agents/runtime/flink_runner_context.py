@@ -701,23 +701,6 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
         event : Event
             The event to be processed by the agent system.
         """
-        preset = [
-            f"{name}={value}"
-            for name, value in (
-                ("upstream_event_id", event.upstream_event_id),
-                ("upstream_action_name", event.upstream_action_name),
-            )
-            if value is not None
-        ]
-        if preset:
-            # Java's sendEvent checks this too; checking here names the Python fields.
-            err_msg = (
-                f"Event '{event.get_type()}' ({event.id}) already carries "
-                f"{' and '.join(preset)}. The runtime sets lineage when an Action "
-                "emits an Event: emit a new Event rather than one received from "
-                "another Action, and keep user metadata in attributes."
-            )
-            raise ValueError(err_msg)
         store_event_attachments(event, self)
         event_json = event.model_dump_json()
         try:
@@ -1002,11 +985,13 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
     @override
     def report_execution_created(
         self,
+        execution_id: str,
         entity_type: str,
         entity_name: str,
         entity_metadata: Mapping[str, Any] | None = None,
     ) -> None:
         self._j_runner_context.reportExecutionCreatedJson(
+            execution_id,
             entity_type,
             entity_name,
             self._entity_metadata_json(entity_metadata),
@@ -1015,11 +1000,13 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
     @override
     def report_execution_started(
         self,
+        execution_id: str,
         entity_type: str,
         entity_name: str,
         entity_metadata: Mapping[str, Any] | None = None,
     ) -> None:
         self._j_runner_context.reportExecutionStartedJson(
+            execution_id,
             entity_type,
             entity_name,
             self._entity_metadata_json(entity_metadata),
@@ -1028,12 +1015,14 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
     @override
     def report_execution_started_at(
         self,
+        execution_id: str,
         entity_type: str,
         entity_name: str,
         entity_metadata: Mapping[str, Any] | None,
         timestamp: str,
     ) -> None:
         self._j_runner_context.reportExecutionStartedAtJson(
+            execution_id,
             entity_type,
             entity_name,
             self._entity_metadata_json(entity_metadata),
@@ -1043,11 +1032,13 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
     @override
     def report_execution_succeeded(
         self,
+        execution_id: str,
         entity_type: str,
         entity_name: str,
         entity_metadata: Mapping[str, Any] | None = None,
     ) -> None:
         self._j_runner_context.reportExecutionSucceededJson(
+            execution_id,
             entity_type,
             entity_name,
             self._entity_metadata_json(entity_metadata),
@@ -1056,12 +1047,14 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
     @override
     def report_execution_succeeded_at(
         self,
+        execution_id: str,
         entity_type: str,
         entity_name: str,
         entity_metadata: Mapping[str, Any] | None,
         timestamp: str,
     ) -> None:
         self._j_runner_context.reportExecutionSucceededAtJson(
+            execution_id,
             entity_type,
             entity_name,
             self._entity_metadata_json(entity_metadata),
@@ -1071,6 +1064,7 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
     @override
     def report_execution_failed(
         self,
+        execution_id: str,
         entity_type: str,
         entity_name: str,
         entity_metadata: Mapping[str, Any] | None,
@@ -1080,6 +1074,7 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
         root_error = _root_cause(error)
         error_message = str(root_error)
         self._j_runner_context.reportExecutionFailedJson(
+            execution_id,
             entity_type,
             entity_name,
             self._entity_metadata_json(entity_metadata),
@@ -1091,6 +1086,7 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
     @override
     def report_execution_failed_at(
         self,
+        execution_id: str,
         entity_type: str,
         entity_name: str,
         entity_metadata: Mapping[str, Any] | None,
@@ -1101,6 +1097,7 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
         root_error = _root_cause(error)
         error_message = str(root_error)
         self._j_runner_context.reportExecutionFailedAtJson(
+            execution_id,
             entity_type,
             entity_name,
             self._entity_metadata_json(entity_metadata),

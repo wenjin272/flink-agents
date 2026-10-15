@@ -18,7 +18,6 @@
 package org.apache.flink.agents.runtime.operator;
 
 import org.apache.flink.agents.api.Event;
-import org.apache.flink.agents.api.EventContext;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
 import org.apache.flink.agents.api.agents.AgentExecutionOptions;
@@ -26,7 +25,8 @@ import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.api.event.AgentRunBeginEvent;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
-import org.apache.flink.agents.api.trace.ExecutionTraceContext;
+import org.apache.flink.agents.api.trace.TraceContext;
+import org.apache.flink.agents.api.trace.TraceRecord;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.plan.JavaFunction;
 import org.apache.flink.agents.plan.PythonFunction;
@@ -39,7 +39,7 @@ import org.apache.flink.agents.runtime.actionstate.ActionStateStore;
 import org.apache.flink.agents.runtime.async.ContinuationActionExecutor;
 import org.apache.flink.agents.runtime.async.ContinuationContext;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
-import org.apache.flink.agents.runtime.eventlog.EventLogWriter;
+import org.apache.flink.agents.runtime.context.RunnerContextImpl.ExecutionReportingContext;
 import org.apache.flink.agents.runtime.lifecycle.ComponentExecutionListener;
 import org.apache.flink.agents.runtime.lifecycle.PythonTaskLifecycleListener;
 import org.apache.flink.agents.runtime.lifecycle.TaskLifecycleListener;
@@ -59,9 +59,8 @@ import org.apache.flink.agents.runtime.subagent.InternalSubagentSetup;
 import org.apache.flink.agents.runtime.subgraph.SubgraphEvent;
 import org.apache.flink.agents.runtime.subgraph.SubgraphFailureEvent;
 import org.apache.flink.agents.runtime.subgraph.SubgraphInvocation;
-import org.apache.flink.agents.runtime.trace.EventLogComponentExecutionListener;
-import org.apache.flink.agents.runtime.trace.EventLogTaskLifecycleListener;
-import org.apache.flink.agents.runtime.trace.ExecutionEventLogger;
+import org.apache.flink.agents.runtime.trace.TraceTaskLifecycleListener;
+import org.apache.flink.agents.runtime.tracelog.TraceLogWriter;
 import org.apache.flink.agents.runtime.utils.EventUtil;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.operators.MailboxExecutor;
@@ -220,9 +219,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
     private final transient EventRouter<IN, OUT> eventRouter;
 
-    private final transient ExecutionEventLogger executionEventLogger;
-
-    private final transient EventLogWriter eventLogWriter;
+    private final transient TraceLogWriter traceLogWriter;
 
     private final transient DurableExecutionManager durableExecManager;
 
@@ -241,10 +238,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     private final boolean pythonKeyIsPickled;
     private final boolean agentRunBeginEventEnabled;
 
-    // Broadcast targets for the per-record/per-action lifecycle events.
+    // Listeners for input processing and Action progress.
     private transient List<TaskLifecycleListener> taskLifecycleListeners = new ArrayList<>();
 
-    // Broadcast targets for component execution reports, injected per action execution.
+    // Listeners for calls made within an Action, attached to each Action's context.
     private transient List<ComponentExecutionListener> componentExecutionListeners =
             new ArrayList<>();
 
@@ -260,9 +257,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         this.mailboxExecutor = mailboxExecutor;
         this.inputIsJava = inputIsJava;
         this.pythonKeyIsPickled = pythonKeyIsPickled;
-        this.eventLogWriter = EventLogWriter.create(agentPlan);
-        this.eventRouter = new EventRouter<>(agentPlan, inputIsJava, eventLogWriter);
-        this.executionEventLogger = ExecutionEventLogger.forEventLogWriter(eventLogWriter);
+        this.traceLogWriter = TraceLogWriter.create(agentPlan);
+        this.eventRouter = new EventRouter<>(agentPlan, inputIsJava, traceLogWriter);
         this.durableExecManager = new DurableExecutionManager(actionStateStore);
         this.agentRunBeginEventEnabled =
                 Boolean.TRUE.equals(
@@ -397,7 +393,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
         mailboxProcessor = getMailboxProcessor();
 
-        eventLogWriter.open(getRuntimeContext(), builtInMetrics);
+        traceLogWriter.open(getRuntimeContext(), builtInMetrics);
 
         // Initialize user event listeners from configuration
         eventRouter.initEventListeners(getRuntimeContext());
@@ -514,27 +510,50 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     /** Resolves one context key for an input and reuses it for the entire agent run. */
     private void processInputEvent(Object key, Event inputEvent) throws Exception {
         final String contextKey;
-        final ExecutionTraceContext traceContext;
+        final TraceContext inputRunContext;
         try {
             contextKey = resolveContextKey(key);
-            traceContext = ExecutionTraceContext.forInputRun(contextKey, agentPlan.getAgentName());
+            inputRunContext = TraceContext.forInputRun(contextKey, agentPlan.getAgentName());
         } catch (Exception e) {
             builtInMetrics.markInputEventFailed(inputEvent);
             throw e;
         }
-        builtInMetrics.markInputRunStarted(inputEvent, traceContext);
+        builtInMetrics.markInputRunStarted(inputEvent, inputRunContext);
         try {
-            processEvent(key, contextKey, inputEvent, traceContext);
+            TraceContext eventTraceContext =
+                    TraceContext.forEvent(
+                            inputRunContext,
+                            inputEvent.getType(),
+                            inputEvent.getId().toString(),
+                            null,
+                            null);
+            processEvent(key, contextKey, inputEvent, eventTraceContext);
         } catch (Exception e) {
-            builtInMetrics.markInputRunFailed(traceContext.getInputRunId());
+            builtInMetrics.markInputRunFailed(inputRunContext.getInputRunId());
             throw e;
         }
     }
 
-    private void processEvent(
-            Object key, String contextKey, Event event, ExecutionTraceContext traceContext)
+    /** Processes an Action's output Event with its producer and upstream references populated. */
+    private void processActionOutputEvent(
+            Object key, String contextKey, Event outputEvent, ActionTask actionTask)
             throws Exception {
-        eventRouter.notifyEventProcessed(event, traceContext);
+        TraceContext actionTraceContext = actionTask.getTraceContext();
+        TraceContext eventTraceContext =
+                TraceContext.forEvent(
+                        actionTraceContext,
+                        outputEvent.getType(),
+                        outputEvent.getId().toString(),
+                        (String) actionTraceContext.getEntityMetadata().get("triggerEventId"),
+                        actionTraceContext.getEntityName());
+        processEvent(key, contextKey, outputEvent, eventTraceContext);
+    }
+
+    /** Processes an Event whose identity and source references are already populated. */
+    private void processEvent(
+            Object key, String contextKey, Event event, TraceContext eventTraceContext)
+            throws Exception {
+        eventRouter.notifyEventProcessed(event, eventTraceContext);
 
         if (event instanceof SubgraphEvent) {
             SubgraphEvent envelope = (SubgraphEvent) event;
@@ -547,7 +566,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                                 action,
                                 envelope,
                                 stateManager.getSequenceNumber(),
-                                traceContext));
+                                eventTraceContext));
             }
             return;
         }
@@ -578,7 +597,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 }
                 stateManager.addProcessingKey(key);
                 stateManager.initOrIncSequenceNumber();
-                tryEmitAgentRunBeginEvent(key, contextKey, event, traceContext);
+                tryEmitAgentRunBeginEvent(key, contextKey, event, eventTraceContext);
             }
             // We then obtain the triggered action and add ActionTasks to the waiting processing
             // queue.
@@ -591,7 +610,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                                     triggerAction,
                                     event,
                                     stateManager.getSequenceNumber(),
-                                    traceContext));
+                                    eventTraceContext));
                     if (freshRecordRound) {
                         notifyRecordStart(key);
                         freshRecordRound = false;
@@ -608,7 +627,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                                 INTERNAL_NOOP_INPUT_ACTION,
                                 event,
                                 stateManager.getSequenceNumber(),
-                                traceContext));
+                                eventTraceContext));
                 executionCoordinator.addTask(key);
             }
         }
@@ -617,7 +636,9 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             // Kick mail for the normal engine only: it has no workers, so processActionTaskForKey
             // runs from the mail. The parallel engine's addTask above already dispatched permits.
             mailboxExecutor.submit(
-                    () -> tryProcessActionTaskForKey(key, contextKey, traceContext.getInputRunId()),
+                    () ->
+                            tryProcessActionTaskForKey(
+                                    key, contextKey, eventTraceContext.getInputRunId()),
                     "process action task");
         }
     }
@@ -627,7 +648,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
      * that input executes.
      */
     private void tryEmitAgentRunBeginEvent(
-            Object key, String contextKey, Event inputEvent, ExecutionTraceContext traceContext)
+            Object key, String contextKey, Event inputEvent, TraceContext inputEventTraceContext)
             throws Exception {
         if (!agentRunBeginEventEnabled) {
             return;
@@ -663,9 +684,14 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         if (inputEvent.hasSourceTimestamp()) {
             beginEvent.setSourceTimestamp(inputEvent.getSourceTimestamp());
         }
-        beginEvent.setUpstreamEventId(inputEvent.getId());
-        beginEvent.setUpstreamActionName(AGENT_RUN_BEGIN_ACTION_NAME);
-        processEvent(key, contextKey, beginEvent, traceContext);
+        TraceContext beginTraceContext =
+                TraceContext.forEvent(
+                        inputEventTraceContext,
+                        beginEvent.getType(),
+                        beginEvent.getId().toString(),
+                        inputEvent.getId().toString(),
+                        AGENT_RUN_BEGIN_ACTION_NAME);
+        processEvent(key, contextKey, beginEvent, beginTraceContext);
     }
 
     /** Kick mail used only on the normal engine to drive queued-task processing for a key. */
@@ -783,7 +809,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 pythonBridge.getPythonRunnerContext(),
                 ltm,
                 resourceScope,
-                this::createComponentListeners);
+                this::createExecutionReportingContext);
         notifyActionPrepared(actionTask);
 
         boolean isFinished;
@@ -805,7 +831,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                     key);
             isFinished = true;
             outputEvents =
-                    actionTask.finalizeOutputEvents(
+                    actionTask.validateOutputEvents(
                             completedActionOutputEvents(actionTask, actionState));
             MemoryUpdateReplayer.replay(
                     actionTask.getRunnerContext().getShortTermMemory(),
@@ -859,7 +885,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                                 actionTask
                                 .new ActionTaskResult(
                                         true,
-                                        actionTask.finalizeOutputEvents(
+                                        actionTask.validateOutputEvents(
                                                 List.of(
                                                         new SubgraphEvent(
                                                                 envelope.getInvocationId(),
@@ -912,7 +938,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         }
 
         for (Event actionOutputEvent : outputEvents) {
-            processEvent(key, contextKey, actionOutputEvent, actionTask.getTraceContext());
+            processActionOutputEvent(key, contextKey, actionOutputEvent, actionTask);
         }
         if (isFinished && actionTask.isSubgraphEvent()) {
             contextManager
@@ -1057,7 +1083,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                     contextManager,
                     resourceCache,
                     pythonBridge,
-                    eventLogWriter,
+                    traceLogWriter,
                     durableExecManager
                 }) {
             if (closeable == null) {
@@ -1229,52 +1255,37 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     }
 
     private void notifyActionStarted(ActionTask actionTask) {
-        if (actionTask.hasExecutionStartedEventEmitted()) {
+        if (actionTask.isExecutionStartedNotified()) {
             return;
         }
         for (TaskLifecycleListener listener : taskLifecycleListeners) {
             listener.onActionStarted(actionTask);
         }
-        actionTask.markExecutionStartedEventEmitted();
+        actionTask.markExecutionStartedNotified();
     }
 
     private void registerBuiltInLifecycleListeners() {
         addTaskLifecycleListener(
-                new EventLogTaskLifecycleListener(
-                        (eventContext, event, traceContext) ->
-                                observeExecutionEvent(
-                                        traceContext.getEntityName(),
-                                        eventContext,
-                                        event,
-                                        traceContext)));
+                new TraceTaskLifecycleListener(
+                        record ->
+                                observeExecutionRecord(
+                                        record.getContext().getEntityName(), record)));
     }
 
     /**
-     * Builds the component execution listeners of one action execution: the per-execution event log
-     * adapter first, followed by the globally registered listeners.
+     * Creates call reporting context for one Action execution. Complete observations reach the
+     * built-in writer and metrics first, followed by registered listeners.
      */
-    private List<ComponentExecutionListener> createComponentListeners(ActionTask actionTask) {
+    private ExecutionReportingContext createExecutionReportingContext(ActionTask actionTask) {
         List<ComponentExecutionListener> listeners = new ArrayList<>();
-        listeners.add(
-                new EventLogComponentExecutionListener(
-                        actionTask.getTraceContext(),
-                        (eventContext, event, traceContext) ->
-                                observeExecutionEvent(
-                                        actionTask.getAction().getName(),
-                                        eventContext,
-                                        event,
-                                        traceContext)));
+        listeners.add(record -> observeExecutionRecord(actionTask.getAction().getName(), record));
         listeners.addAll(componentExecutionListeners);
-        return listeners;
+        return new ExecutionReportingContext(actionTask.getTraceContext(), listeners);
     }
 
-    private void observeExecutionEvent(
-            String actionName,
-            EventContext eventContext,
-            Event event,
-            ExecutionTraceContext traceContext) {
-        executionEventLogger.emit(eventContext, event, traceContext);
-        builtInMetrics.markExecutionEvent(actionName, eventContext, event, traceContext);
+    private void observeExecutionRecord(String actionName, TraceRecord record) {
+        traceLogWriter.appendAndFlush(record);
+        builtInMetrics.markExecutionRecord(actionName, record);
     }
 
     /**
@@ -1340,18 +1351,16 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     }
 
     /**
-     * Registers a listener to be notified of per-record/per-action lifecycle events. The
-     * registration itself is not part of the operator state, so it must happen before records are
-     * processed.
+     * Registers a listener for input processing and Action progress. The registration itself is not
+     * part of the operator state, so it must happen before records are processed.
      */
     public void addTaskLifecycleListener(TaskLifecycleListener listener) {
         taskLifecycleListeners.add(listener);
     }
 
     /**
-     * Registers a listener to be notified of component execution reports of every action execution.
-     * The registration itself is not part of the operator state, so it must happen before records
-     * are processed.
+     * Registers a listener for calls made within each Action. The registration itself is not part
+     * of the operator state, so it must happen before records are processed.
      */
     public void addComponentExecutionListener(ComponentExecutionListener listener) {
         componentExecutionListeners.add(listener);
@@ -1417,9 +1426,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             Action action,
             Event event,
             long sequenceNumber,
-            ExecutionTraceContext sourceTraceContext) {
-        ExecutionTraceContext actionTraceContext =
-                ExecutionTraceContext.forAction(sourceTraceContext, action.getName());
+            TraceContext eventTraceContext) {
+        TraceContext actionTraceContext =
+                TraceContext.forAction(
+                        eventTraceContext, action.getName(), event.getId().toString());
         if (action.getExec() instanceof JavaFunction) {
             return new JavaActionTask(key, event, action, sequenceNumber, actionTraceContext);
         } else if (action.getExec() instanceof PythonFunction) {
@@ -1469,7 +1479,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     private void enqueueActionTask(ActionTask actionTask) throws Exception {
         stateManager.addActionTask(actionTask);
         builtInMetrics.markActionTaskEnqueued(
-                actionTask.getTraceContext(), actionTask.hasExecutionStartedEventEmitted());
+                actionTask.getTraceContext(), actionTask.isExecutionStartedNotified());
     }
 
     @Nullable
@@ -1477,7 +1487,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         ActionTask actionTask = stateManager.pollNextActionTask();
         if (actionTask != null && !isInternalNoopInputAction(actionTask.action)) {
             builtInMetrics.markActionTaskDequeued(
-                    actionTask.getTraceContext(), actionTask.hasExecutionStartedEventEmitted());
+                    actionTask.getTraceContext(), actionTask.isExecutionStartedNotified());
         }
         return actionTask;
     }
@@ -1503,7 +1513,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                     for (ActionTask actionTask : rootTasks) {
                         builtInMetrics.restoreActionTask(
                                 actionTask.getTraceContext(),
-                                actionTask.hasExecutionStartedEventEmitted());
+                                actionTask.isExecutionStartedNotified());
                     }
                 });
 
@@ -1639,7 +1649,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                         // internal sub-agents require, so a sub-agent event never reaches this
                         // path and there is no scope to bind here.
                         null,
-                        ActionExecutionOperator.this::createComponentListeners);
+                        ActionExecutionOperator.this::createExecutionReportingContext);
 
                 // The synthetic noop input action stays lifecycle-silent.
                 boolean lifecycleVisible = !isInternalNoopInputAction(task.action);
@@ -1788,7 +1798,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
             for (Event actionOutputEvent : result.getOutputEvents()) {
                 try {
-                    processEvent(key, contextKey, actionOutputEvent, actionTask.getTraceContext());
+                    processActionOutputEvent(key, contextKey, actionOutputEvent, actionTask);
                 } catch (Throwable t) {
                     // Mirror the serial kick-mail wrapper (tryProcessActionTaskForKey): surface
                     // output-event processing failures as ActionTaskExecutionException so callers

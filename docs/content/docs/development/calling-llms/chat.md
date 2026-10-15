@@ -181,6 +181,7 @@ In the request, `ollama_chat_model` (Python) or `ollamaChatModel` (Java) names t
 - On failure, `event.getError()` (Java) or `event.error` (Python) provides an error
   description. Check `event.isFailed()` / `event.is_failed` before reading the
   response: accessing the response of a failed event raises an exception.
+  Serialization and trace logging do not invoke these accessors.
 
 If you requested structured output, read the parsed result from
 `event.getStructuredOutput()` (Java) or `event.structured_output` (Python). See

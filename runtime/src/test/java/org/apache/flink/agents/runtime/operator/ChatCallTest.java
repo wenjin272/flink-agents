@@ -17,6 +17,8 @@
  */
 package org.apache.flink.agents.runtime.operator;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.agents.api.Event;
 import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
@@ -27,6 +29,7 @@ import org.apache.flink.agents.api.chat.messages.ChatMessage;
 import org.apache.flink.agents.api.chat.messages.ChatResult;
 import org.apache.flink.agents.api.chat.messages.ToolCallBlock;
 import org.apache.flink.agents.api.chat.model.BaseChatModelSetup;
+import org.apache.flink.agents.api.configuration.AgentConfigOptions;
 import org.apache.flink.agents.api.context.DurableCallable;
 import org.apache.flink.agents.api.context.DurableFuture;
 import org.apache.flink.agents.api.context.RunnerContext;
@@ -34,6 +37,8 @@ import org.apache.flink.agents.api.event.ChatRequestEvent;
 import org.apache.flink.agents.api.event.ChatResponseEvent;
 import org.apache.flink.agents.api.event.ToolRequestEvent;
 import org.apache.flink.agents.api.event.ToolResponseEvent;
+import org.apache.flink.agents.api.logger.LoggerType;
+import org.apache.flink.agents.api.logger.TraceLogTarget;
 import org.apache.flink.agents.api.resource.ResourceContext;
 import org.apache.flink.agents.api.resource.ResourceDescriptor;
 import org.apache.flink.agents.api.resource.ResourceType;
@@ -41,10 +46,14 @@ import org.apache.flink.agents.api.subagent.SubagentResult;
 import org.apache.flink.agents.api.subagent.SubagentSetup;
 import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.agents.api.tools.ToolParameterSource;
+import org.apache.flink.agents.api.trace.ExecutionReporter;
+import org.apache.flink.agents.api.trace.TraceContext;
+import org.apache.flink.agents.api.trace.TraceRecord;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.runtime.actionstate.ActionState;
 import org.apache.flink.agents.runtime.actionstate.ActionStateSerde;
 import org.apache.flink.agents.runtime.actionstate.InMemoryActionStateStore;
+import org.apache.flink.agents.runtime.subgraph.SubgraphEvent;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
@@ -56,9 +65,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledForJreRange;
 import org.junit.jupiter.api.condition.JRE;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -243,10 +256,49 @@ public class ChatCallTest {
     }
 
     @Test
-    void fullChatToolChatLoopWithAsyncWorkerWait() throws Exception {
-        assertThat(run("tool")).containsExactly("answer:tool");
+    void fullChatToolChatLoopWithAsyncWorkerWait(@TempDir Path logDir) throws Exception {
+        AgentPlan plan = plan();
+        plan.getConfig().set(AgentConfigOptions.TRACE_LOG_OUTPUT_TYPE, LoggerType.FILE);
+        plan.getConfig().set(AgentConfigOptions.TRACE_LOG_OUTPUT_BASE_DIR, logDir.toString());
+        plan.getConfig().set(AgentConfigOptions.TRACE_LOG_TARGETS, List.of(TraceLogTarget.all()));
+        assertThat(run(plan, "tool")).containsExactly("answer:tool");
         assertThat(MODEL_CALLS.get()).isEqualTo(2);
         assertThat(TOOL_CALLS.get()).isEqualTo(1);
+
+        Map<String, JsonNode> startedActions = new LinkedHashMap<>();
+        List<JsonNode> subgraphEvents = new ArrayList<>();
+        ObjectMapper mapper = new ObjectMapper();
+        try (DirectoryStream<Path> logs = Files.newDirectoryStream(logDir, "traces-*.log")) {
+            for (Path log : logs) {
+                for (String line : Files.readAllLines(log)) {
+                    JsonNode record = mapper.readTree(line);
+                    String entityType = record.path("entityType").asText();
+                    if (ExecutionReporter.EntityTypes.ACTION.equals(entityType)
+                            && TraceRecord.Statuses.STARTED.equals(
+                                    record.path("status").asText())) {
+                        startedActions.put(record.path("executionId").asText(), record);
+                    } else if (TraceContext.EVENT_ENTITY_TYPE.equals(entityType)
+                            && SubgraphEvent.EVENT_TYPE.equals(
+                                    record.path("entityName").asText())) {
+                        subgraphEvents.add(record);
+                    }
+                }
+            }
+        }
+        assertThat(subgraphEvents).isNotEmpty();
+        for (JsonNode event : subgraphEvents) {
+            JsonNode metadata = event.path("entityMetadata");
+            assertThat(event.hasNonNull("executionId")).isFalse();
+            assertThat(metadata.path("eventId").asText()).isNotBlank();
+            JsonNode producer = startedActions.get(metadata.path("producerExecutionId").asText());
+            assertThat(producer).isNotNull();
+            assertThat(event.path("inputRunId").asText())
+                    .isEqualTo(producer.path("inputRunId").asText());
+            assertThat(metadata.path("upstreamEventId").asText())
+                    .isEqualTo(producer.path("entityMetadata").path("triggerEventId").asText());
+            assertThat(metadata.path("upstreamActionName").asText())
+                    .isEqualTo(producer.path("entityName").asText());
+        }
     }
 
     @Test

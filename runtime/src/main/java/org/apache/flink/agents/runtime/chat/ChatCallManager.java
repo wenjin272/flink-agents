@@ -59,7 +59,6 @@ public final class ChatCallManager {
         ChatCallOwner owner = context.getChatContext().getOwner();
         Preconditions.checkState(owner != null, "Chat calls must be awaited inside an action");
         ChatRequestEvent supplied = (ChatRequestEvent) Event.fromJson(requestJson);
-        RunnerContextImpl.checkNoPresetLineage(supplied);
         String id = owner.nextCallId();
         Optional<Outcome<ChatResponseEvent>> cached =
                 context.tryGetCachedResult("builtin-chat:" + id, ChatResponseEvent.class);

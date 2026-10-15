@@ -37,7 +37,7 @@ The key features of Apache Flink Agents include:
 - **Familiar Agent Abstractions**: Leverages well-known AI agent concepts - skills, short/long-term memory, prompts, tools, and dynamic orchestration - making it easy for developers experienced with agent-based systems to quickly adopt and build on Apache Flink Agents without a steep learning curve.
 - **Multi-Language Support**: Provides Java, Python, and YAML APIs for defining Agents. Actions and supported Resources can be implemented in Java or Python and used across languages. See [Choose APIs and Languages]({{< ref "docs/development/create-agent/choose-apis-and-languages" >}}).
 - **Rich Ecosystem**: Natively integrates mainstream LLMs, vector stores from diverse providers, and tools or prompts hosted on MCP servers into your agents, while enabling customizable extensions.
-- **Observability**: Adopts an event-centric orchestration approach, where all agent actions are connected and controlled by events, enabling observation and understanding of agent behavior through the event log.
+- **Observability**: Provides structured [Trace Log]({{< ref "docs/operations/monitoring#trace-log" >}}) output for Events, Actions, and component calls, so developers can inspect agent behavior and correlate calls with their triggering Events. Built-in metrics report call outcomes, latency, and model usage independently of log selection.
 
 ## Getting Started
 
