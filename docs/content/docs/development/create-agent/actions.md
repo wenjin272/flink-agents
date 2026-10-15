@@ -281,13 +281,15 @@ public class ReviewTextAgent extends Agent {
 
 {{< /tabs >}}
 
-You can also send Events handled by built-in Actions. For example, a `ChatRequestEvent`
+Flink Agents automatically registers [built-in Actions]({{< ref "docs/development/create-agent/events#built-in-events-and-actions" >}})
+to handle common request Events. For example, a `ChatRequestEvent`
 asks the [built-in chat Action]({{< ref "docs/development/calling-llms/chat#chat-events" >}})
 to call a registered model and send a `ChatResponseEvent`.
 
-Create a new Event when sending data to another Action. See
-[Events]({{< ref "docs/development/create-agent/events" >}}) for payloads, custom Event types,
-and Event identity.
+You can also define your own Events to pass data between Actions. See
+[Creating and Handling Events]({{< ref "docs/development/create-agent/events#unified-event" >}})
+for examples, or use [Custom Event Subclasses]({{< ref "docs/development/create-agent/events#custom-event-subclasses" >}})
+to add typed access and validation.
 
 {{< hint info >}}
 `OutputEvent` is emitted directly downstream and bypasses Action matching. Therefore, an

@@ -187,6 +187,12 @@ Follow these rules:
 - Keep integers within the target type's range and use finite floating-point values.
   Encode exact decimals and larger numbers as strings when precision must be preserved.
 
+These conversion rules describe application payloads. Built-in Event classes and their
+declared typed attributes are restored automatically at the JSON boundary; custom Event
+subclasses require explicit reconstruction. See
+[Serialization and Typed Values]({{< ref "docs/development/create-agent/events#json-serialization" >}})
+for examples of restoring Event and payload types.
+
 {{< hint info >}}
 Flink Agents uses a Java runtime. Data from the Python API crosses the Python-Java
 boundary even when every Action and Resource is implemented in Python. The rules in

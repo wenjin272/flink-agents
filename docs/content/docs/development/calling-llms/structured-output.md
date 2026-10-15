@@ -105,7 +105,9 @@ ctx.sendEvent(
 
 ## Read the Result
 
-A ReAct Agent emits the parsed object as its output. In a custom action, read it from the successful `ChatResponseEvent`. For a typed class, Java returns an instance of the POJO. Python returns the model instance, or its fields as a `dict` once the event has been serialized, so validate it back into the model. For a `RowTypeInfo`, the result is a `Row`.
+A ReAct Agent emits the parsed object as its output. In a custom Action, read the
+structured output from a successful `ChatResponseEvent`, as shown below.
+For a `RowTypeInfo`, the result is a `Row`.
 
 {{< tabs "Read the Result" >}}
 
@@ -137,6 +139,11 @@ public static void processResponse(Event event, RunnerContext ctx) throws Except
 {{< /tab >}}
 
 {{< /tabs >}}
+
+The structured output may sometimes arrive as a `Map` or `dict` instead of an instance
+of your application type. In that case, deserialize it into your application type
+before accessing its fields. See
+[Serialization and Typed Values]({{< ref "docs/development/create-agent/events#json-serialization" >}}).
 
 ## Choose a Strategy
 

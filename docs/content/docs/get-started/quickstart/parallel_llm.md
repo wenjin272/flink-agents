@@ -176,7 +176,7 @@ class ParallelChatAgent(Agent):
     def request_aspect_judgments(event: Event, ctx: RunnerContext) -> None:
         """Process input event and dispatch SentimentInputEvent to aspect handlers."""
         payload = InputEvent.from_event(event).input
-        # Primitive types (int, str) cross the Pemja JVM boundary without serialization.
+        # Store the input's primitive values in Sensory Memory.
         ctx.sensory_memory.set("id", payload["id"])
         ctx.sensory_memory.set("text", payload["text"])
         ctx.send_event(

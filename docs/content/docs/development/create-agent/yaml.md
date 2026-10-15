@@ -312,6 +312,9 @@ Action; registering a Resource alone does not create an Event handler for it.
 
 `actions:` is a list. Each entry is either an inline action **map** or, when reusing a shared action, a bare **string** referring to the shared action's name.
 
+[Built-in Actions]({{< ref "docs/development/create-agent/events#built-in-events-and-actions" >}})
+are registered automatically; you do not need to list them under `actions:`.
+
 Inline action (map) fields:
 
 | Field | Required | Description |
