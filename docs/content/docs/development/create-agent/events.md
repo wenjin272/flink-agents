@@ -52,7 +52,7 @@ def create_my_event(event: Event, ctx: RunnerContext) -> None:
         Event(type="my_event", attributes={"field1": "test", "field2": 42})
     )
 
-# Consume it in another action
+# Handle it in another action
 @action("my_event")
 @staticmethod
 def handle_my_event(event: Event, ctx: RunnerContext) -> None:
@@ -69,7 +69,7 @@ public static void createMyEvent(Event event, RunnerContext ctx) {
     ctx.sendEvent(new Event("my_event", Map.of("field1", "test", "field2", 42)));
 }
 
-// Consume it in another action
+// Handle it in another action
 @Action("my_event")
 public static void handleMyEvent(Event event, RunnerContext ctx) {
     String field1 = (String) event.getAttr("field1");

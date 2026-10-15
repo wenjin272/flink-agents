@@ -323,9 +323,9 @@ Other private helpers (`buildOutputEvent`) are omitted above; the full source is
 
 {{< hint warning >}}
 **Constraints when using parallel actions:**
-- **Dispatch action must exit immediately after sending events.** The action that emits `SentimentInputEvent` (i.e. `request_aspect_judgments`) should return right after calling `ctx.send_event(...)`. Do not `await`, block, or perform further business logic in the same action — the framework needs control back to schedule the parallel chat actions.
-- **Action handlers on the same key execute sequentially.** Multiple action invocations triggered by the same key are processed one at a time, not concurrently. This means `handle_taste_input` and `handle_service_input` are called in sequence. Each handler writes a single path-based entry (`aspect_map.<request_id>`) to sensory memory without reading back, so there is no conflict between the two. The actual LLM calls dispatched by these handlers still execute in parallel.
-- **Response handlers on the same key execute sequentially.** Multiple `ChatResponseEvent` triggers for the same key are processed one at a time, not concurrently. This means the path-based writes to `sentiments.<aspect>` in `handle_response` are safe and will not suffer from concurrent overwrites.
+- **Finish dispatch before waiting for downstream results.** The `request_aspect_judgments` Action's `SENTIMENT_INPUT_EVENT_TYPE` Event is routed after that Action finishes. Awaiting unrelated work can let other ready Actions run, but does not dispatch this buffered Event. Keep the dispatch Action short.
+- **Keep shared-memory updates in the Action body.** The request and response handlers in this example update Sensory Memory without awaiting between reading and writing it. If you add an await, another Action may update shared Memory before the handler resumes. Do not move Memory access into the asynchronous call itself.
+- **Check the runtime requirements for concurrent calls.** See [Async Execution]({{< ref "docs/development/create-agent/actions#async-execution" >}}) and [Execution Requirements]({{< ref "docs/development/create-agent/actions#execution-requirements" >}}) for scheduling behavior and setup.
 {{< /hint >}}
 
 ### Integrate the Agent with Flink

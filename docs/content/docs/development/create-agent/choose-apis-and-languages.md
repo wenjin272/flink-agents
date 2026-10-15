@@ -104,7 +104,9 @@ Both APIs provide asynchronous execution and `gather` for running multiple calls
 Python Actions use `async def` and `await`. Java Actions use
 `executeAsync(...).await()`, and Action scheduling and required JVM options depend on
 the JDK version. See [Async Execution]({{< ref "docs/development/create-agent/actions#async-execution" >}})
-for the complete API and runtime requirements.
+for call and batch examples, and
+[Execution Requirements]({{< ref "docs/development/create-agent/actions#execution-requirements" >}})
+for runtime prerequisites.
 
 ### Available integrations by language
 
