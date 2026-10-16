@@ -345,6 +345,10 @@ To migrate a job that previously emitted tombstones, first stop it cleanly so it
 
 Here are the configuration options for Fluss-based Action State Store.
 
+When taking a checkpoint, the store captures the bucket end offsets and then synchronously appends a fresh copy of each cached action state needed for replay before saving that recovery marker. States whose input sequence is at or below the key’s last completed sequence number in this checkpoint are skipped. Completed actions in unfinished inputs and all states for keys without a completed sequence number are still refreshed. This keeps durable call results available even when they were persisted before the checkpoint. Skipped states remain cached until checkpoint completion prunes them. Each snapshot adds one write per state needed for replay, so large numbers of unfinished inputs and frequent checkpoints increase Fluss traffic and checkpoint latency. A failed refresh fails the checkpoint.
+
+Fluss log retention must preserve the records from every checkpoint or savepoint you intend to restore. Refreshing state does not protect older restore points from retention or repair recovery markers created before this fix.
+
 | Key                          | Default          | Type    | Description                                                                              |
 |------------------------------|------------------|---------|------------------------------------------------------------------------------------------|
 | `flussBootstrapServers`      | "localhost:9123" | String  | The Fluss bootstrap servers address.                                                     |
