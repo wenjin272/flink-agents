@@ -196,7 +196,7 @@ def _build_tool(spec: ToolSpec) -> FunctionTool:
 
 
 def _build_prompt(spec: PromptSpec) -> Prompt:
-    if spec.text is not None:
+    if spec.text:
         return Prompt.from_text(spec.text)
     messages = [
         ChatMessage.of(MessageRole(m.role.value), m.content)

@@ -159,7 +159,7 @@ public final class YamlLoader {
 
     /** Build a {@link Prompt} from a parsed {@link PromptSpec}. */
     public static Prompt buildPrompt(PromptSpec spec) {
-        if (spec.getText() != null) {
+        if (spec.getText() != null && !spec.getText().isEmpty()) {
             return Prompt.fromText(spec.getText());
         }
         List<ChatMessage> messages =
