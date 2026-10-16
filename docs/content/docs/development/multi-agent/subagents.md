@@ -28,6 +28,11 @@ A sub-agent handles a task delegated by a parent agent. An internal sub-agent ru
 an agent workflow in the same job. An external sub-agent calls an agent service
 through a `SubagentSetup` implementation.
 
+To declare parent and child workflows in YAML, see
+[Declaring sub-agents]({{< ref "docs/development/create-agent/yaml#declaring-sub-agents" >}}).
+YAML supports references to internal child Agents in the same file and descriptors
+for external sub-agents.
+
 ## Declare an internal sub-agent
 
 Use `InternalSubagentResourceDescriptorBuilder` to attach a description and input
