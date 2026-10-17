@@ -33,8 +33,8 @@ Build an Agent that analyzes a stream of product reviews.
 Create the agents execution environment and register an Ollama connection as a named
 Resource of type `CHAT_MODEL_CONNECTION`. Registering it on the environment makes it available
 to the Agents in that environment. See
-[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}})
-for the shared registration and access model.
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for registration methods and shared Resource scope.
 
 {{< tabs "Prepare Agents Execution Environment" >}}
 

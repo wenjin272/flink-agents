@@ -30,7 +30,10 @@ MCP (Model Context Protocol) is a standardized protocol for integrating AI appli
 
 ## Declare MCP Server in Agent
 
-Developer can declare a mcp server by decorator/annotation when creating an Agent.
+Register the server as an `MCP_SERVER` Resource. The example below uses the
+Declaration API with a Python decorator or Java annotation; see
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for the common registration methods and scopes.
 
 {{< tabs "Use MCP Tools in Agent" >}}
 
@@ -65,7 +68,7 @@ public class ReviewAnalysisAgent extends Agent {
 {{< /tabs >}}
 
 **Key points:**
-- Use decorator/annotation to define MCP server connection
+- The examples use the Declaration API to register an MCP server connection:
   - In Python, use `@mcp_server`.
   - In Java, use `@MCPServer`.
 - Use the builder pattern in Java to configure the MCP server with endpoint, timeout, headers, and authentication
@@ -149,6 +152,11 @@ public static ResourceDescriptor myMcp() {
 
 MCP prompts and tools are managed by external MCP servers and automatically discovered when you define an MCP server connection in your agent.
 
+The example assumes that the server at `http://127.0.0.1:8000/mcp` provides a
+`review_analysis_prompt` prompt and a `notify_shipping_manager` tool. Reference
+the exact names exposed by the server in both Java and Python; Flink Agents does
+not convert them to match language naming conventions.
+
 {{< tabs "Use MCP Prompts and Tools in Agent" >}}
 
 {{< tab "Python" >}}
@@ -197,7 +205,7 @@ public class ReviewAnalysisAgent extends Agent {
                 // Reference MCP prompt by name like local prompt
                 .addInitialArgument("prompt", "review_analysis_prompt") 
                 // Reference MCP tool by name like function tool
-                .addInitialArgument("tools", Collections.singletonList("notifyShippingManager"))
+                .addInitialArgument("tools", Collections.singletonList("notify_shipping_manager"))
                 .build();
     }
 }

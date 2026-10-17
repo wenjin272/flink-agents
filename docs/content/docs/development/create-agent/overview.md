@@ -44,14 +44,8 @@ or combine both approaches.
 | **Action** | Reacts to matching Events, performs work, and can send new Events. One Event can trigger multiple Actions. | An Action reads a review and sends a request for a summary. |
 | **Resource** | A reusable, named runtime component that Actions or other Resources can use. | A chat model configured for summarizing reviews. |
 
-Common Resources include:
-
-- [Chat Models]({{< ref "docs/development/calling-llms/chat-models" >}}) for model calls.
-- [Tools]({{< ref "docs/development/calling-llms/tool_use" >}}) for callable operations.
-- [Prompts]({{< ref "docs/development/calling-llms/prompts" >}}) for reusable message templates.
-- [MCP Servers]({{< ref "docs/development/calling-llms/mcp" >}}) for accessing tools and prompts provided by external MCP servers.
-- [Vector Stores]({{< ref "docs/development/vector-search/vector_stores" >}}) for storing and retrieving embeddings and related data.
-- [Skills]({{< ref "docs/development/calling-llms/skills" >}}) for reusable instructions and supporting files.
+See [Resource Types]({{< ref "docs/development/create-agent/resources#resource-types" >}})
+for the available capabilities and their feature guides.
 
 [Memory]({{< ref "docs/development/memory/overview" >}}) lets Actions retain and retrieve
 information through the execution context. It is a separate API, not a Resource type.
@@ -92,26 +86,14 @@ To define this workflow:
 
 ### Registering and Referencing Resources
 
-Register a Resource with a name and a resource type. For example, `@chat_model_setup`
-in Python or `@ChatModelSetup` in Java registers a chat model under the declaration's method
-name. You can also use `add_resource` / `addResource` to supply the name and type explicitly.
-Register a Resource on the agents execution environment to make it available to multiple Agents.
+Register the Resources your Agent needs, then refer to them by name. For example,
+`@chat_model_setup` / `@ChatModelSetup` registers a model under the declaration's
+method name. A `ChatRequestEvent` uses that name to select the model.
 
-Inside an Action, use the execution context to get a Resource instance by its name and type,
-then use the instance's methods. For the model declared in the example below:
-
-- **Python:** `model = ctx.get_resource("review_model", ResourceType.CHAT_MODEL)`
-- **Java:** `Resource model = ctx.getResource("reviewModel", ResourceType.CHAT_MODEL)`
-
-Built-in Actions handle some Resource operations for you. For example, when you send a
-`ChatRequestEvent`, the [built-in chat Action]({{< ref "docs/development/calling-llms/chat#chat-events" >}})
-gets the named chat model Resource from the
-context, calls it, and sends a `ChatResponseEvent`. The example below uses this built-in
-Action, so your own Actions do not need to get and call the model directly. Sending an Event
-works here because an Action handles that Event and performs the Resource operation.
-
-Here, `review_model` / `reviewModel` names the Resource within your application;
-`qwen3:8b` selects the model on the Ollama server.
+The example below registers `review_model` / `reviewModel` for use within the Agent
+and references a connection shared through the agents execution environment. See
+[Resources]({{< ref "docs/development/create-agent/resources" >}}) for registration
+methods, scope, direct access, and cross-language use.
 
 ### Review Summary Example
 
@@ -191,6 +173,7 @@ public class ReviewSummaryAgent extends Agent {
 
 - Learn how to register Actions, define trigger conditions, and use async or durable execution
   in [Actions]({{< ref "docs/development/create-agent/actions" >}}).
+- Register and use shared capabilities in [Resources]({{< ref "docs/development/create-agent/resources" >}}).
 - Learn how to define and pass data in [Events]({{< ref "docs/development/create-agent/events" >}}).
 - [Choose APIs and Languages]({{< ref "docs/development/create-agent/choose-apis-and-languages" >}})
   for your application, or define an Agent with the

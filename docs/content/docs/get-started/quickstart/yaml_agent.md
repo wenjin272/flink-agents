@@ -193,7 +193,7 @@ A few things to notice in the YAML above:
 
 - A Resource's `name` is the name used by Actions and other Resources to find it. Its section
   determines the resource type; for example, `chat_model_setups` declares chat model Resources.
-  See [Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}}).
+  See [Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}}).
 - The chat model setup's `connection`, `prompt`, and `tools` fields reference registered
   Resource names. Its `model: qwen3:8b` field selects the model on the Ollama server.
 - The reused input Action sends a `ChatRequestEvent` naming the chat model setup. The

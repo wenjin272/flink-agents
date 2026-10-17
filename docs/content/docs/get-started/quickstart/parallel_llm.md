@@ -38,8 +38,8 @@ The **Parallel Sentiment Analysis** agent processes a restaurant review and judg
 Create the agents execution environment and register the Ollama connection as a named
 Resource of type `CHAT_MODEL_CONNECTION`. The Agent's model setup references this connection
 as `ollama_server` in Python or `ollamaChatModelConnection` in Java. See
-[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}})
-for the shared registration and access model.
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for registration methods and shared Resource scope.
 
 {{< tabs "Prepare Agents Execution Environment" >}}
 

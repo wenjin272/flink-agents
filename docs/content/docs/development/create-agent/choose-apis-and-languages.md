@@ -1,6 +1,6 @@
 ---
 title: "Choose APIs and Languages"
-weight: 4
+weight: 5
 type: docs
 ---
 <!--
@@ -44,8 +44,10 @@ Choose one of the three APIs to define the Agent:
 
 The language used to define the Agent does not require every Action and Resource to
 use the same language. A Java-defined Agent can use supported Python components, and
-a Python-defined Agent can use supported Java components. In YAML, set `type` to
-`java` or `python` for each component; an omitted `type` defaults to `python`.
+a Python-defined Agent can use supported Java components. In YAML, Actions, Tools,
+and Resources configured by implementation class accept `type: java` or
+`type: python`; an omitted `type` defaults to `python`. Prompts and Skills do not
+accept `type`. See [Selecting the implementation language]({{< ref "docs/development/create-agent/yaml#selecting-the-implementation-language" >}}).
 
 Cross-language support is available for the following component APIs:
 
@@ -53,9 +55,7 @@ Cross-language support is available for the following component APIs:
 |---|---|
 | Actions | [Cross-language Actions]({{< ref "docs/development/create-agent/actions#cross-language-actions" >}}) |
 | Function Tools | [YAML cross-language example]({{< ref "docs/development/create-agent/yaml#cross-language-agents" >}}) and [Tool Use]({{< ref "docs/development/calling-llms/tool_use" >}}) |
-| Chat model connections and setups | [Using Cross-Language Chat Providers]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}) |
-| Embedding model connections and setups | [Using Cross-Language Embedding Providers]({{< ref "docs/development/vector-search/embedding_models#using-cross-language-providers" >}}) |
-| Vector Stores | [Using Cross-Language Vector Stores]({{< ref "docs/development/vector-search/vector_stores#using-cross-language-providers" >}}) |
+| Chat models, embedding models, and vector stores | [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}) |
 
 For YAML examples, see
 [Cross-language agents]({{< ref "docs/development/create-agent/yaml#cross-language-agents" >}}).
@@ -111,8 +111,9 @@ for runtime prerequisites.
 ### Available integrations by language
 
 The tables below show the available implementation languages for each built-in
-integration. If an integration is available in only one language, use its
-cross-language support where available and install its dependencies.
+integration. If an integration is available in only one language, use
+[Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}})
+where supported and install its dependencies.
 
 **Chat Models**
 
@@ -123,8 +124,9 @@ cross-language support where available and install its dependencies.
 | [Azure OpenAI]({{< ref "docs/development/calling-llms/chat-models/providers#azure-openai" >}}) | ✅ | ✅ |
 | [Gemini]({{< ref "docs/development/calling-llms/chat-models/providers#gemini" >}}) | ❌ | ✅ |
 | [Ollama]({{< ref "docs/development/calling-llms/chat-models/providers#ollama" >}}) | ✅ | ✅ |
-| [OpenAI]({{< ref "docs/development/calling-llms/chat-models/providers#openai" >}}) | ✅ | ✅ |
-| [Alibaba Cloud Model Studio (DashScope)]({{< ref "docs/development/calling-llms/chat-models/providers#alibaba-cloud-model-studio-dashscope" >}}) | ✅ | ❌ |
+| [OpenAI Chat Completions]({{< ref "docs/development/calling-llms/chat-models/providers#completions-api" >}}) | ✅ | ✅ |
+| [OpenAI Responses]({{< ref "docs/development/calling-llms/chat-models/providers#responses-api" >}}) | ❌ | ✅ |
+| [DashScope (Alibaba Cloud Model Studio)]({{< ref "docs/development/calling-llms/chat-models/providers#alibaba-cloud-model-studio-dashscope" >}}) | ✅ | ❌ |
 | [vLLM]({{< ref "docs/development/calling-llms/chat-models/providers#vllm" >}}) | ✅ | ✅ |
 | [Watsonx (IBM watsonx.ai)]({{< ref "docs/development/calling-llms/chat-models/providers#watsonx-ibm-watsonxai" >}}) | ✅ | ✅ |
 
@@ -135,7 +137,7 @@ cross-language support where available and install its dependencies.
 | [Amazon Bedrock]({{< ref "docs/development/vector-search/embedding_models/providers#amazon-bedrock" >}}) | ❌ | ✅ |
 | [Ollama]({{< ref "docs/development/vector-search/embedding_models/providers#ollama" >}}) | ✅ | ✅ |
 | [OpenAI]({{< ref "docs/development/vector-search/embedding_models/providers#openai" >}}) | ✅ | ✅ |
-| [Alibaba Cloud Model Studio (DashScope)]({{< ref "docs/development/vector-search/embedding_models/providers#alibaba-cloud-model-studio-dashscope" >}}) | ✅ | ❌ |
+| [DashScope (Alibaba Cloud Model Studio)]({{< ref "docs/development/vector-search/embedding_models/providers#alibaba-cloud-model-studio-dashscope" >}}) | ✅ | ❌ |
 
 **Vector Stores**
 

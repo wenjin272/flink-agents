@@ -34,13 +34,16 @@ For the chat request, tool-call, and response flow, see
 
 ## Local Function as Tool
 
-Declare a tool as a static method in an Agent class, or register it on the
-execution environment to share it across agents. In both cases, reference the
-registered tool name in the chat model setup's `tools` list.
+Function tools are `TOOL` Resources. See
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for registration methods and scopes. The examples below show declarations on an
+Agent and registration on the execution environment for sharing across Agents.
+In either case, reference the registered tool name in the chat model setup's `tools` list.
 
 The following snippets show the tool declaration and registration parts of a job.
-They assume a connection named `ollamaChatModelConnection` has been registered as
-explained in [Declare the Resources]({{< ref "docs/development/calling-llms/chat-models" >}}).
+They assume an Ollama connection has been registered using the
+[Programmatic API]({{< ref "docs/development/create-agent/resources#programmatic-api" >}}),
+with `ollamaChatModelConnection` as its registered name to match the references below.
 The notification helper is application code; the complete
 {{< gh_link file="python/flink_agents/examples/quickstart/react_agent_example.py" name="Python example" >}}
 and {{< gh_link file="examples/src/main/java/org/apache/flink/agents/examples/ReActAgentExample.java" name="Java example" >}}
@@ -198,7 +201,7 @@ ReActAgent reviewAnalysisReactAgent = new ReActAgent(
 {{< /tabs >}}
 
 **Key points:**
-- Use `AgentsExecutionEnvironment.add_resource` to register the tool to the execution environment
+- Use `agents_env.add_resource` (Python) or `agentsEnv.addResource` (Java) to register the tool on the execution environment
 - Reference the tool by its name in the `tools` list of the `ResourceDescriptor`
 
 ### Argument Validation

@@ -39,8 +39,8 @@ The **Review Analysis** agent processes a stream of product reviews and uses a s
 Create the agents execution environment and register the Ollama connection and notification
 tool as named Resources of types `CHAT_MODEL_CONNECTION` and `TOOL`. The ReAct Agent's model
 configuration references these names through its `connection` and `tools` fields. See
-[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}})
-for the shared registration and access model.
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for registration methods and shared Resource scope.
 
 {{< tabs "Prepare Agents Execution Environment" >}}
 

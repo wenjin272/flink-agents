@@ -25,216 +25,73 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# Chat Models
-
 ## Overview
 
-Chat models enable agents to communicate with Large Language Models (LLMs) for natural language understanding, reasoning, and generation. In Flink Agents, chat models act as the "brain" of your agents, processing input messages and generating intelligent responses based on context, prompts, and available tools.
+Chat models let an Agent send messages to a Large Language Model (LLM) and use its
+responses. In Flink Agents, you configure a model through two named Resources:
 
-## Getting Started
+| Resource | Purpose | Typical settings |
+|---|---|---|
+| **Connection** (`CHAT_MODEL_CONNECTION`) | Connect to a provider service. | Endpoint, credentials, request timeout, retries |
+| **Setup** (`CHAT_MODEL`) | Choose how to use that connection for a particular task. | Connection name, model name, prompt, tools, skills, generation parameters |
 
-To use chat models in your agents, you need to define both a connection and setup using decorators/annotations, then interact with the model through events.
+A setup's registered name identifies it inside your application; its `model`
+setting selects the model or deployment at the provider. For example, a setup named
+`review_model` can select `qwen3:8b` on an Ollama server. A `ChatRequestEvent` refers
+to `review_model`, not to the provider's model name.
 
-### Resource Declaration
+Choose an implementation and its settings from
+[Built-in Chat Model Providers]({{< ref "docs/development/calling-llms/chat-models/providers" >}}).
+Provider implementations have different options and capabilities. Install the
+selected implementation's dependencies in the job environment; declaring a
+Resource does not install a provider or download a model.
 
-Flink Agents provides decorators in python and annotations in java to simplify chat model setup within agents:
+## Configuring Chat Models
 
-#### @chat_model_connection/@ChatModelConnection
+Register a connection and a setup using the methods described in
+[Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}}).
+For a Python or Java example, see the
+[Declaration API example]({{< ref "docs/development/create-agent/resources#declaration-api" >}}).
 
-The `@chat_model_connection` decorator or `@ChatModelConnection` annotation marks a method that creates a chat model connection. This is typically defined once and shared across multiple chat model setups.
+<span id="using-cross-language-providers"></span>
 
-#### @chat_model_setup/@ChatModelSetup
+To use a provider implemented in the other language, see
+[Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}})
+for descriptor selection and runtime requirements.
 
-The `@chat_model_setup` decorator or `@ChatModelSetup` annotation marks a method that creates a chat model setup. This references a connection and adds chat-specific configuration like prompts and tools.
+### Connection
 
-## Using Cross-Language Providers
+A connection configures access to the provider service, including its endpoint,
+authentication, and supported timeout and retry options. Field names and defaults
+vary by implementation; use the selected implementation's options listed in
+[Built-in Chat Model Providers]({{< ref "docs/development/calling-llms/chat-models/providers" >}}).
 
-Flink Agents supports cross-language chat model integration, allowing you to use chat models implemented in one language (Java or Python) from agents written in the other language. This is particularly useful when a chat model provider is only available in one language (e.g., the DashScope integration for Alibaba Cloud Model Studio is currently Python-only).
+Multiple setups can share a connection. Use separate connections when they need
+different endpoints, credentials, or request settings.
 
-Choose a Java or Python provider implementation and install its dependencies in the
-job's environment, following [the setup instructions]({{< ref "docs/development/create-agent/choose-apis-and-languages#integrate-the-agent-into-a-flink-job" >}}).
-When provider results are carried in Event payloads, those payloads must use the supported
-[Java and Python data types]({{< ref "docs/development/create-agent/choose-apis-and-languages#data-passed-between-java-and-python" >}}).
-For async calls, also check the [cross-language execution requirements]({{< ref "docs/development/create-agent/actions#cross-language-async-requirements" >}}).
+### Setup
 
-### How To Use
+A setup selects a model and the capabilities available to it. The table below
+lists the common setup settings. Each provider implementation also supports its
+own configuration options, such as `temperature` and token limits; see
+[Built-in Chat Model Providers]({{< ref "docs/development/calling-llms/chat-models/providers" >}})
+for provider-specific settings and defaults.
 
-To use a resource implemented in another language, declare its implementation class with the corresponding cross-language resource descriptor:
+| Setting | Required | Meaning |
+|---|---|---|
+| `connection` | Required | Registered name of a compatible `CHAT_MODEL_CONNECTION` Resource. |
+| `model` | Required unless the implementation provides a default | Provider model or deployment identifier, such as `qwen3:8b`. Set it explicitly when selecting a model. |
+| `prompt` | Optional | `PROMPT` Resource name or `Prompt` object. A string is a Resource reference, not literal prompt text. Omitted by default. See [Prompts]({{< ref "docs/development/calling-llms/prompts" >}}). |
+| `tools` | Optional | Registered `TOOL` Resource names the model may call. Defaults to an empty list; registering a tool alone does not expose it to the model. See [Tool Use]({{< ref "docs/development/calling-llms/tool_use" >}}). |
+| `skills` | Optional | Skill names from the `name` field in each loaded `SKILL.md`, not the registered names of the skill sources. Omitted by default. See [Skills]({{< ref "docs/development/calling-llms/skills" >}}). |
+| `subagents` | Optional | Registered `AGENT` Resource names the model may delegate to. Defaults to an empty list. See [Sub-agents]({{< ref "docs/development/multi-agent/subagents#delegate-from-a-chat-model" >}}). |
+| `allowed_commands` | Optional | Shell command names permitted by the built-in `bash` tool. Defaults to an empty list. See [Skills]({{< ref "docs/development/calling-llms/skills#using-skill-files-and-commands" >}}) for command permissions. |
+| `allowed_script_dirs` | Optional | Additional directories whose scripts the built-in `bash` tool may execute. Defaults to an empty list; the chat flow also includes the selected skills' directories. |
+| `structured_output_strategy` | Optional | How to apply a request's output schema: `AUTO` (default), `NATIVE`, or `PROMPT`. See [Structured Output]({{< ref "docs/development/calling-llms/structured-output#choose-a-strategy" >}}). |
 
-- **Using Java chat models in Python**: Use `JavaResourceDescriptor(clazz=ResourceName.ChatModel.Java.OLLAMA_CONNECTION, ...)` (or the corresponding setup class).
-- **Using Python chat models in Java**: Use `PythonResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.Python.OLLAMA_CONNECTION)` (or the corresponding setup class).
-
-
-
-### Usage Example
-
-{{< tabs "Cross-Language Chat Model Usage Example" >}}
-
-{{< tab "Using Java Chat Model in Python" >}}
-```python
-class MyAgent(Agent):
-
-    @chat_model_connection
-    @staticmethod
-    def java_chat_model_connection() -> ResourceDescriptor:
-        # In pure Java, the equivalent ResourceDescriptor would be:
-        # ResourceDescriptor.Builder
-        #     .newBuilder(ResourceName.ChatModel.OLLAMA_CONNECTION)
-        #     .addInitialArgument("endpoint", "http://localhost:11434")
-        #     .addInitialArgument("requestTimeout", 120)
-        #     .build();
-        return JavaResourceDescriptor(
-            clazz=ResourceName.ChatModel.Java.OLLAMA_CONNECTION,
-            endpoint="http://localhost:11434",
-            requestTimeout=120,
-        )
-
-
-    @chat_model_setup
-    @staticmethod
-    def java_chat_model() -> ResourceDescriptor:
-        # In pure Java, the equivalent ResourceDescriptor would be:
-        # ResourceDescriptor.Builder
-        #     .newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
-        #     .addInitialArgument("connection", "java_chat_model_connection")
-        #     .addInitialArgument("model", "qwen3:8b")
-        #     .addInitialArgument("prompt", "my_prompt")
-        #     .addInitialArgument("tools", List.of("my_tool1", "my_tool2"))
-        #     .addInitialArgument("extractReasoning", true)
-        #     .build();
-        return JavaResourceDescriptor(
-            clazz=ResourceName.ChatModel.Java.OLLAMA_SETUP,
-            connection="java_chat_model_connection",
-            model="qwen3:8b",
-            prompt="my_prompt",
-            tools=["my_tool1", "my_tool2"],
-            extract_reasoning=True,
-        )
-
-    @action(EventType.InputEvent)
-    @staticmethod
-    def process_input(event: Event, ctx: RunnerContext) -> None:
-        input_event = InputEvent.from_event(event)
-        # Create a chat request with user message
-        user_message = ChatMessage.user(f"input: {input_event.input}")
-        ctx.send_event(
-            ChatRequestEvent(model="java_chat_model", messages=[user_message])
-        )
-
-    @action(EventType.ChatResponseEvent)
-    @staticmethod
-    def process_response(event: Event, ctx: RunnerContext) -> None:
-        chat_response = ChatResponseEvent.from_event(event)
-        response_content = chat_response.response.text
-        # Handle the LLM's response
-        # Process the response as needed for your use case
-```
-{{< /tab >}}
-
-{{< tab "Using Python Chat Model in Java" >}}
-```java
-public class MyAgent extends Agent {
-
-    @ChatModelConnection
-    public static ResourceDescriptor pythonChatModelConnection() {
-        // In pure Python, the equivalent ResourceDescriptor would be:
-        // ResourceDescriptor(
-        //     clazz=ResourceName.ChatModel.OLLAMA_CONNECTION,
-        //     request_timeout=120.0
-        // )
-        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.Python.OLLAMA_CONNECTION)
-                .addInitialArgument("request_timeout", 120.0)
-                .build();
-    }
-
-    @ChatModelSetup
-    public static ResourceDescriptor pythonChatModel() {
-        // In pure Python, the equivalent ResourceDescriptor would be:
-        // ResourceDescriptor(
-        //     clazz=ResourceName.ChatModel.OLLAMA_SETUP,
-        //     connection="pythonChatModelConnection",
-        //     model="qwen3:8b",
-        //     tools=["tool1", "tool2"],
-        //     extract_reasoning=True
-        // )
-        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.Python.OLLAMA_SETUP)
-                .addInitialArgument("connection", "pythonChatModelConnection")
-                .addInitialArgument("model", "qwen3:8b")
-                .addInitialArgument("tools", List.of("tool1", "tool2"))
-                .addInitialArgument("extract_reasoning", true)
-                .build();
-    }
-
-    @Action(EventType.InputEvent)
-    public static void processInput(Event event, RunnerContext ctx) throws Exception {
-        InputEvent inputEvent = InputEvent.fromEvent(event);
-        ChatMessage userMessage =
-                new ChatMessage(MessageRole.USER, String.format("input: {%s}", inputEvent.getInput()));
-        ctx.sendEvent(new ChatRequestEvent("pythonChatModel", List.of(userMessage)));
-    }
-
-    @Action(EventType.ChatResponseEvent)
-    public static void processResponse(Event event, RunnerContext ctx)
-            throws Exception {
-        ChatResponseEvent chatResponse = ChatResponseEvent.fromEvent(event);
-        String response = chatResponse.getResponse().getText();
-        // Handle the LLM's response
-        // Process the response as needed for your use case
-    }
-}
-```
-{{< /tab >}}
-
-{{< /tabs >}}
-
-### Calling chat from an action
-
-The example above sends a `ChatRequestEvent` and handles the response in a separate action. When the same action needs to continue with the result, use `ctx.chat` to await it directly. It wraps the same built-in Chat/Tool event flow and supports the same model routing, retries, tools, and structured output.
-
-Keep the resource declarations above and replace the input and response actions with the following action:
-
-{{< tabs "Chat calls" >}}
-{{< tab "Python" >}}
-```python
-@action(EventType.InputEvent)
-@staticmethod
-async def process_input(event: Event, ctx: RunnerContext) -> None:
-    input_event = InputEvent.from_event(event)
-    response = await ctx.chat(
-        "ollama_chat_model",
-        [ChatMessage.user(str(input_event.input))],
-    )
-    ctx.send_event(OutputEvent(output=response.text))
-```
-
-Use the optional `prompt_args` and `output_schema` arguments for prompt parameters and structured output.
-{{< /tab >}}
-{{< tab "Java" >}}
-```java
-@Action(EventType.InputEvent)
-public static void processInput(Event event, RunnerContext ctx) throws Exception {
-    InputEvent inputEvent = InputEvent.fromEvent(event);
-    ChatResult response = ctx.chat(
-            "ollamaChatModel",
-            List.of(ChatMessage.user(String.valueOf(inputEvent.getInput()))))
-            .await();
-    ctx.sendEvent(new OutputEvent(response.getText()));
-}
-```
-
-For prompt arguments or structured output, pass a `ChatRequestEvent` to `ctx.chat(request)`.
-{{< /tab >}}
-{{< /tabs >}}
-
-The returned `DurableFuture<ChatResult>` (Python: `DurableFuture[ChatResult]`) starts the request only when awaited. Await it directly, without wrapping it in `durable_execute_async` / `durableExecuteAsync`. Use the future only within the action execution that created it; do not store it for a later event or pass it to another action execution. Repeated awaits within that execution reuse the same result. Passing chat futures to `gather` is not supported yet.
-
-The result is a full `ChatResult`, including the assistant message and its content blocks, plus available model, token usage and invocation metadata. Use `response.message` in Python or `response.getMessage()` in Java to access the message; `response.text` / `response.getText()` provides its text. A failed chat response raises `ChatResponseError` in Python or `ChatResponseEvent.ChatResponseException` in Java, which the calling action can catch. Existing model and tool timeout settings still apply; there is no additional whole-call timeout.
-
-`ctx.chat` uses the calling action's resources and memory. Its response is returned to the caller and does not trigger actions subscribed to `ChatResponseEvent`. Use the event-style API when you want a separate action to handle the response.
-
-With durable execution enabled, recorded results are reused after recovery. Replay matches calls by the calling action's execution identity and the order in which chat calls are first awaited; it does not compare the model, messages, or prompt arguments. Changing a request at the same call position therefore still reuses its recorded response when the caller identity is unchanged. Requests whose results were not recorded may execute again, so external provider or tool effects are not guaranteed to occur exactly once.
-
-Java chat calls require JDK 21 and `--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED` in `env.java.opts.all`. Python chat calls do not require JDK 21. Java calls are currently affected by the known deadlock limitation in [#1213](https://github.com/apache/flink-agents/issues/1213).
+Enabling skills also adds their descriptions and the built-in `load_skill` and
+`bash` tools. Configure command permissions as described in the Skills chapter.
+The selected model must support tool calling to use tools, skills, or sub-agents.
 
 ## Custom Providers
 
@@ -242,105 +99,148 @@ Java chat calls require JDK 21 and `--add-exports=java.base/jdk.internal.vm=ALL-
 The custom provider APIs are experimental and unstable, subject to incompatible changes in future releases.
 {{< /hint >}}
 
-If you want to use chat models not offered by the built-in providers, you can extend the base chat classes and implement your own! The chat model system is built around two main abstract classes:
+To integrate another model provider, implement a connection and a setup. The
+setup defines the model configuration; the connection translates between Flink
+Agents and the provider API:
+
+```text
+Setup: model and provider-specific settings
+  → Connection.chat(messages, tools, parameters)
+  → provider request → provider response → ChatResult
+```
 
 ### BaseChatModelConnection
 
-Handles the connection to chat model services and provides the core chat functionality.
+The connection manages access to the provider service, such as its SDK client,
+endpoint, credentials, and request options. Its `chat` implementation handles
+one provider request:
+
+1. Convert `ChatMessage` roles and content blocks into the provider's message
+   format, including supported media, previous tool calls, and tool results.
+   Reject unsupported content instead of silently dropping it.
+2. Convert the supplied tools' names, descriptions, and input schemas into the
+   provider's tool definitions.
+3. Build and send the provider request using those messages, tool definitions,
+   and the model parameters supplied by the setup.
+4. Convert the response into a `ChatResult`, preserving the assistant's content
+   and tool calls, plus model, token usage, and other metadata when available.
+
+Return tool calls as part of the response; the framework's
+[tool-calling loop]({{< ref "docs/development/calling-llms/chat#built-in-events-and-actions" >}})
+executes them and invokes the model again with the results.
+
+The following skeletons mark where to implement the provider-specific conversion
+and SDK call:
 
 {{< tabs "Custom BaseChatModelConnection" >}}
-
 {{< tab "Python" >}}
 ```python
 class MyChatModelConnection(BaseChatModelConnection):
+    endpoint: str
 
     def chat(
         self,
         messages: Sequence[ChatMessage],
         tools: List[Tool] | None = None,
+        output_schema: OutputSchema | None = None,
         **kwargs: Any,
     ) -> ChatResult:
-        # Core method: send messages to LLM and return response
-        # - messages: Input message sequence
-        # - tools: Optional list of tools available to the model
-        # - kwargs: Additional parameters from model_kwargs
-        # - Returns: ChatResult with the assistant message and available usage information
-        pass
+        # This example does not implement native structured output.
+        self._reject_unsupported_output_schema(output_schema)
+        # 1. Convert messages and tool definitions to the provider's format.
+        # 2. Build the request with kwargs (model, temperature, etc.).
+        # 3. Send it using the provider client configured for self.endpoint.
+        # 4. Convert the response content, tool calls, and metadata to ChatResult.
+        raise NotImplementedError("Implement the provider request and conversion")
 ```
 {{< /tab >}}
-
 {{< tab "Java" >}}
 ```java
 public class MyChatModelConnection extends BaseChatModelConnection {
+    private final String endpoint;
 
-    /**
-     * Creates a new chat model connection.
-     *
-     * @param descriptor a resource descriptor contains the initial parameters
-     * @param resourceContext context for resolving resources (e.g., tools) by name and type
-     */
     public MyChatModelConnection(
             ResourceDescriptor descriptor, ResourceContext resourceContext) {
         super(descriptor, resourceContext);
-        // get custom arguments from descriptor
-        String endpoint = descriptor.getArgument("endpoint");
-        ...
+        this.endpoint = descriptor.getArgument("endpoint");
+        // Initialize the provider client with endpoint and authentication settings.
     }
-
 
     @Override
     public ChatResult chat(
             List<ChatMessage> messages, List<Tool> tools, Map<String, Object> arguments) {
-        // Core method: send messages to LLM and return response
-        // - messages: Input message sequence
-        // - tools: Optional list of tools available to the model
-        // - arguments: Additional parameters from ChatModelSetup
-        // - Returns: ChatResult with the assistant message and available usage information
+        // 1. Convert messages and tool definitions to the provider's format.
+        // 2. Build the request with arguments (model, temperature, etc.).
+        // 3. Send it using the provider client.
+        // 4. Convert the response content, tool calls, and metadata to ChatResult.
+        throw new UnsupportedOperationException("Implement the provider request and conversion");
     }
 }
 ```
 {{< /tab >}}
-
 {{< /tabs >}}
 
+For native structured output, the connection must also translate the output
+schema into the provider's request format and report support through
+`supports_native_structured_output` (Python) or `supportsNativeStructuredOutput`
+(Java). In Java, override the `chat` overload that accepts `outputSchema`;
+in Python, handle the named `output_schema` argument separately from generation
+parameters. The skeletons above leave native output unsupported. See
+[Structured Output]({{< ref "docs/development/calling-llms/structured-output" >}})
+for the available strategies.
 
 ### BaseChatModelSetup
 
-The setup class acts as a high-level configuration interface that defines which connection to use and how to configure the chat model.
+The setup defines provider-specific model settings, their defaults, and any
+validation required by the provider. For example, it can expose `temperature`,
+token limits, or reasoning options alongside the inherited common settings.
+Return these parameters from `model_kwargs` (Python) or `getParameters()` (Java);
+the base setup passes them to the connection's `chat` method as `**kwargs` or an
+argument map.
 
-{{< tabs "Prepare Agents Execution Environment" >}}
+The base setup already handles common Resource references and prompt preparation.
+Keep provider request construction and response conversion in the connection.
+The example below adds a configurable `temperature` and passes it with `model`:
 
+{{< tabs "Custom BaseChatModelSetup" >}}
 {{< tab "Python" >}}
 ```python
 class MyChatModelSetup(BaseChatModelSetup):
-    # Add your custom configuration fields here
+    temperature: float = 0.7
 
     @property
     def model_kwargs(self) -> Dict[str, Any]:
-        # Return model-specific configuration passed to chat()
-        # This dictionary is passed as **kwargs to the chat() method
-        return {"model": self.model, "temperature": 0.7, ...}
+        return {"model": self.model, "temperature": self.temperature}
 ```
 {{< /tab >}}
-
 {{< tab "Java" >}}
 ```java
 public class MyChatModelSetup extends BaseChatModelSetup {
-    // Add your custom configuration fields here
+    private final double temperature;
+
+    public MyChatModelSetup(
+            ResourceDescriptor descriptor, ResourceContext resourceContext) {
+        super(descriptor, resourceContext);
+        Number configuredTemperature = descriptor.getArgument("temperature", 0.7);
+        this.temperature = configuredTemperature.doubleValue();
+    }
 
     @Override
     public Map<String, Object> getParameters() {
         Map<String, Object> params = new HashMap<>();
         params.put("model", model);
-        ...
-        // Return model-specific configuration passed to chat()
-        // This dictionary is passed as arguments to the chat() method
+        params.put("temperature", temperature);
         return params;
     }
 }
 ```
 {{< /tab >}}
-
 {{< /tabs >}}
 
-[Chat with Models]({{< ref "docs/development/calling-llms/chat" >}}) · [Built-in Chat Model Providers]({{< ref "docs/development/calling-llms/chat-models/providers" >}}) · [Model Routing]({{< ref "docs/development/calling-llms/model_routing" >}})
+<span id="calling-chat-from-an-action"></span>
+
+## Next Steps
+
+- Follow [Chat with Models]({{< ref "docs/development/calling-llms/chat" >}}) to send messages to a model and handle its responses.
+- Consult [Built-in Chat Model Providers]({{< ref "docs/development/calling-llms/chat-models/providers" >}}) for provider-specific configuration, dependencies, and capabilities.
+- Use [Model Routing]({{< ref "docs/development/calling-llms/model_routing" >}}) to choose among registered models for each request.

@@ -45,7 +45,7 @@ Agents use Actions to process Events and Resources to provide reusable, named ru
 components such as models, tools, prompts, and MCP servers. See
 [Core Concepts]({{< ref "docs/development/create-agent/overview#core-concepts" >}})
 for how these pieces work together, and
-[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}})
+[Referencing and Accessing Resources]({{< ref "docs/development/create-agent/resources#referencing-and-accessing-resources" >}})
 for how Actions access Resources.
 
 Start with [Setup]({{< ref "docs/get-started/setup" >}}), then choose a Quickstart:
