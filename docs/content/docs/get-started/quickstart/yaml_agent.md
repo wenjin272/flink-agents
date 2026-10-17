@@ -213,7 +213,7 @@ Notes on the file above:
 
 - A Resource's `name` is the name Actions and other Resources use to find it, and the section it
   sits in gives its type, so `chat_model_setups` declares chat model Resources. See
-  [Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}}).
+  [Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}}).
 - The chat model setup's `connection`, `prompt`, and `tools` fields name Resources the same file
   declares. Its `model: qwen3:8b` field selects the model on the Ollama server.
 - `clazz: ollama` is a provider alias for the Ollama chat model classes, and

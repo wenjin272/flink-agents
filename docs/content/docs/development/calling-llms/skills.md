@@ -28,17 +28,22 @@ under the License.
 
 ## Overview
 
-A **Skill** is a self-contained package of instructions, and optionally scripts and reference files, that teaches the agent how to perform a specialized task. A skill is just a directory containing a `SKILL.md` file. Flink Agents discovers the skills you declare, lets the agent decide which one is relevant to the current request, and loads its full instructions only when needed.
+A **Skill** is a directory containing instructions in `SKILL.md`, optionally with
+scripts and reference files. Use skills for procedures the model should follow;
+use a [tool]({{< ref "docs/development/calling-llms/tool_use" >}}) for a single,
+well-defined operation.
 
-Skills follow a **progressive disclosure** model, so that providing the agent with many capabilities does not bloat every request:
+See the official [Agent Skills overview](https://agentskills.io/home) for an
+introduction to the format and its use cases.
 
-1. **Discovery** — at startup, only each skill's `name` and `description` are injected into the system prompt (a few dozen tokens per skill), so the agent knows what is available.
-2. **Activation** — when the agent judges a skill relevant, it calls the built-in `load_skill` tool to read the full `SKILL.md` instructions into the context.
-3. **Execution** — the agent follows the loaded instructions, running any bundled scripts or shell commands through the built-in `bash` tool, and reading additional reference files only on demand.
+Skills use **progressive disclosure**: the model first receives their names and
+descriptions, then calls `load_skill` to read the instructions for a relevant
+skill. It can request additional files and use the built-in `bash` tool to run
+permitted commands. This limits how much skill content enters the model's context.
 
-Skills are a good fit when a capability is best described as a procedure (a runbook the agent follows) rather than a single function call. For a single, well-typed operation, prefer a [tool]({{< ref "docs/development/calling-llms/tool_use" >}}) instead.
-
-The following sections use a `math-calculator` skill to show the complete setup: define its instructions, declare its source, and enable it on a chat model. The [complete example](#complete-example) includes the Agent and Flink job source.
+The following example defines a `math-calculator` skill, registers its source,
+and enables it on a chat model. The [complete example](#complete-example) links
+to the Agent and Flink job source.
 
 ## Skill Format
 
@@ -70,38 +75,38 @@ echo "(2 + 3) * 4" | bc
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `name` | Yes | Skill identifier. 1–64 characters, lowercase letters, numbers and hyphens only (no leading/trailing hyphen). Must match the value referenced in the chat model's `skills` list. |
-| `description` | Yes | 1–1024 characters. Loaded at discovery time — write it so the agent can decide *when* to use the skill. State both what it does and when to use it. |
-| `license` | No | License of the skill. |
-| `compatibility` | No | Free-text note on runtime requirements (e.g. required commands), up to 500 characters. |
+| `name` | Required | Skill identifier. 1–64 characters, lowercase letters, numbers and hyphens only (no leading/trailing hyphen). Must match the value referenced in the chat model's `skills` list. |
+| `description` | Required | 1–1024 characters. Loaded at discovery time — write it so the agent can decide *when* to use the skill. State both what it does and when to use it. |
+| `license` | Optional | License of the skill. |
+| `compatibility` | Optional | Free-text note on runtime requirements (e.g. required commands), up to 500 characters. |
+| `metadata` | Optional | Additional metadata as string key-value pairs. |
 
-The Markdown body is the full instruction set loaded on activation. It may reference bundled files using paths relative to the skill directory (for example `python scripts/gen_joke.py`); those scripts and reference files are loaded only when the agent actually needs them.
+The Markdown body contains the instructions returned to the model by `load_skill`. It may reference bundled scripts and reference files using paths relative to the skill directory; see [Using Skill Files and Commands](#using-skill-files-and-commands).
 
 A skill source is a directory holding one or more such skill subdirectories (or a `.zip` of that layout):
 
 ```
 skills/
-├── math-calculator/
-│   └── SKILL.md
-└── joke-generator/
+└── math-calculator/
     ├── SKILL.md
+    ├── references/
+    │   └── formulas.md
     └── scripts/
-        └── gen_joke.py
+        └── calculate.py
 ```
 
 ## Declare Skills in an Agent
 
-Declare where to load skills from with the `@skills`/`@Skills` decorator/annotation. The method returns a `Skills` resource built with one of its factory methods.
+Register a `Skills` object as a `SKILLS` Resource to declare where to load skills
+from. The example below uses the Declaration API with `@skills` / `@Skills` and
+returns a `Skills` object built with one of its factory methods. See
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for other registration methods and scopes.
 
 {{< tabs "Declare Skills in Agent" >}}
 
 {{< tab "Python" >}}
 ```python
-from flink_agents.api.agents.agent import Agent
-from flink_agents.api.decorators import skills
-from flink_agents.api.skills import Skills
-
-
 class MathAgent(Agent):
 
     @skills
@@ -114,11 +119,6 @@ class MathAgent(Agent):
 
 {{< tab "Java" >}}
 ```java
-import org.apache.flink.agents.api.agents.Agent;
-// The @Skills annotation and the Skills resource share a simple name but live
-// in different packages, so fully-qualify the annotation when importing the class.
-import org.apache.flink.agents.api.skills.Skills;
-
 public class MathAgent extends Agent {
 
     @org.apache.flink.agents.api.annotation.Skills
@@ -132,111 +132,26 @@ public class MathAgent extends Agent {
 
 {{< /tabs >}}
 
-**Key points:**
-- Use the decorator/annotation to declare a skill source.
-  - In Python, use `@skills`.
-  - In Java, use `@Skills`.
-- Declare more than one `@skills`/`@Skills` method on the same agent to combine sources; the runtime merges them and de-duplicates identical entries.
-  - The order in which those methods are merged is deterministic, but it differs between languages: Java orders them by method name, while Python keeps declaration order. When two sources provide the same skill name, the later source wins.
-- Declaring a skill source only makes the skills *available*. A skill is exposed to a chat model only when that model lists it in its `skills` (see [Enable Skills on a Chat Model](#enable-skills-on-a-chat-model)).
+Declare multiple `@skills` / `@Skills` methods to combine sources. Identical source
+entries are de-duplicated. Java processes these methods by method name; Python
+uses declaration order. If sources contain the same skill name, the later source
+wins.
 
-### Skill Sources
+The resource name (`my_skills` / `mySkills`) identifies the source declaration.
+The model selects individual skills by their `SKILL.md` names, such as
+`math-calculator`, as shown below.
 
-Each factory method creates a source with a different scheme:
-
-| Factory method (Python / Java) | Scheme | Description |
-|--------------------------------|--------|-------------|
-| `Skills.from_local_dir(*paths)` / `Skills.fromLocalDir(String...)` | `local` | One or more local directories, or `.zip` files, holding skill subdirectories. The path must be resolvable on the Flink TaskManager that runs the agent. |
-| `Skills.from_url(*urls)` / `Skills.fromUrl(String...)` | `url` | One or more HTTPS URLs without embedded user information, each pointing to a `.zip` whose top level holds the skill subdirectories. Plain HTTP is rejected by default. |
-| `Skills.from_url_with_sha256(url, digest)` / `Skills.fromUrlWithSha256(url, digest)` | `url` | An HTTPS URL pinned to the expected lowercase or uppercase SHA-256 digest of the downloaded archive. The digest is verified before extraction. |
-| `Skills.from_url_unsafe(*urls)` / `Skills.fromUrlUnsafe(String...)` | `url` | Explicitly permits plain HTTP for compatibility on trusted development networks. |
-| `Skills.from_url_unsafe_with_sha256(url, digest)` / `Skills.fromUrlUnsafeWithSha256(url, digest)` | `url` | Pins an archive digest while explicitly permitting plain HTTP transport. |
-| `Skills.from_package(*pairs)` / `Skills.fromPackage(String, String)` | `package` | One or more `(package, resource)` tuples locating skills inside an installed Python package. |
-| `Skills.from_classpath(*resources)` / `Skills.fromClasspath(String...)` | `classpath` | One or more classpath resource paths (e.g. under `src/main/resources/skills`). When packaged into a jar, the resource is materialized to a temp directory at runtime. |
-
-{{< hint info >}}
-Both schemes work from Java and Python agents running in Flink. Cross-language use requires the Java/Python runtime environment described in [Deployment]({{< ref "docs/operations/deployment#run-in-flink" >}}), plus the corresponding skill dependencies:
-
-- For Python agents using `Skills.from_classpath("skills")`, make the JARs containing the skills available on the job's classpath.
-- For Java agents using `Skills.fromPackage("my_skills_pkg", "skills")`, make the Python package containing the skills available in the job's Python environment.
-
-YAML supports the same combinations regardless of the declaring language:
-
-```yaml
-skills:
-  - name: jar_skills
-    classpath: [skills]
-  - name: python_skills
-    package:
-      - package: my_skills_pkg
-        resource: skills
-```
-
-Missing classpath resources, Python packages/resources, or runtime bridges fail loading with source context. These sources retain the existing discovery and duplicate-Skill precedence rules.
-{{< /hint >}}
-
-URL source hosts must use DNS-compatible ASCII syntax. Hostnames containing underscores, such as `skill_server`, are rejected; use a DNS-compatible name such as `skill-server`. Internationalized hostnames must be supplied in IDNA/Punycode form rather than as raw Unicode, and scoped IPv6 literals with zone identifiers are rejected. Redirect locations must also be valid URLs, so raw spaces must be percent-encoded as `%20`. These checks are stricter than the URL handling in earlier releases.
-
-{{< hint warning >}}
-Remote skill archives are trusted instructions and code: their `SKILL.md` content is consumed by the agent, and their bundled scripts may become executable through the built-in `bash` tool when allowed by the chat model. Use HTTPS and pin the archive with `from_url_with_sha256` / `fromUrlWithSha256` whenever possible. Plain HTTP requires the explicit compatibility methods `from_url_unsafe` / `fromUrlUnsafe` (or their `*_unsafe_with_sha256` variants); these should be limited to trusted development networks. The integrity check protects the archive in transit and at rest at the source, but does not make untrusted skill content safe.
-{{< /hint >}}
-
-### Configure the Prompt
-
-The model below references a prompt named `system_prompt` in Python or `systemPrompt` in Java. Add the following method to `MathAgent` so it instructs the model to load the skill before calculating:
-
-{{< tabs "Skills Prompt" >}}
-
-{{< tab "Python" >}}
-```python
-from flink_agents.api.chat_message import ChatMessage
-from flink_agents.api.decorators import prompt
-from flink_agents.api.prompts.prompt import Prompt
-
-
-@prompt
-@staticmethod
-def system_prompt() -> Prompt:
-    return Prompt.from_messages(
-        messages=[
-            ChatMessage.system(
-                "Use the math-calculator skill to evaluate expressions. "
-                "Load the skill first and follow its instructions. "
-                "Reply with only the final numeric result."
-            )
-        ]
-    )
-```
-{{< /tab >}}
-
-{{< tab "Java" >}}
-```java
-import java.util.List;
-import org.apache.flink.agents.api.chat.messages.ChatMessage;
-import org.apache.flink.agents.api.chat.messages.MessageRole;
-
-@org.apache.flink.agents.api.annotation.Prompt
-public static org.apache.flink.agents.api.prompt.Prompt systemPrompt() {
-    return org.apache.flink.agents.api.prompt.Prompt.fromMessages(
-            List.of(new ChatMessage(
-                    MessageRole.SYSTEM,
-                    "Use the math-calculator skill to evaluate expressions. "
-                            + "Load the skill first and follow its instructions. "
-                            + "Reply with only the final numeric result.")));
-}
-```
-{{< /tab >}}
-
-{{< /tabs >}}
+<span id="configure-the-prompt"></span>
+<span id="configure-the-model"></span>
 
 ## Enable Skills on a Chat Model
 
-Add the following model setup to `MathAgent`, using the connection declaration described in [Chat Models]({{< ref "docs/development/calling-llms/chat-models" >}}). The examples assume an Ollama connection registered as `ollama_server` in Python or `ollamaChatModelConnection` in Java.
+Specify the skills you want the model to choose from in the chat model setup's
+`skills` list, using the names defined in their `SKILL.md` files.
 
-A declared skill becomes usable only when a chat model opts in by listing it in `skills`. When `skills` is set, the framework automatically:
-
-- injects the discovery prompt (the names and descriptions of the listed skills) into the system messages, and
-- adds the two built-in tools the agent needs — `load_skill` (to read a skill's full instructions) and `bash` (to run its commands and scripts).
+The example below enables one skill, `math-calculator`. You can list multiple
+skills; the model uses their descriptions to select the relevant skills for the
+current task.
 
 {{< tabs "Enable Skills on a Chat Model" >}}
 
@@ -249,7 +164,6 @@ def math_model() -> ResourceDescriptor:
         clazz=ResourceName.ChatModel.OLLAMA_SETUP,
         connection="ollama_server",
         model="qwen3.5:9b",
-        prompt="system_prompt",
         # Expose declared skills to this model by name.
         skills=["math-calculator"],
         # Whitelist the shell commands the bash tool is allowed to run.
@@ -265,7 +179,6 @@ public static ResourceDescriptor mathModel() {
     return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
             .addInitialArgument("connection", "ollamaChatModelConnection")
             .addInitialArgument("model", "qwen3.5:9b")
-            .addInitialArgument("prompt", "systemPrompt")
             // Expose declared skills to this model by name.
             .addInitialArgument("skills", List.of("math-calculator"))
             // Whitelist the shell commands the bash tool is allowed to run.
@@ -277,34 +190,138 @@ public static ResourceDescriptor mathModel() {
 
 {{< /tabs >}}
 
-**Key points:**
-- `skills` lists the skill names (matching the `name` field in each `SKILL.md`) the agent may use.
-- `allowed_commands` is a whitelist of shell command names the built-in `bash` tool may execute. Any command not on the list is rejected, so keep it as narrow as the skills require (for example `echo` and `bc` for arithmetic).
-- The `bash` tool rejects redirects to files by default. File-descriptor duplication and closure, such as `2>&1` and `2>&-`, remain available.
-- Assignments to environment variables that can change command resolution or executable loading, including `PATH`, `BASH_ENV`, `ENV`, `SHELLOPTS`, `CDPATH`, `LD_*`, and `DYLD_*`, are rejected. The command allowlist is a validation boundary, not a general-purpose operating-system sandbox; do not allow shells, privilege wrappers, or other commands that can launch arbitrary executables.
-- The `load_skill` and `bash` tools are added automatically — you do not declare them in `tools`. They are added alongside any tools you do declare.
-- Make sure the system prompt instructs the agent to load the relevant skill before acting, for example: *"You must load the skill first and strictly follow its instructions."* Without this nudge, smaller models may answer directly instead of consulting the skill.
+When skills are enabled:
 
-Skills work with both the [Agent]({{< ref "docs/development/create-agent/overview" >}}) (configure the chat model via `@chat_model_setup`/`@ChatModelSetup` as above) and the [Built-in ReAct Agent]({{< ref "docs/development/react_agent" >}}). For the built-in ReAct Agent, either pass the skill names to the `ReActAgent` constructor and register the sources on the execution environment with `add_resource(..., ResourceType.SKILLS, ...)`, or pass a `Skills` object, which registers its own sources on the agent. Set `allowed_commands` on the chat model descriptor either way. See [Built-in ReAct Agent Skills]({{< ref "docs/development/react_agent#skills" >}}) for how the two `skills` declarations combine and which declaration wins on a duplicate name.
+- The framework includes their names and descriptions in the system messages.
+- The framework adds `load_skill` and `bash` alongside any configured tools.
+  You do not need to register them yourself. The model must support tool calling.
+- `allowed_commands` permits the shell commands used by the skill, here `echo`
+  and `bc`. For other command and script permissions, see
+  [Using Skill Files and Commands](#using-skill-files-and-commands).
 
-## How Skills Work
+Call the configured model using either chat events or `ctx.chat`, as described in
+[Chat with Models]({{< ref "docs/development/calling-llms/chat" >}}).
+For constructor-based Skills configuration, see
+[Built-in ReAct Agent Skills]({{< ref "docs/development/react_agent#skills" >}}).
 
-Once enabled, a request flows through the three progressive-disclosure stages:
+## Skill Sources
 
-1. **Discovery.** The discovery prompt lists each available skill's `name` and `description` and explains how to load one. This is the only skill content the agent sees by default:
-   ```text
-   ## Available Skills
-   <available_skills>
-   <skill>
-   <name>math-calculator</name>
-   <description>Calculate mathematical expressions using shell commands. Use when ...</description>
-   </skill>
-   </available_skills>
-   ```
-2. **Activation.** When the agent decides a skill applies, it calls `load_skill(name="math-calculator")`. The framework returns the full `SKILL.md` body, including the skill's base directory and the absolute paths of its bundled resources.
-3. **Execution.** Following the loaded instructions, the agent invokes `bash` to run commands (e.g. `echo "(2 + 3) * 4" | bc`) or bundled scripts (e.g. `python scripts/gen_joke.py`), and loads additional reference files only when an instruction points to them.
+Use these factories in a Skills declaration to select where its files come from.
+Directories and ZIP archives must contain the skill subdirectories shown in
+[Skill Format](#skill-format).
 
-This keeps each request lean — a skill the agent never activates costs only its one-line description.
+| Source | Python factory | Java factory | Runtime requirement |
+|--------|----------------|--------------|---------------------|
+| Local directory or ZIP | `Skills.from_local_dir(*paths)` | `Skills.fromLocalDir(String...)` | Paths must be accessible on each TaskManager running the agent. |
+| Remote ZIP | `Skills.from_url(*urls)` | `Skills.fromUrl(String...)` | TaskManagers must be able to download the archives over HTTPS. |
+| Python package | `Skills.from_package((package, resource), ...)` | `Skills.fromPackage(package, resource)` | The package and its resource files must be installed in the task's Python environment. |
+| Java classpath | `Skills.from_classpath(*resources)` | `Skills.fromClasspath(String...)` | The containing JARs or resource directories must be on the job's classpath. |
+
+Sources are opened and `SKILL.md` files are parsed when the runtime initializes
+Skills. Remote archives are downloaded and extracted at that time, even if the
+model never activates a skill. Progressive disclosure controls what is sent to
+the model. Sources are not automatically refreshed while the job is running.
+
+### Remote Sources
+
+HTTPS is the default and provides server authentication and transport integrity.
+To also pin the expected archive content, supply an independently obtained
+SHA-256 digest:
+
+| Option | Python factory | Java factory |
+|--------|----------------|--------------|
+| HTTPS with a digest | `Skills.from_url_with_sha256(url, digest)` | `Skills.fromUrlWithSha256(url, digest)` |
+| Allow HTTP | `Skills.from_url_unsafe(*urls)` | `Skills.fromUrlUnsafe(String...)` |
+| Allow HTTP with a digest | `Skills.from_url_unsafe_with_sha256(url, digest)` | `Skills.fromUrlUnsafeWithSha256(url, digest)` |
+
+A digest is optional. When supplied, it must contain 64 hexadecimal characters;
+uppercase and lowercase are accepted. A mismatch fails loading before extraction.
+In YAML, use `url_sources` for `sha256` or `allow_insecure_http: true`; see the
+[Skills fields in the YAML API]({{< ref "docs/development/create-agent/yaml#resources" >}}).
+
+URLs must not contain embedded user information. Use DNS-compatible ASCII hostnames
+(`skill-server`, not `skill_server`), Punycode for internationalized hostnames, and
+percent-encoding for spaces. These rules also apply to redirect targets; scoped
+IPv6 addresses with zone identifiers are unsupported.
+
+{{< hint warning >}}
+Use skill sources you trust: their instructions influence the model, and their
+scripts may run with the task's permissions. HTTPS and digest checks do not make
+untrusted content safe. Enable plain HTTP only on trusted development networks.
+{{< /hint >}}
+
+### Java Classpath and Python Packages
+
+Both `classpath` and `package` sources work from Java and Python agents running
+in Flink. For example, replace the factory in the declaration above with:
+
+{{< tabs "Cross-Language Skill Sources" >}}
+{{< tab "Python using a JAR" >}}
+```python
+Skills.from_classpath("skills")
+```
+
+Package `skills/math-calculator/SKILL.md` and any supporting files in a JAR, for
+example from `src/main/resources/skills/`. Add that JAR to the Flink job's
+classpath. The path `skills` is relative to the classpath root, not the local
+filesystem.
+{{< /tab >}}
+{{< tab "Java using a Python package" >}}
+```java
+Skills.fromPackage("my_skills_pkg", "skills");
+```
+
+Include `skills/math-calculator/SKILL.md` and its supporting files as package data
+in `my_skills_pkg`, and install the package in the task's Python environment.
+The path `skills` is relative to the package root. This source requires the Flink
+Agents Python dependencies and Python runtime even if all Actions and model
+providers are implemented in Java.
+{{< /tab >}}
+{{< /tabs >}}
+
+See [API and Language Choices]({{< ref "docs/development/create-agent/choose-apis-and-languages#integrate-the-agent-into-a-flink-job" >}})
+for Java/Python dependencies and
+[Deployment]({{< ref "docs/operations/deployment#run-in-flink" >}}) for job submission.
+YAML supports the same `classpath` and `package` sources; see the
+[YAML API]({{< ref "docs/development/create-agent/yaml#resources" >}}).
+Missing resources or required runtime dependencies fail source loading.
+
+<span id="how-skills-work"></span>
+
+## Using Skill Files and Commands
+
+`load_skill(name="math-calculator")` returns the instruction body, the skill's
+base directory, and its resource paths.
+`load_skill(name="math-calculator", path="references/formulas.md")` reads the bundled
+reference file shown in [Skill Format](#skill-format). The `path` is relative to
+the skill directory.
+
+The `bash` tool runs commands under the following chat model settings:
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `allowed_commands` | Optional | Command names the tool may run, such as `echo` and `bc`. Defaults to an empty list. |
+| `allowed_script_dirs` | Optional | Additional directories from which scripts may be executed. Defaults to an empty list; the framework also permits the directories of the skills enabled on this model. |
+
+Each command must either be on the command list or resolve to a path under a
+permitted script directory. Directly executed scripts need executable permissions;
+all scripts need their runtime dependencies. To run `python scripts/calculate.py`, allow
+`python` and set the tool's `cwd` argument to the skill's base directory returned
+by `load_skill`. An explicit `cwd` must be within a permitted script directory;
+without it, the tool uses the task process's working directory.
+
+{{< hint warning >}}
+These checks are not an operating-system sandbox. Allowing an interpreter such as
+`python` permits more than running the bundled script. Grant only the commands
+and directories needed by trusted skills.
+{{< /hint >}}
+
+File redirects are rejected; descriptor duplication and closure such as `2>&1`
+and `2>&-` are allowed. Assignments to environment variables that change command
+resolution or executable loading, such as `PATH`, `BASH_ENV`, `LD_*`, and `DYLD_*`,
+are rejected. Required commands and dependencies must already be installed on
+the TaskManagers; the `compatibility` field documents requirements but does not
+install them.
 
 ## Complete Example
 

@@ -512,6 +512,9 @@ futures from the same context; nested gathered futures are not supported.
 
 #### Using Resources and Memory
 
+See [Referencing and Accessing Resources]({{< ref "docs/development/create-agent/resources#referencing-and-accessing-resources" >}})
+for Resource lookup. In async Actions, the location of that lookup matters:
+
 Distinguish the **Action body**, including code before and after await, from the
 **function submitted to `execute_async` / `executeAsync`**:
 

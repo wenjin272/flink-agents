@@ -42,11 +42,17 @@ In Flink Agents, embedding models are essential for:
 
 ## Getting Started
 
-To use embedding models in your agents, you need to define both a connection and setup using decorators/annotations, then access the embedding model through the runtime context.
+Register an embedding model connection (`EMBEDDING_MODEL_CONNECTION`) and setup
+(`EMBEDDING_MODEL`), then access the setup through the runtime context. The setup's
+`connection` field references the connection's registered Resource name. See
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for the Declaration API, programmatic API, YAML, and registration scopes.
 
 ### Resource Declaration
 
-Flink Agents provides decorators(in python) and annotations(in java) to simplify embedding model setup within agents:
+The following examples use the Declaration API with Python decorators and Java
+annotations. Provider-specific connection and setup options are described in
+[Built-in Embedding Model Providers]({{< ref "docs/development/vector-search/embedding_models/providers" >}}).
 
 #### Declare an embedding model connection
 
@@ -191,117 +197,9 @@ public class MyAgent extends Agent {
 
 ## Using Cross-Language Providers
 
-Flink Agents supports cross-language embedding model integration, allowing you to use embedding models implemented in one language (Java or Python) from agents written in the other language. This is particularly useful when an embedding model provider is only available in one language (e.g., the DashScope embedding integration for Alibaba Cloud Model Studio is currently Python-only).
-
-Choose a Java or Python provider implementation and install its dependencies in the
-job's environment, following [the setup instructions]({{< ref "docs/development/create-agent/choose-apis-and-languages#integrate-the-agent-into-a-flink-job" >}}).
-When provider results are carried in Event payloads, those payloads must use the supported
-[Java and Python data types]({{< ref "docs/development/create-agent/choose-apis-and-languages#data-passed-between-java-and-python" >}}).
-For async calls, also check the [cross-language execution requirements]({{< ref "docs/development/create-agent/actions#cross-language-async-requirements" >}}).
-### How To Use
-
-To use a resource implemented in another language, declare its implementation class with the corresponding cross-language resource descriptor:
-
-- **Using Java embedding models in Python**: Use `JavaResourceDescriptor` with the actual Java connection or setup class as `clazz`.
-- **Using Python embedding models in Java**: Use `PythonResourceDescriptor.Builder.newBuilder(...)` with the actual Python connection or setup class, including its module.
-
-### Usage Example
-
-{{< tabs "Cross-Language Embedding Model Usage Example" >}}
-
-{{< tab "Using Java Embedding Model in Python" >}}
-
-```python
-class MyAgent(Agent):
-
-    @embedding_model_connection
-    @staticmethod
-    def java_embedding_connection() -> ResourceDescriptor:
-        # In pure Java, the equivalent ResourceDescriptor would be:
-        # ResourceDescriptor.Builder
-        #     .newBuilder(ResourceName.EmbeddingModel.OLLAMA_CONNECTION)
-        #     .addInitialArgument("host", "http://localhost:11434")
-        #     .build();
-        return JavaResourceDescriptor(
-            clazz=ResourceName.EmbeddingModel.Java.OLLAMA_CONNECTION,
-            host="http://localhost:11434"
-        )
-
-    @embedding_model_setup
-    @staticmethod
-    def java_embedding_model() -> ResourceDescriptor:
-        # In pure Java, the equivalent ResourceDescriptor would be:
-        # ResourceDescriptor.Builder
-        #     .newBuilder(ResourceName.EmbeddingModel.OLLAMA_SETUP)
-        #     .addInitialArgument("connection", "java_embedding_connection")
-        #     .addInitialArgument("model", "nomic-embed-text")
-        #     .build();
-        return JavaResourceDescriptor(
-            clazz=ResourceName.EmbeddingModel.Java.OLLAMA_SETUP,
-            connection="java_embedding_connection",
-            model="nomic-embed-text"
-        )
-
-    @action(EventType.InputEvent)
-    @staticmethod
-    def process_input(event: Event, ctx: RunnerContext) -> None:
-        # Use the Java embedding model from Python
-        input_event = InputEvent.from_event(event)
-        embedding_model = ctx.get_resource("java_embedding_model", ResourceType.EMBEDDING_MODEL)
-        embedding = embedding_model.embed(str(input_event.input))
-        # Process the embedding vector as needed
-```
-
-{{< /tab >}}
-
-{{< tab "Using Python Embedding Model in Java" >}}
-
-```java
-public class MyAgent extends Agent {
-
-    @EmbeddingModelConnection
-    public static ResourceDescriptor pythonEmbeddingConnection() {
-        // In pure Python, the equivalent ResourceDescriptor would be:
-        // ResourceDescriptor(
-        //     clazz=ResourceName.EmbeddingModel.OLLAMA_CONNECTION,
-        //     base_url="http://localhost:11434"
-        // )
-        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.EmbeddingModel.Python.OLLAMA_CONNECTION)
-                .addInitialArgument("base_url", "http://localhost:11434")
-                .build();
-    }
-
-    @EmbeddingModelSetup
-    public static ResourceDescriptor pythonEmbeddingModel() {
-        // In pure Python, the equivalent ResourceDescriptor would be:
-        // ResourceDescriptor(
-        //     clazz=ResourceName.EmbeddingModel.OLLAMA_SETUP,
-        //     connection="ollama_connection",
-        //     model="nomic-embed-text"
-        // )
-        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.EmbeddingModel.Python.OLLAMA_SETUP)
-                .addInitialArgument("connection", "pythonEmbeddingConnection")
-                .addInitialArgument("model", "nomic-embed-text")
-                .build();
-    }
-
-    @Action(EventType.InputEvent)
-    public static void processInput(Event event, RunnerContext ctx) throws Exception {
-        InputEvent inputEvent = InputEvent.fromEvent(event);
-        // Use the Python embedding model from Java
-        BaseEmbeddingModelSetup embeddingModel =
-            (BaseEmbeddingModelSetup) ctx.getResource(
-                "pythonEmbeddingModel",
-                ResourceType.EMBEDDING_MODEL);
-        float[] embedding = embeddingModel.embed((String) inputEvent.getInput());
-        // Process the embedding vector as needed
-    }
-}
-```
-
-{{< /tab >}}
-
-{{< /tabs >}}
+For descriptor selection, registration, and runtime requirements, see
+[Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
+[Built-in Providers]({{< ref "docs/development/vector-search/embedding_models/providers" >}}) lists available implementations and their configuration.
 
 ## Custom Providers
 

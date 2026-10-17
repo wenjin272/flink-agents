@@ -34,7 +34,12 @@ The snippets on this page are fragments that each focus on a single concept. For
 
 ## Create a ReAct Agent
 
-The only required argument of a ReAct Agent is a chat model descriptor, which references a registered chat model connection by name. See [Chat Models]({{< ref "docs/development/calling-llms/chat-models" >}}) for the provider-specific connection and model configuration.
+The only required argument of a ReAct Agent is a chat model descriptor, which
+references a registered chat model connection by name. See
+[Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for registration methods and scopes, and
+[Built-in Chat Model Providers]({{< ref "docs/development/calling-llms/chat-models/providers" >}})
+for provider-specific connection and model configuration.
 
 The following example registers a chat model connection on the `AgentsExecutionEnvironment`, defines the chat model descriptor, and creates the agent:
 

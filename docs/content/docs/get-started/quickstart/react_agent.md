@@ -90,7 +90,7 @@ agentsEnv.getConfig().set(AgentExecutionOptions.NUM_ASYNC_THREADS, 2);
 Register the Ollama connection and the notification tool as named Resources of types
 `CHAT_MODEL_CONNECTION` and `TOOL`. The chat model setup refers to them by name through its
 `connection` and `tools` fields. See
-[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}})
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
 for the shared registration and access model.
 
 {{< tabs "Register the Connection and the Tool" >}}

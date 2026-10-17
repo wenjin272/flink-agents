@@ -201,7 +201,7 @@ Native path:  ChatRequestEvent → model call (tool loop, no schema)
 - **Native output adds one conversion call after the tool loop.** The model is asked to convert its answer into the schema's format without adding information. This adds latency and cost to each request. The conversion response is the `response` on the `ChatResponseEvent`.
 - **The prompt path has no conversion call.** The framework does not add the schema to your messages. The ReAct Agent adds its own instruction. In a custom action, ask for JSON that matches the schema in your own prompt. Do this even under `AUTO`, because the request falls back to the prompt path whenever native output does not apply.
 - **The ReAct Agent adjusts its prompt to the path.** On the native path it only asks the model to include the information for every required field, because the conversion call formats it. If it cannot tell whether the call will be native, it keeps the JSON instruction.
-- **A reply that cannot be parsed fails the request.** You get a failed `ChatResponseEvent` after the configured retries. See [Failures and Recovery]({{< ref "docs/development/calling-llms/chat#failures-and-recovery" >}}).
+- **A reply that cannot be parsed fails the request.** You get a failed `ChatResponseEvent` after the configured retries. See [Handle Success and Failure]({{< ref "docs/development/calling-llms/chat#handle-success-and-failure" >}}).
 
 ## Provider Support
 
@@ -228,7 +228,7 @@ Notes:
 - **Bedrock** rejects recursive schemas, and map values are untyped.
 - **An open-keyed field blocks native output on OpenAI, Azure OpenAI, Anthropic and Java vLLM.** That is a field whose keys are not fixed in advance, at any depth: a Java `Map` or Jackson `JsonNode` field, or a Python `dict` field or a Pydantic model with `extra="allow"`. These providers need every object in the schema to list its keys. Gemini blocks only a `JsonNode` field, because it can type a `Map`'s values. Python vLLM keeps the field native, because vLLM's guided decoding enforces it. To stay native, use a nested class with named fields.
 - **A native parameter you set yourself conflicts.** Do not put `response_format` (OpenAI-compatible providers) or `output_config` (Anthropic) in `additional_kwargs` or model parameters when you use an output schema. Azure OpenAI, watsonx and DashScope raise an error when the schema would overwrite your value. Anthropic treats the request as blocked.
-- **Cross-language setups never go native.** A chat model from the other language, reached through a [cross-language resource]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}), cannot carry a schema across the bridge. `AUTO` and `PROMPT` use the prompt path, and `NATIVE` raises. To use a provider natively, declare the agent in that provider's language.
+- **Cross-language setups never go native.** A chat model from the other language, reached through a [cross-language resource]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}), cannot carry a schema across the bridge. `AUTO` and `PROMPT` use the prompt path, and `NATIVE` raises. To use a provider natively, declare the agent in that provider's language.
 
 For example, this Azure OpenAI setup goes native under `AUTO`, because the deployment's model is `gpt-4o-mini`. Without `model_of_azure_deployment`, the same setup would use the prompt path.
 

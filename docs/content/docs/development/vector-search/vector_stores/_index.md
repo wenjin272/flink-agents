@@ -47,11 +47,16 @@ In Flink Agents, vector stores are essential for:
 
 ## How to use
 
-To use vector stores in your agents, you need to configure both a vector store and an embedding model, then perform semantic search using structured queries.
+For semantic search, register a `VECTOR_STORE` Resource and the embedding model it
+uses, then query the store with structured queries. The store's `embedding_model`
+setting refers to the embedding model setup's registered Resource name. See
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for registration methods and scopes.
 
 ### Declare a vector store in Agent
 
-Flink Agents provides decorators/annotations to simplify vector store setup within agents:
+The following example uses the Declaration API with `@vector_store` in Python or
+`@VectorStore` in Java. It assumes the referenced embedding model is already registered.
 
 {{< tabs "Resource Decorators" >}}
 
@@ -446,128 +451,9 @@ public class MyAgent extends Agent {
 
 ## Using Cross-Language Providers
 
-Flink Agents supports cross-language vector store integration, allowing you to use vector stores implemented in one language (Java or Python) from agents written in the other language. This is particularly useful when a vector store provider is only available in one language (e.g., Elasticsearch and Milvus are currently Java-only, Chroma is currently Python-only).
-
-Choose a Java or Python provider implementation and install its dependencies in the
-job's environment, following [the setup instructions]({{< ref "docs/development/create-agent/choose-apis-and-languages#integrate-the-agent-into-a-flink-job" >}}).
-When provider results are carried in Event payloads, those payloads must use the supported
-[Java and Python data types]({{< ref "docs/development/create-agent/choose-apis-and-languages#data-passed-between-java-and-python" >}}).
-For async calls, also check the [cross-language execution requirements]({{< ref "docs/development/create-agent/actions#cross-language-async-requirements" >}}).
-
-### How To Use
-
-To use a resource implemented in another language, declare its implementation class with the corresponding cross-language resource descriptor:
-
-- **Using Java vector stores in Python**: Use `JavaResourceDescriptor` with the actual Java vector store class as `clazz`.
-- **Using Python vector stores in Java**: Use `PythonResourceDescriptor.Builder.newBuilder(...)` with the actual Python vector store class, including its module.
-
-### Usage Example
-
-{{< tabs "Cross-Language Vector Store Usage Example" >}}
-
-{{< tab "Using Java Vector Store in Python" >}}
-
-```python
-class MyAgent(Agent):
-
-    # Define embedding model (can be Java or Python implementation)
-    @embedding_model_connection
-    @staticmethod
-    def my_embedding_connection() -> ResourceDescriptor:
-        # Configure embedding model connection as needed
-        pass
-
-    @embedding_model_setup
-    @staticmethod
-    def my_embedding_model() -> ResourceDescriptor:
-        # Configure embedding model setup as needed
-        pass
-
-    # Use Java vector store with embedding model
-    @vector_store
-    @staticmethod
-    def java_vector_store() -> ResourceDescriptor:
-        # In pure Java, the equivalent ResourceDescriptor would be:
-        # ResourceDescriptor.Builder
-        #     .newBuilder(ResourceName.VectorStore.ELASTICSEARCH_VECTOR_STORE)
-        #     .addInitialArgument("embedding_model", "my_embedding_model")
-        #     .addInitialArgument("host", "http://localhost:9200")
-        #     .addInitialArgument("index", "my_documents")
-        #     .addInitialArgument("dims", 768)
-        #     .build();
-        return JavaResourceDescriptor(
-            clazz=ResourceName.VectorStore.Java.ELASTICSEARCH_VECTOR_STORE,
-            embedding_model="my_embedding_model",
-            host="http://localhost:9200",
-            index="my_documents",
-            dims=768
-        )
-
-    @action(EventType.InputEvent)
-    @staticmethod
-    def process_input(event: Event, ctx: RunnerContext) -> None:
-        # Use Java vector store from Python
-        input_event = InputEvent.from_event(event)
-        vector_store = ctx.get_resource("java_vector_store", ResourceType.VECTOR_STORE)
-        
-        # Perform semantic search
-        query = VectorStoreQuery(query_text=str(input_event.input), limit=3)
-        result = vector_store.query(query)
-        
-        # Process the retrieved documents
-```
-
-{{< /tab >}}
-
-{{< tab "Using Python Vector Store in Java" >}}
-
-```java
-public class MyAgent extends Agent {
-
-    // Define embedding model (can be Java or Python implementation)
-    @EmbeddingModelConnection
-    public static ResourceDescriptor myEmbeddingConnection() {
-        // Configure embedding model connection as needed
-        return null;
-    }
-
-    @EmbeddingModelSetup
-    public static ResourceDescriptor myEmbeddingModel() {
-        // Configure embedding model setup as needed
-        return null;
-    }
-    
-    @VectorStore
-    public static ResourceDescriptor pythonVectorStore() {
-        // In pure Python, the equivalent ResourceDescriptor would be:
-        // ResourceDescriptor(
-        //     clazz=ResourceName.VectorStore.CHROMA_VECTOR_STORE,
-        //     embedding_model="my_embedding_model",
-        // )
-        return PythonResourceDescriptor.Builder.newBuilder(ResourceName.VectorStore.Python.CHROMA_VECTOR_STORE)
-                .addInitialArgument("embedding_model", "myEmbeddingModel")
-                .build();
-    }
-
-    @Action(EventType.InputEvent)
-    public static void processInput(Event event, RunnerContext ctx) throws Exception {
-        InputEvent inputEvent = InputEvent.fromEvent(event);
-        // Use Python vector store from Java
-        VectorStore vectorStore = 
-            (VectorStore) ctx.getResource("pythonVectorStore", ResourceType.VECTOR_STORE);
-        
-        // Perform semantic search
-        VectorStoreQuery query = new VectorStoreQuery((String) inputEvent.getInput(), 3);
-        VectorStoreQueryResult result = vectorStore.query(query);
-        
-        // Process the retrieved documents
-    }
-}
-```
-
-{{< /tab >}}
-
-{{< /tabs >}}
+For descriptor selection, registration, and runtime requirements, see
+[Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
+[Built-in Providers]({{< ref "docs/development/vector-search/vector_stores/providers" >}}) lists available implementations and their configuration.
 
 ## Custom Providers
 

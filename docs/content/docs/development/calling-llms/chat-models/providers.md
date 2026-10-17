@@ -26,14 +26,57 @@ under the License.
 
 ## Built-in Providers
 
+This page describes built-in provider implementations, dependencies, and
+configuration options. Setup parameter tables list the model identifier and
+provider-specific options; shared fields such as `connection`, `prompt`, `tools`,
+and `skills` are described in
+[Configuring Chat Models]({{< ref "docs/development/calling-llms/chat-models#configuring-chat-models" >}}).
+For registration methods and scopes, see
+[Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}}).
+For message roles, content blocks, and source construction, see
+[Chat Messages]({{< ref "docs/development/calling-llms/chat#chat-messages" >}}).
+
 For which providers and models enforce an `output_schema` natively, see [Structured Output]({{< ref "docs/development/calling-llms/structured-output#provider-support" >}}).
+
+### Provider Capabilities
+
+{{< hint warning >}}
+A content block that Flink Agents can represent is not necessarily supported by
+the selected provider integration or model. The table describes the Flink Agents
+0.4 integrations, not every capability of the upstream services. The selected
+model, deployment, and server must also support the requested input and tool calling.
+{{< /hint >}}
+
+| Integration | Implementation language | Media input accepted by the integration |
+|---|---|---|
+| [OpenAI Chat Completions](#multimodal-input), [Azure OpenAI](#azure-openai), [vLLM](#vllm) | Java, Python | User messages: images by URL or Base64; WAV/MP3 audio and documents by Base64. See the conversion and model restrictions below. |
+| [OpenAI Responses](#responses-api) | Java | No media input; media blocks are rejected. |
+| [Anthropic](#anthropic) | Java, Python | User messages: JPEG/PNG/GIF/WebP images and PDF documents by URL or Base64; plain-text documents by Base64. |
+| [Ollama](#ollama) | Java, Python | User messages: Base64 images, sent separately from text; requires a vision model. |
+| [Amazon Bedrock](#amazon-bedrock), [Gemini](#gemini) | Java | No media input; media blocks are rejected. |
+| [DashScope (Alibaba Cloud Model Studio)](#alibaba-cloud-model-studio-dashscope) | Python | No media input; media blocks are rejected. |
+| [IBM watsonx.ai](#watsonx-ibm-watsonxai) | Java, Python | No media input; media blocks are rejected. |
+
+All listed integrations can send tool definitions and return tool calls when the
+selected model supports them. Register the tools and reference them from the setup;
+see [Tool Use]({{< ref "docs/development/calling-llms/tool_use" >}}) for declaration
+and execution behavior. Media support above applies to user messages, not to tool
+results or other roles. Media that the integration does not support raises
+`UnsupportedContentBlockException` in Java or `UnsupportedContentBlockError` in
+Python before the request is sent. Media accepted by the integration can still
+be rejected by the model service if the selected model or deployment does not
+support it.
+
+The implementation language does not limit the Agent API you can use: see
+[Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}})
+for dependencies and execution requirements.
 
 ### Amazon Bedrock
 
 Amazon Bedrock provides access to a wide range of foundation models from leading AI providers through a unified API. The Flink Agents Bedrock integration uses the [Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html), which provides a consistent interface across all supported models with native tool calling support. Authentication is handled via SigV4 using the AWS default credentials chain. No API keys are required.
 
 {{< hint info >}}
-Amazon Bedrock is only supported in Java currently. To use Amazon Bedrock from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}).
+The Amazon Bedrock chat integration currently has a Java implementation only. To use Amazon Bedrock from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -65,10 +108,7 @@ Amazon Bedrock is only supported in Java currently. To use Amazon Bedrock from P
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | String | Required | Reference to connection method name |
 | `model` | String | Required | Bedrock model ID (e.g. `"us.anthropic.claude-sonnet-4-20250514-v1:0"`) |
-| `prompt` | Prompt \| String | None | Prompt template or reference to prompt resource |
-| `tools` | List<String> | None | List of tool names available to the model |
 | `temperature` | double | `0.1` | Sampling temperature (0.0 to 1.0) |
 | `max_tokens` | int | None | Maximum number of tokens to generate |
 
@@ -168,10 +208,7 @@ Anthropic provides cloud-based chat models featuring the Claude family, known fo
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | str | Required | Reference to connection method name |
 | `model` | str | `"claude-sonnet-4-6"` | Name of the chat model to use |
-| `prompt` | Prompt \| str | None | Prompt template or reference to prompt resource |
-| `tools` | List[str] | None | List of tool names available to the model |
 | `max_tokens` | int | `1024` | Maximum number of tokens to generate |
 | `temperature` | float | `0.1` | Sampling temperature (0.0 to 1.0) (not sent on Claude 4.7 and later, which reject a non-default sampling parameter) |
 | `json_prefill` | bool | `False` | Prefill assistant response with "{" to enforce JSON output (applies only on models that accept assistant-message prefilling; disabled when tools are used, or when the request carries an `output_config`) |
@@ -182,10 +219,7 @@ Anthropic provides cloud-based chat models featuring the Claude family, known fo
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | String | Required | Reference to connection method name |
 | `model` | String | `"claude-sonnet-4-6"` | Name of the chat model to use |
-| `prompt` | Prompt \| String | None | Prompt template or reference to prompt resource |
-| `tools` | List<String> | None | List of tool names available to the model |
 | `max_tokens` | long | `1024` | Maximum number of tokens to generate |
 | `temperature` | double | `0.1` | Sampling temperature (0.0 to 1.0) (not sent on Claude 4.7 and later, which reject a non-default sampling parameter) |
 | `json_prefill` | boolean | `false` | Prefill assistant response with "{" to enforce JSON output (applies only on models that accept assistant-message prefilling; disabled when tools are used, or when the request carries an `output_config`) |
@@ -286,23 +320,6 @@ Model availability and specifications may change. Always check the official Anth
 
 Azure OpenAI provides access to OpenAI models (GPT-4, GPT-4o, etc.) through Azure's cloud infrastructure, using the same OpenAI SDK with Azure-specific authentication and endpoints. This offers enterprise security, compliance, and regional availability while using familiar OpenAI APIs.
 
-{{< hint warning >}}
-**Migrating from Azure AI:** `AzureAIChatModelConnection` and `AzureAIChatModelSetup` have been removed. Replace them with `OpenAICompletionsConnection` and `OpenAICompletionsSetup` (see [OpenAI](#openai)), pointed at a Microsoft Foundry OpenAI v1 endpoint. There are two declarations to change, not one.
-
-On the connection, `AzureAIChatModelConnection` → `OpenAICompletionsConnection`:
-
-- `endpoint` becomes `api_base_url`, **and the value changes shape, not just the key**: `https://<resource>.services.ai.azure.com/models` becomes `https://<resource>.openai.azure.com/openai/v1/`. `https://<resource>.services.ai.azure.com/openai/v1/` is also accepted. Carrying the old value over unchanged will not work.
-- `apiKey` becomes `api_key`.
-
-On the setup, `AzureAIChatModelSetup` → `OpenAICompletionsSetup`:
-
-- Set `model` explicitly to your Foundry deployment name. Leaving it out is **not** reported as a configuration error: `OpenAICompletionsSetup` substitutes its own OpenAI default (`gpt-4o-mini`), and on the OpenAI v1 route that value is read as a deployment name. If no deployment on the resource carries that name, the request fails later at the provider; if one does, it is used silently in place of the deployment you meant.
-
-In YAML, `clazz: azure` no longer resolves to anything. Use `clazz: openai_completions` with `type: java`, in both `chat_model_connections` and `chat_model_setups`.
-
-The target is `OpenAICompletionsConnection` rather than `AzureOpenAIChatModelConnection` because the `/openai/v1/` route uses implicit versioning and takes no `api-version`, which `AzureOpenAIChatModelConnection` requires.
-{{< /hint >}}
-
 #### Prerequisites
 
 1. Create an Azure OpenAI resource in the [Azure Portal](https://portal.azure.com/)
@@ -348,11 +365,8 @@ The target is `OpenAICompletionsConnection` rather than `AzureOpenAIChatModelCon
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | str | Required | Reference to connection method name |
 | `model` | str | Required | Name of OpenAI model deployment on Azure |
 | `model_of_azure_deployment` | str | None | The underlying model name (e.g., 'gpt-4', 'gpt-35-turbo'). Used for token metrics tracking, and to decide whether an `output_schema` is applied natively (see [Structured Output]({{< ref "docs/development/calling-llms/structured-output#provider-support" >}})) |
-| `prompt` | Prompt \| str | None | Prompt template or reference to prompt resource |
-| `tools` | List[str] | None | List of tool names available to the model |
 | `temperature` | float | None | Sampling temperature (0.0 to 2.0). Not supported by reasoning models |
 | `max_tokens` | int | None | Maximum number of tokens to generate |
 | `logprobs` | bool | `False` | Whether to return log probabilities of output tokens |
@@ -364,11 +378,8 @@ The target is `OpenAICompletionsConnection` rather than `AzureOpenAIChatModelCon
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | String | Required | Reference to connection method name |
 | `model` | String | Required | Azure deployment name (not the underlying OpenAI model name) |
 | `model_of_azure_deployment` | String | None | The underlying model name (e.g., 'gpt-4', 'gpt-4o'). Used for token metrics tracking, and to decide whether an `output_schema` is applied natively (see [Structured Output]({{< ref "docs/development/calling-llms/structured-output#provider-support" >}})) |
-| `prompt` | Prompt \| String | None | Prompt template or reference to prompt resource |
-| `tools` | List<String> | None | List of tool names available to the model |
 | `temperature` | double | None | Sampling temperature (0.0 to 2.0). Not supported by reasoning models |
 | `max_tokens` | int | None | Maximum number of tokens to generate (must be greater than 0) |
 | `logprobs` | boolean | `false` | Whether to return log probabilities of output tokens |
@@ -466,7 +477,7 @@ Vertex AI support is experimental. The connection path has been smoke-tested dur
 {{< /hint >}}
 
 {{< hint info >}}
-Gemini is only supported in Java currently. To use Gemini from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}).
+The Gemini integration currently has a Java implementation only. To use Gemini from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -502,10 +513,7 @@ Gemini is only supported in Java currently. To use Gemini from Python agents, se
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | String | Required | Reference to connection method name |
 | `model` | String | `"gemini-3.1-pro-preview"` | Name of the chat model to use |
-| `prompt` | Prompt \| String | None | Prompt template or reference to prompt resource |
-| `tools` | List<String> | None | List of tool names available to the model |
 | `temperature` | double | `0.1` | Sampling temperature (0.0 to 2.0) |
 | `max_output_tokens` | long | `1024` | Maximum number of tokens to generate |
 | `additional_kwargs` | Map<String, Object> | `{}` | Additional Gemini parameters (`top_k`, `top_p`, `stop_sequences`) |
@@ -584,8 +592,8 @@ Ollama server **0.9.0** or higher is required.
 
 | Parameter        | Type   | Default                    | Description |
 |------------------|--------|----------------------------|-------------|
-| `endpoint`       | String | `"http://localhost:11434"` | Ollama server URL |
-| `requestTimeout` | long   | `10`                       | HTTP request timeout in seconds |
+| `endpoint`       | String | Required | Ollama server URL |
+| `requestTimeout` | int    | `60`     | HTTP request timeout in seconds |
 
 {{< /tab >}}
 
@@ -599,13 +607,10 @@ Ollama server **0.9.0** or higher is required.
 
 | Parameter           | Type                                     | Default  | Description                                     |
 |---------------------|------------------------------------------|----------|-------------------------------------------------|
-| `connection`        | str                                      | Required | Reference to connection method name             |
 | `model`             | str                                      | Required | Name of the chat model to use                   |
-| `prompt`            | Prompt \| str                            | None     | Prompt template or reference to prompt resource |
-| `tools`             | List[str]                                | None     | List of tool names available to the model       |
 | `temperature`       | float                                    | `0.75`   | Sampling temperature (0.0 to 1.0)               |
 | `num_ctx`           | int                                      | `2048`   | Maximum number of context tokens                |
-| `keep_alive`        | str \| float                             | `"5m"`   | How long to keep model loaded in memory         |
+| `keep_alive`        | str \| float                             | None     | How long to keep model loaded in memory         |
 | `think`             | bool \| Literal["low", "medium", "high"] | True     | Whether enable model think                      |
 | `extract_reasoning` | bool                                     | True     | Extract reasoning content from response         |
 | `additional_kwargs` | dict                                     | `{}`     | Additional Ollama API parameters                |
@@ -615,10 +620,7 @@ Ollama server **0.9.0** or higher is required.
 
 | Parameter           | Type                                        | Default  | Description                                     |
 |---------------------|---------------------------------------------|----------|-------------------------------------------------|
-| `connection`        | String                                      | Required | Reference to connection method name             |
 | `model`             | String                                      | Required | Name of the chat model to use                   |
-| `prompt`            | Prompt \| String                            | None     | Prompt template or reference to prompt resource |
-| `tools`             | List[String]                                | None     | List of tool names available to the model       |
 | `think`             | Boolean \| Literal["low", "medium", "high"] | true     | Whether enable model think                      |
 | `extract_reasoning` | Boolean                                     | true     | Extract reasoning content from response         |
 
@@ -756,10 +758,7 @@ OpenAI provides cloud-based chat models with state-of-the-art performance for a 
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | str | Required | Reference to connection method name |
 | `model` | str | `"gpt-4o-mini"` | Name of the chat model to use |
-| `prompt` | Prompt \| str | None | Prompt template or reference to prompt resource |
-| `tools` | List[str] | None | List of tool names available to the model |
 | `temperature` | float | `0.1` | Sampling temperature (0.0 to 2.0) |
 | `max_tokens` | int | None | Maximum number of tokens to generate |
 | `logprobs` | bool | None | Whether to return log probabilities per token |
@@ -774,10 +773,7 @@ OpenAI provides cloud-based chat models with state-of-the-art performance for a 
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | String | Required | Reference to connection method name |
 | `model` | String | `"gpt-4o-mini"` | Name of the chat model to use |
-| `prompt` | Prompt \| String | None | Prompt template or reference to prompt resource |
-| `tools` | List<String> | None | List of tool names available to the model |
 | `temperature` | double | `0.1` | Sampling temperature (0.0 to 2.0) |
 | `max_tokens` | int | None | Maximum number of tokens to generate |
 | `logprobs` | boolean | None | Whether to return log probabilities per token |
@@ -856,25 +852,38 @@ public class MyAgent extends Agent {
 
 #### Multimodal Input
 
+For the framework's content blocks and source factories, see
+[Multimodal Messages]({{< ref "docs/development/calling-llms/chat#message-content-blocks" >}}).
+The following conversion applies to Chat Completions, including Azure OpenAI and
+vLLM; it does not apply to the OpenAI Responses integration.
+
 The Chat Completions connections (OpenAI, Azure OpenAI and vLLM) send the media blocks of a user message as content parts, in block order:
 
 | Block | Sent as |
 |---|---|
 | `TextBlock` | a `text` part |
 | `ImageBlock` | an `image_url` part: the URL, or a `data:` URI for Base64 data |
-| `AudioBlock` | an `input_audio` part, for Base64 data in `audio/wav` or `audio/mpeg` (WAV or MP3) |
+| `AudioBlock` | an `input_audio` part, for Base64 WAV or MP3 data (accepted MIME types listed below) |
 | `DocumentBlock` | a `file` part: the Base64 data as a `data:` URI, with the block's `name` as the file name (`document` when unset). OpenAI accepts PDF documents only |
 | `VideoBlock` | not supported |
 
+Accepted audio MIME types are `audio/wav`, `audio/wave`, `audio/x-wav`, and
+`audio/vnd.wave` for WAV, and `audio/mpeg` and `audio/mp3` for MP3.
+
 A user message with only text blocks is still sent as a plain string. Media in system, assistant or tool messages, audio or documents given by URL, other audio types, and video raise `UnsupportedContentBlockException` (Java) or `UnsupportedContentBlockError` (Python) before the request is sent. Whether a model accepts a given part depends on the model and the server.
 
-The other built-in providers (Gemini, Amazon Bedrock, IBM watsonx.ai, DashScope and the OpenAI Responses API) do not send media yet: a message with a media block raises the same error instead of being sent as its text.
+See [Provider Capabilities](#provider-capabilities) for other integrations.
 
 #### Responses API
 
 {{< hint info >}}
-Responses API is only supported in Java currently. To use OpenAI Responses API from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}).
+The OpenAI Responses integration currently has a Java implementation only. To use OpenAI Responses API from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
+
+The Flink Agents Responses integration currently rejects media blocks before
+sending a request. Its capabilities differ from the Chat Completions integration
+above, even when both connect to OpenAI. This is an integration limit, not a claim
+that the upstream Responses API lacks multimodal support.
 
 ##### OpenAIResponsesModelConnection Parameters
 
@@ -903,10 +912,7 @@ Responses API is only supported in Java currently. To use OpenAI Responses API f
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | String | Required | Reference to connection method name |
 | `model` | String | `"gpt-4o"` | Name of the chat model to use |
-| `prompt` | Prompt \| String | None | Prompt template or reference to prompt resource |
-| `tools` | List<String> | None | List of tool names available to the model |
 | `temperature` | double | `0.1` | Sampling temperature (0.0 to 2.0) |
 | `max_tokens` | int | None | Maximum number of tokens to generate |
 | `strict` | boolean | `false` | Enable strict mode for tool calling schemas |
@@ -966,12 +972,12 @@ Some popular options include:
 Model availability and specifications may change. Always check the official OpenAI documentation for the latest information before implementing in production.
 {{< /hint >}}
 
-### Alibaba Cloud Model Studio (DashScope)
+### DashScope (Alibaba Cloud Model Studio) {#alibaba-cloud-model-studio-dashscope}
 
 This integration connects to Alibaba Cloud Model Studio (Bailian) through the DashScope SDK to access chat models.
 
 {{< hint info >}}
-The DashScope integration is currently supported in the Python API only. To use it from Java agents, see [Using Cross-Language Providers]({{< ref "docs/development/calling-llms/chat-models#using-cross-language-providers" >}}).
+The DashScope integration currently has a Python implementation only. To use it from Java agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -989,10 +995,7 @@ The DashScope integration is currently supported in the Python API only. To use 
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | str | Required | Reference to connection method name |
 | `model` | str | `"qwen-plus"` | Name of the chat model to use (an `output_schema` is enforced natively only on `qwen3.7-max`, `qwen3.7-max-preview`, `qwen3.7-max-2026-05-17` and `qwen3.7-max-2026-05-20`, the schema-capable models DashScope serves on the text-generation interface this connection calls; every other model, the `qwen-plus` default included, falls back to prompting) |
-| `prompt` | Prompt \| str | None | Prompt template or reference to prompt resource |
-| `tools` | List[str] | None | List of tool names available to the model |
 | `temperature` | float | `0.7` | Sampling temperature (0.0 to 2.0) |
 | `extract_reasoning` | bool | `False` | Extract reasoning content from response |
 | `additional_kwargs` | dict | `{}` | Additional DashScope API parameters. A `response_format` supplied here is rejected only when it would be overwritten, that is when an `output_schema` carrying a Pydantic model is set on a model that applies it natively; otherwise it is passed through unchanged |
@@ -1209,10 +1212,7 @@ IBM watsonx.ai provides cloud-based chat models, including the IBM Granite serie
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | str | Required | Reference to connection method name |
 | `model` | str | `"ibm/granite-4-h-small"` | watsonx.ai model id to use |
-| `prompt` | Prompt \| str | None | Prompt template or reference to prompt resource |
-| `tools` | List[str] | None | List of tool names available to the model |
 | `temperature` | float | `0.1` | Sampling temperature (0.0 to 2.0) |
 | `max_tokens` | int | None | Maximum number of tokens to generate |
 | `extract_reasoning` | bool | `False` | Extract reasoning content (e.g. `<think>` blocks) from response |
@@ -1224,10 +1224,7 @@ IBM watsonx.ai provides cloud-based chat models, including the IBM Granite serie
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | String | Required | Reference to connection method name |
 | `model` | String | `"ibm/granite-4-h-small"` | watsonx.ai model id to use |
-| `prompt` | Prompt \| String | None | Prompt template or reference to prompt resource |
-| `tools` | List[String] | None | List of tool names available to the model |
 | `temperature` | Double | `0.1` | Sampling temperature (0.0 to 2.0) |
 | `max_tokens` | Integer | None | Maximum number of tokens to generate |
 | `extract_reasoning` | Boolean | `false` | Extract reasoning content (e.g. `<think>` blocks) from response |

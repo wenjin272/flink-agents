@@ -25,125 +25,98 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# Model Routing
+<span id="model-routing"></span>
 
 ## Overview
 
-Model routing lets one chat request choose between several registered chat models at runtime. Instead of naming a chat model in a `ChatRequestEvent`, an agent names a **model router**. The router carries a list of **candidate** chat models and a **routing strategy**. For each request the strategy either **selects** one candidate or **abstains**, in which case the router's default model is used. The chosen model is then invoked through the ordinary chat path, so its prompt, tools, skills, retries, token metrics, and trace logging apply as usual.
+A **model router** selects a chat model for each request from a list of registered
+**candidates**. For example, route code and SQL questions to a larger model and
+use a smaller model for everyday requests. A **routing strategy** selects a
+candidate or **abstains** (makes no selection), in which case the router uses its
+default model.
 
-Typical uses are sending short requests to a small, cheap model and code, SQL, or multi-step reasoning to a large one; keeping a default model for everything the strategy cannot classify; and falling through to the next candidate when the selected model fails.
-
-- Any registered chat model from any provider can be a candidate or a judge. Tool calls work: the model that answered the initial request is kept for every tool-call round of that request.
-- `ReActAgent` cannot use a router; it registers its own chat model under a fixed name. Routing is for agents that send `ChatRequestEvent` themselves.
-- A router cannot be a judge, a candidate of another router, or a chat model's `connection`.
+Use the router's resource name in a `ChatRequestEvent` or a Java `ctx.chat` call.
+The selected model uses its own prompt, tools, skills, and generation settings.
+Routing can also try another candidate if the initial model call fails.
 
 {{< hint info >}}
-Model routing is only supported in Java currently. Python agents cannot register a `MODEL_ROUTER` resource yet, and the YAML API has no section for routers. A router declared by a Java agent is still understood when the plan is shared with Python. Python support is planned for a future release.
+Routers currently support the Java Programmatic API: register them on an Agent or
+its execution environment. There is no router declaration annotation, Python
+registration API, or YAML router section. The built-in `ReActAgent` does not
+accept a router in place of its chat model setup.
 {{< /hint >}}
 
-## Quick Start
+<span id="quick-start"></span>
 
-Declare the connection, the candidate chat models, and any judge with the usual `@ChatModelConnection` and `@ChatModelSetup` annotations. The router itself is a resource of type `ResourceType.MODEL_ROUTER`, built with `ModelRouter.of(...)`; there is no annotation for it yet, so register it with `addResource` in the agent's constructor. Candidates are the names of chat models registered in the same agent, listed in the order [fallback](#default-model-and-fallback) tries them. A name cannot be both a chat model and a router.
+## Register a Router
 
-{{< tabs "Model Routing Quick Start" >}}
+Register the candidate [chat model setups]({{< ref "docs/development/calling-llms/chat-models" >}})
+and their connections first. Candidate names refer to `CHAT_MODEL` Resources
+available to the Agent, including those registered on its execution environment.
+See [Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for registration methods and scopes.
 
-{{< tab "Java" >}}
+The example below assumes two setups named `small` and `big`. It sends requests
+mentioning code or SQL to `big` and uses `small` when no rule matches. Add this
+constructor to your Agent class:
+
 ```java
-import org.apache.flink.agents.api.chat.model.routing.ModelRouter;
-import org.apache.flink.agents.api.chat.model.routing.Strategies;
+public ModelRoutingAgent() {
+    Map<String, String> rules = new LinkedHashMap<>();
+    rules.put("big", "\\b(code|sql|program|analyze|prove)\\b");
 
-public class ModelRoutingAgent extends Agent {
-
-    /** One Ollama connection shared by the candidates. */
-    @ChatModelConnection
-    public static ResourceDescriptor ollamaConnection() {
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_CONNECTION)
-                .addInitialArgument("endpoint", "http://localhost:11434")
-                .build();
-    }
-
-    /** Candidate "small": a cheap model for everyday requests. */
-    @ChatModelSetup
-    public static ResourceDescriptor small() {
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
-                .addInitialArgument("connection", "ollamaConnection")
-                .addInitialArgument("model", "qwen3:1.7b")
-                .build();
-    }
-
-    /** Candidate "big": a stronger model for code and analysis. */
-    @ChatModelSetup
-    public static ResourceDescriptor big() {
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
-                .addInitialArgument("connection", "ollamaConnection")
-                .addInitialArgument("model", "qwen3:8b")
-                .build();
-    }
-
-    public ModelRoutingAgent() {
-        // Requests whose latest user message mentions code or SQL go to "big";
-        // everything else abstains and lands on the default, "small".
-        Map<String, String> rules = new LinkedHashMap<>();
-        rules.put("big", "\\b(code|sql|program|analyze|prove)\\b");
-
-        addResource(
-                "router",
-                ResourceType.MODEL_ROUTER,
-                ModelRouter.of("small", "big")
-                        .strategy(Strategies.rules(rules))
-                        .defaultModel("small")
-                        .fallback(true)
-                        .build());
-    }
-
-    /** Send each input to the router, which selects the concrete model. */
-    @Action(EventType.InputEvent)
-    public static void processInput(InputEvent event, RunnerContext ctx) {
-        ctx.sendEvent(
-                new ChatRequestEvent(
-                        "router",
-                        Collections.singletonList(
-                                new ChatMessage(MessageRole.USER, (String) event.getInput()))));
-    }
-
-    /** Emit the model's answer as output. */
-    @Action(EventType.ChatResponseEvent)
-    public static void processChatResponse(ChatResponseEvent event, RunnerContext ctx) {
-        ctx.sendEvent(new OutputEvent(event.getResponse().getText()));
-    }
+    addResource(
+            "router",
+            ResourceType.MODEL_ROUTER,
+            ModelRouter.of("small", "big")
+                    .strategy(Strategies.rules(rules))
+                    .defaultModel("small")
+                    .fallback(true)
+                    .build());
 }
 ```
-{{< /tab >}}
 
-{{< /tabs >}}
+`ModelRouter.of(...).build()` returns a `ResourceDescriptor`. Register it as a
+`MODEL_ROUTER` Resource using the
+[Programmatic API]({{< ref "docs/development/create-agent/resources#programmatic-api" >}}).
+The complete [examples](#examples) demonstrate registration on the execution
+environment.
 
-Resources can equally be registered on the execution environment with `agentsEnv.addResource(name, type, descriptor)`, as the [examples](#examples) do. The agent names the router in its `ChatRequestEvent`; nothing else in the agent changes. To turn routing off, address a candidate directly, or replace the router registration with a plain chat model under the same name.
+| Builder method | Required | Description |
+|----------------|----------|-------------|
+| `of(String... candidates)` | Required | At least one registered chat model name. Names must be non-empty and unique. Candidate order determines the fallback order. |
+| `strategy(RoutingStrategy)` | Required | One of the `Strategies` factories described below. |
+| `describe(candidate, description)` | Optional | Describes when to choose a candidate, particularly for an LLM judge. The name must be a candidate. |
+| `defaultModel(String)` | Optional | Candidate to use when the strategy abstains. Defaults to the first candidate. |
+| `fallback(boolean)` | Optional | Try remaining candidates after the selected model fails. Defaults to `false`. |
+| `build()` | Required | Validate the declaration and produce the descriptor. |
 
-| Method | Description |
-|--------|-------------|
-| `of(String... candidates)` | Start a router over the given chat model names. At least one, each non-empty and unique. |
-| `strategy(RoutingStrategy)` | Required. One of the `Strategies` factories below. |
-| `describe(candidate, description)` | Describe a candidate. Descriptions are the criteria the [LLM judge](#llm-judge) reads. The name must be a candidate. |
-| `defaultModel(String)` | Where the router lands when the strategy abstains. Optional; without it the first candidate is the default. Must be a candidate. |
-| `fallback(boolean)` | Try the remaining candidates, in declaration order, after the selected model fails. Off by default. |
-| `build()` | Produces the `ResourceDescriptor` to register. Fails on a duplicate or empty candidate, a default model that is not a candidate, or a rule key that is not a candidate. |
+A resource name cannot identify both a chat model and a router. Candidates and
+judges must be chat model setups; a router cannot serve as another router's
+candidate or judge, or as a chat model connection.
 
 ## Routing Strategies
 
-A strategy is declared with a `Strategies` factory and travels with the agent plan. Every strategy either selects a candidate or abstains. A runtime result that names a model outside the candidates is treated as abstention and lands on the default model, whichever strategy produced it. A fresh judge verdict outside the candidates abstains inside the judge with the reason `judge verdict was not a candidate name`. Any other non-candidate decision is normalized by the router: the routing event's `reason` becomes `selected model '<name>' is not a candidate`, its `metadata` records the rejected name in `rejected_model` and, if the strategy gave a reason, that reason in `rejected_reason`. The same rule applies on [recovery](#advanced): a persisted decision naming a model that is no longer a candidate lands on the router's current default. Rule targets, candidates, and the default model are checked at declaration, so those mistakes fail at build time instead of abstaining.
+Choose rules for text matching, an LLM judge for semantic selection, or a custom
+executor for application-specific logic. All strategies use the same
+[selection and failure rules](#default-model-and-fallback).
 
 ### Rules
 
-`Strategies.rules(Map<String, String>)` maps a candidate name to a regular expression. Rules are evaluated in the map's iteration order against the **content of the most recent user message**; the first candidate whose pattern is found wins. If nothing matches, or the most recent user message is empty or absent, the strategy abstains. An empty map is allowed and always abstains.
+`Strategies.rules(Map<String, String>)` maps candidate names to regular
+expressions. It checks the **text of the most recent user message** in map
+iteration order and selects the first matching candidate. An empty rule map,
+an absent or empty user message, or no match causes abstention.
 
-Matching is case-insensitive for ASCII letters; add `(?u)` for Unicode case folding. Rules see only the user message text, not prompt arguments or a bound prompt template; route on prompt arguments with a [custom executor](#custom-executor) instead. An invalid pattern or a rule key that is not a candidate fails at declaration.
+Rules use Java `java.util.regex.Pattern` with `Pattern.CASE_INSENSITIVE`.
+Matching uses `Matcher.find()`: a matching substring is sufficient. Use `\A...\z`
+when the rule should match the whole message. Case-insensitive
+matching covers ASCII letters by default; add `(?u)` for Unicode case folding.
+Backslashes must be escaped in Java string literals: `"\\bcode\\b"` represents
+`\bcode\b`, matching `code` at word boundaries.
 
-{{< tabs "Rule-Based Routing" >}}
-
-{{< tab "Java" >}}
 ```java
-// Order matters when patterns overlap: a LinkedHashMap keeps declaration order,
-// Map.of(...) does not guarantee one.
+// LinkedHashMap preserves priority when patterns overlap.
 Map<String, String> rules = new LinkedHashMap<>();
 rules.put("big", "\\b(code|sql|program|analyze|prove)\\b");
 rules.put("medium", "\\b(summari[sz]e|translate)\\b");
@@ -153,19 +126,21 @@ ModelRouter.of("small", "medium", "big")
         .defaultModel("small")
         .build();
 ```
-{{< /tab >}}
 
-{{< /tabs >}}
+This example also requires a registered `medium` setup. `Map.of(...)` does not
+guarantee rule order. Rules see user-message text before a candidate's prompt is
+applied; use a [custom executor](#custom-executor) to route on prompt arguments.
+Invalid patterns and rule targets outside the candidate list fail validation.
 
 ### LLM Judge
 
-`Strategies.llm(judgeModel)` asks another chat model, the **judge**, to pick the candidate. The judge is a regular chat model declared with `@ChatModelSetup` and must be a **plain** one: no prompt, tools, or skills, since any of them would break the verdict. The candidate descriptions are the judge's decision criteria.
+`Strategies.llm(judgeModel)` asks a registered chat model to choose a candidate
+based on the candidate descriptions and the request. The judge setup must have
+no bound prompt, tools, or skills. You can use an existing setup that meets these
+requirements; the example below declares a separate one using an existing Ollama
+connection:
 
-{{< tabs "LLM Judge Routing" >}}
-
-{{< tab "Java" >}}
 ```java
-/** The judge is just another registered chat model. */
 @ChatModelSetup
 public static ResourceDescriptor judge() {
     return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
@@ -173,30 +148,41 @@ public static ResourceDescriptor judge() {
             .addInitialArgument("model", "qwen3:1.7b")
             .build();
 }
-
-public ModelRoutingAgent() {
-    addResource(
-            "router",
-            ResourceType.MODEL_ROUTER,
-            ModelRouter.of("small", "big")
-                    .describe("small", "fast and cheap: chit-chat, lookups, short factual asks")
-                    .describe("big", "expensive: code, SQL, math, multi-step reasoning")
-                    .strategy(Strategies.llm("judge"))
-                    .defaultModel("small")
-                    .fallback(true)
-                    .build());
-}
 ```
-{{< /tab >}}
 
-{{< /tabs >}}
+Replace the rule-based router descriptor with:
 
-- **Input**: The judge uses the conversation's text and media, including tool calls and results, to choose among the candidate models and their descriptions. Reasoning content is excluded. Choose a judge model and integration that support the media types in your requests; unsupported media causes the request to fail. If the default candidate uses a prompt template, that template also applies to the judge's view of the request.
-- **Verdict**: The reply is accepted when it contains `"model": "<candidate name>"`, or when the whole trimmed reply is exactly a candidate name. Matching is case-sensitive. Names that are not candidates are ignored, so instructions hidden in the user's request cannot steer routing outside the declared candidates.
-- **Abstain**: A reply that names no candidate, or several different candidates, abstains to the default.
-- **Failure**: A failed judge call is retried according to `max-retries` and `retry-wait-interval`; exhausting the retry budget produces a failed `ChatResponseEvent`, not an abstention.
-- **Custom prompt**: `Strategies.llm(judgeModel, promptTemplate)` replaces the system message. Include `{candidates}` in the template; it is replaced with one `- name: description` line per candidate. The template also owns the verdict instructions.
-- **Context budget**: `withMaxContextChars(int)` limits the conversation text shown to the judge, including tool calls and results. Media does not count toward this character limit and is kept or dropped with its message. System messages, prompt template messages, and the newest message are always kept; older messages are included newest-first as space allows. These required messages can exceed the limit, so it is not a hard cap on the judge's total input. The routing details report whether any history was dropped.
+```java
+ModelRouter.of("small", "big")
+        .describe("small", "fast and cheap: short factual questions and everyday requests")
+        .describe("big", "code, SQL, math, and multi-step reasoning")
+        .strategy(Strategies.llm("judge"))
+        .defaultModel("small")
+        .fallback(true)
+        .build();
+```
+
+The judge receives the conversation's text and media, including tool calls and
+results, but excluding reasoning blocks. If the default candidate has a prompt,
+its rendered messages are included in the judge's input. When no usable text or
+media is present, prompt arguments provide the input instead. Choose a judge
+provider and model that support the request's media types.
+
+A verdict is accepted when it contains `"model": "<candidate name>"`, or its entire
+trimmed text equals a candidate name. Matching is case-sensitive. Non-candidate
+names are ignored; a reply with no recognized candidate or multiple distinct
+candidates causes abstention. A failed judge call is a request failure after
+retries are exhausted; it does not select the default.
+
+Two optional settings customize the judge:
+
+| Setting | Description |
+|---------|-------------|
+| `Strategies.llm(judgeModel, promptTemplate)` | Supply the judge's system instructions. Include `{candidates}` to insert one `- name: description` line per candidate, and instruct the judge to return the verdict format above. |
+| `withMaxContextChars(int)` | Limit conversation text, including tool calls and results. System messages, rendered prompt messages, and the newest message are always kept; older messages are included newest-first as space allows. Media stays with its message and does not count toward the character limit. Required messages can exceed the limit. |
+
+For example, `.strategy(Strategies.llm("judge").withMaxContextChars(8000))` sets a
+text budget. This is not a token limit or a hard cap on total input.
 
 ### Custom Executor
 
@@ -241,62 +227,135 @@ ModelRouter.of("small", "big")
 
 {{< /tabs >}}
 
-`RoutingContext` is a read-only view of the request: the messages, prompt arguments, last and first user message, the candidates with their descriptions, the default model, the router name, and the request ID. Put tenant or workload attributes in the prompt arguments when an executor should route on them. `RoutingDecision.of(name)` selects a candidate, `RoutingDecision.builder(name)` adds a reason, score, and metadata that appear on the routing event and the response, and `RoutingDecision.abstain()` defers to the default. An exception thrown by `route()` produces a failed `ChatResponseEvent`; the strategy itself is not retried.
+`RoutingContext` is a read-only view of the request: the messages, prompt arguments, last and first user message, the candidates with their descriptions, the default model, the router name, and the request ID. Put tenant or workload attributes in the prompt arguments when an executor should route on them. `RoutingDecision.of(name)` selects a candidate, `RoutingDecision.builder(name)` adds a reason, score, and metadata that appear on the routing event and the response, and `RoutingDecision.abstain()` defers to the default. An exception thrown by `route()` fails the request; the strategy itself is not retried.
 
 Custom executors must only select. The context exposes no chat API; when the decision should come from a model, use `Strategies.llm(...)` so the call gets the framework's retries, metrics, and events. Keep constructors free of side effects: an executor may be constructed more than once, for example after recovery.
 
+## Call a Router
+
+Use the registered router name wherever a chat call takes a model name. The
+following fragments run inside an Action:
+
+{{< tabs "Call a Model Router" >}}
+{{< tab "Chat events" >}}
+```java
+ctx.sendEvent(new ChatRequestEvent(
+        "router", List.of(ChatMessage.user("Write a SQL query to count orders."))));
+```
+
+Handle the result in an Action subscribed to `ChatResponseEvent`.
+{{< /tab >}}
+{{< tab "ctx.chat" >}}
+```java
+ChatResult result = ctx.chat(
+        "router", List.of(ChatMessage.user("Write a SQL query to count orders.")))
+        .await();
+```
+
+Use the result in the same Action. Java awaits require JDK 21 and the runtime
+configuration described in [Using ctx.chat]({{< ref "docs/development/calling-llms/chat#using-ctx-chat" >}}).
+{{< /tab >}}
+{{< /tabs >}}
+
+Both paths handle the selected model's tool calls automatically. The model that
+answers the initial call remains selected throughout the tool-call loop.
+To bypass routing, call a candidate by its registered name. See
+[Chat with Models]({{< ref "docs/development/calling-llms/chat" >}}) for message
+construction, structured output, and response handling.
+
 ## Default Model and Fallback
 
-When the strategy abstains, the router selects `defaultModel`, or the first candidate if none is configured. With `fallback(true)`, the selected model is attempted first; if the attempt fails, the remaining candidates are attempted in declaration order and the first that answers serves the request. Fallback applies to the initial request only. Tool-call rounds keep the model that answered.
+The default model handles requests the strategy cannot select a model for.
+Fallback handles failures while calling a selected candidate. These are separate
+behaviors:
 
-An attempt fails when the model call throws, when the candidate does not resolve to a registered chat model, when the model returns no response, when the connection reports the reply as truncated or content-filtered, or when a requested output schema cannot be parsed. Empty content with tool calls is a normal response.
+| Situation | Result |
+|-----------|--------|
+| Strategy selects a candidate | Call that candidate. |
+| Strategy abstains, or returns a name outside the candidates | Call `defaultModel`, or the first candidate if no default is configured. |
+| Declaration has an invalid pattern, non-candidate rule target or default, or duplicate/empty candidates | Reject the configuration before processing requests. |
+| Custom strategy throws, or the judge call exhausts retries | Fail the request; do not treat it as abstention or try candidate fallback. |
+| Candidate call fails with fallback disabled | Fail the request after applicable retries. |
+| Candidate call fails with fallback enabled | Try the remaining candidates in declaration order, stopping at the first successful response. |
+| All attempted candidates fail | Fail the request with the last candidate's error; earlier errors remain in diagnostics. |
 
-Each candidate and the routing judge have up to `1 + max-retries` attempts, with exponential backoff from `retry-wait-interval`. The default retry budget is 0. Candidate fallback is independent of retries.
+For candidates `[small, medium, big]`, selecting `big` with fallback enabled tries
+`big`, then `small`, then `medium`. Model-call retries run before fallback; see
+[Core Options]({{< ref "docs/operations/configuration#core-options" >}}).
+Failures before the call, such as an unresolved model resource, can proceed
+directly to the next candidate without retries.
 
-A judge call that exhausts its retries or a throwing rule/custom strategy produces a failed `ChatResponseEvent`; these failures do not count as abstention. A normal abstaining verdict still selects the default model. If all attempted candidates fail, the terminal failed response contains the last candidate's exception type and message. Earlier failures remain available in diagnostics. The retry settings are the job-level options in [Configuration]({{< ref "docs/operations/configuration#core-options" >}}).
+Candidate failures include call exceptions, an unresolved model resource, a null
+response, a response reported as truncated or content-filtered, and failure to
+produce the requested structured output. A valid response containing tool calls
+counts as a successful initial response. Once the tool-call loop starts, later failures do
+not switch to another candidate.
+
+For event-based requests, failures arrive as failed `ChatResponseEvent` instances.
+For `ctx.chat`, awaiting a failed call throws. See
+[Handle Success and Failure]({{< ref "docs/development/calling-llms/chat#handle-success-and-failure" >}})
+for handling either case.
 
 ## Observability
 
-Every accepted routing decision emits a `ModelRoutingEvent`, event type `_model_routing_event`. Subscribe with `@Action(EventType.ModelRoutingEvent)`, or read it from the [Trace Log]({{< ref "docs/operations/monitoring#trace-log" >}}). A fallback that changes the model emits a second event with source `fallback`.
+The router emits a `ModelRoutingEvent` after selecting a model, including when
+abstention selects the default. If a later candidate successfully answers the
+initial call, it emits another event with `decision_source: fallback`. Failed
+candidate attempts do not each emit a routing event.
 
-In Trace Log output, these Events have `entityType: event` and `entityName: _model_routing_event`. The Event fields below are recorded under `attributes`.
+For event-based requests, subscribe with `@Action(EventType.ModelRoutingEvent)`
+or inspect [Trace Log]({{< ref "docs/operations/monitoring#trace-log" >}}).
+In Trace Log, these Events have `entityType: event` and
+`entityName: _model_routing_event`; their fields are under `attributes`.
 
 | Event field | Description |
 |-------------|-------------|
-| `request_id`, `router`, `candidates` | The request, the router that handled it, and its candidates. |
-| `selected_model` | The model the decision selected. |
-| `decision_source` | `strategy` for a rule or custom selection, `llm_judge` for a judge verdict, `default` when the strategy abstained, `fallback` on the second event. |
+| `request_id`, `router`, `candidates` | Request identity, router resource name, and candidate names. |
+| `selected_model` | Selected chat model resource name. On a fallback event, the candidate that successfully answered. |
+| `decision_source` | `strategy` for rules/custom selection, `llm_judge` for a judge selection, `default` for abstention, or `fallback`. |
 | `fallback_enabled` | Whether fallback is configured, not whether it happened. |
-| `reason`, `score`, `metadata` | Set by the strategy. Rules record `matched rule: <pattern>`; the judge records `judge_model`, the judge's token counts when reported, and `judge_context_truncated` when history was dropped. When the router normalizes a non-candidate decision to its default, `metadata` adds `rejected_model` and, if the strategy gave one, `rejected_reason`; the strategy's score is dropped. |
-| `decision_ms` | Decision latency. For the judge it includes the judge call and its retries. |
+| `reason`, `score`, `metadata` | Strategy diagnostics. Judge metadata can include `judge_model`, token counts, and `judge_context_truncated`. |
+| `decision_ms` | Decision latency, including judge calls and retries. Absent on the fallback event. |
 
-The final `ChatResponseEvent` carries a `model_routing` map in its attributes with the routing details and the fallback result: `final_model`, the model that answered, `fallback_attempted`, and `fallback_models_tried`. Read it with `event.getAttr("model_routing")`.
+When a custom or replayed decision selects a non-candidate, normalization records
+`rejected_model` and, if present, `rejected_reason` in metadata and drops the score.
+An unrecognized fresh judge verdict instead reports the reason
+`judge verdict was not a candidate name`.
 
-{{< tabs "Reading Routing Results" >}}
+A **successful** final `ChatResponseEvent` for a routed request carries a `model_routing` attribute
+with `selected_model`, `final_model`, `fallback_attempted`, and
+`fallback_models_tried`, plus the router and decision details. Failed responses
+do not carry this attribute. For example, in a response Action:
 
-{{< tab "Java" >}}
 ```java
-@Action(EventType.ChatResponseEvent)
-public static void onChatResponse(ChatResponseEvent event, RunnerContext ctx) {
-    Object routing = event.getAttr("model_routing");
-    if (routing instanceof Map) {
-        Object finalModel = ((Map<?, ?>) routing).get("final_model");
-        LOG.info("answered by {}", finalModel);
-    }
-    ctx.sendEvent(new OutputEvent(event.getResponse().getText()));
+if (event.isFailed()) {
+    throw new IllegalStateException(event.getError());
+}
+Map<?, ?> routing = (Map<?, ?>) event.getAttr("model_routing");
+if (routing != null) {
+    String finalModel = (String) routing.get("final_model");
+    // Use the registered name of the model that answered.
 }
 ```
-{{< /tab >}}
 
-{{< /tabs >}}
+`ctx.chat` returns only `ChatResult`, without the response Event's routing
+attributes. Its internal routing events do not trigger the caller's Action
+listeners.
 
-Decision latency is recorded as the `action.chat_model_action.routingDecisionLatencyMs` histogram, one sample per decision. Judge calls are metered like any chat call under the judge's model id, for example `action.chat_model_action.model.qwen3:1.7b.promptTokens`; a judge that shares a model id with a candidate shares its counters, so use the event's `judge_*` metadata to separate them. See [Monitoring]({{< ref "docs/operations/monitoring" >}}).
+Routing decision latency and model token metrics are described in
+[Monitoring]({{< ref "docs/operations/monitoring" >}}). Judge and candidate calls
+sharing the same provider model ID share token counters; use the judge event
+metadata when distinguishing their usage.
 
-## Advanced
+<span id="advanced"></span>
 
-**Validation.** Declaration mistakes such as an invalid rule pattern, an unknown candidate in a rule or description, or a missing strategy fail at the builder calls. Whether the judge is a plain chat model and whether a custom executor class can be loaded is checked when the plan is built, before any record is processed. Whether the default model is a candidate is checked at `build()` and again when the plan is built, so a descriptor that skipped the builder also fails before any record is processed. Whether a candidate resolves to a registered chat model is checked per attempt: an unresolvable candidate is a failed attempt, which fallback may recover from.
+## Recovery
 
-**Recovery.** Routing runs once per request. When an [action state store]({{< ref "docs/operations/configuration#action-state-store" >}}) is configured, the routing decision, the judge call, and each candidate attempt of the initial request are persisted and replayed on recovery, so a rule or custom executor is not run again for a request that already has a decision. The judge executor does run again, but it reads the persisted judge call instead of invoking the judge model, and the stored decision wins. Without a store, which is the default, the decision is recomputed on recovery, and a non-deterministic strategy may pick a different model the second time. The request ID is regenerated in that case too, so a hash-based split in a custom executor can land on the other arm.
+With durable execution enabled, completed routing decisions and model calls can
+be reused after recovery. Without it, a request may be routed again and select a
+different model. See
+[Recovery Behavior]({{< ref "docs/development/create-agent/actions#recovery-behavior" >}})
+for the persistence and replay guarantees.
 
 ## Examples
 
@@ -304,4 +363,4 @@ Decision latency is recorded as the `action.chat_model_action.routingDecisionLat
 - [`ModelRoutingJudgeExample`](https://github.com/apache/flink-agents/blob/main/examples/src/main/java/org/apache/flink/agents/examples/ModelRoutingJudgeExample.java): the same two models with an LLM judge and candidate descriptions.
 - [`OpenAiModelRoutingExample`](https://github.com/apache/flink-agents/blob/main/examples/src/main/java/org/apache/flink/agents/examples/openai/OpenAiModelRoutingExample.java): rule-based routing between `gpt-4o-mini` and `gpt-4o` over one OpenAI connection.
 
-All three register their resources on the execution environment and use the [`ModelRoutingAgent`](https://github.com/apache/flink-agents/blob/main/examples/src/main/java/org/apache/flink/agents/examples/agents/ModelRoutingAgent.java) actions shown above.
+All three register their resources on the execution environment and use the [`ModelRoutingAgent`](https://github.com/apache/flink-agents/blob/main/examples/src/main/java/org/apache/flink/agents/examples/agents/ModelRoutingAgent.java) to send requests and handle responses.

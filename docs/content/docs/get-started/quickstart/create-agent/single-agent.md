@@ -111,7 +111,7 @@ agentsEnv.addResource(
 
 Registering on the environment makes the Resource visible to every Agent applied to it.
 See
-[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}})
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
 for the shared registration and access model.
 
 ### Create the Agent
