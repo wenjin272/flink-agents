@@ -54,7 +54,8 @@ Start with [Setup]({{< ref "docs/get-started/setup" >}}), then choose a Quicksta
 - [Use the Built-in ReAct Agent]({{< ref "docs/get-started/quickstart/react_agent" >}})
 - [Define an Agent with YAML]({{< ref "docs/get-started/quickstart/yaml_agent" >}})
 
-For an optional authoring aid, see the [Coding-agent Skill](https://github.com/apache/flink-agents/tree/main/dev/agent-skills/flink-agents-dev).
+To build Flink Agents applications with a coding agent, see
+[Build with a Coding Agent]({{< ref "docs/development/coding-agent-skill" >}}).
 
 ## Preview Status
 
