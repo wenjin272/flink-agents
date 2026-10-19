@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.apache.flink.agents.api.agents.Agent;
 import org.apache.flink.agents.api.annotation.ChatModelConnection;
 import org.apache.flink.agents.api.annotation.ChatModelSetup;
+import org.apache.flink.agents.api.annotation.DecisionModelConnection;
+import org.apache.flink.agents.api.annotation.DecisionModelSetup;
 import org.apache.flink.agents.api.annotation.EmbeddingModelConnection;
 import org.apache.flink.agents.api.annotation.EmbeddingModelSetup;
 import org.apache.flink.agents.api.annotation.MCPServer;
@@ -50,6 +52,7 @@ import org.apache.flink.agents.api.tools.ToolParameterInjectionValidator;
 import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.plan.actions.ChatModelAction;
 import org.apache.flink.agents.plan.actions.ContextRetrievalAction;
+import org.apache.flink.agents.plan.actions.DecisionModelAction;
 import org.apache.flink.agents.plan.actions.ToolCallAction;
 import org.apache.flink.agents.plan.resourceprovider.JavaResourceProvider;
 import org.apache.flink.agents.plan.resourceprovider.JavaSerializableResourceProvider;
@@ -252,6 +255,7 @@ public class AgentPlan implements Serializable {
     private void extractActionsFromAgent(Agent agent) throws Exception {
         // Add built-in actions
         addBuiltAction(ChatModelAction.getChatModelAction());
+        addBuiltAction(DecisionModelAction.getDecisionModelAction());
         addBuiltAction(ToolCallAction.getToolCallAction());
         addBuiltAction(ContextRetrievalAction.getContextRetrievalAction());
 
@@ -559,6 +563,10 @@ public class AgentPlan implements Serializable {
                 extractResource(ResourceType.CHAT_MODEL, method);
             } else if (method.isAnnotationPresent(ChatModelConnection.class)) {
                 extractResource(ResourceType.CHAT_MODEL_CONNECTION, method);
+            } else if (method.isAnnotationPresent(DecisionModelSetup.class)) {
+                extractResource(ResourceType.DECISION_MODEL, method);
+            } else if (method.isAnnotationPresent(DecisionModelConnection.class)) {
+                extractResource(ResourceType.DECISION_MODEL_CONNECTION, method);
             } else if (method.isAnnotationPresent(EmbeddingModelSetup.class)) {
                 extractResource(ResourceType.EMBEDDING_MODEL, method);
             } else if (method.isAnnotationPresent(EmbeddingModelConnection.class)) {

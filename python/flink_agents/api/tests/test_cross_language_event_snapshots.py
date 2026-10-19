@@ -36,10 +36,26 @@ from flink_agents.api.chat_message import (
     VideoBlock,
 )
 from flink_agents.api.chat_result import ChatResult
+from flink_agents.api.decision_models import (
+    ChoiceAnswer,
+    ChoiceQuestion,
+    DecisionRequest,
+    DecisionResult,
+    PredicateAnswer,
+    PredicateQuestion,
+    RefusalAnswer,
+    ScoreAnswer,
+    ScoreQuestion,
+    TokenUsage,
+)
 from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
 from flink_agents.api.events.context_retrieval_event import (
     ContextRetrievalRequestEvent,
     ContextRetrievalResponseEvent,
+)
+from flink_agents.api.events.decision_event import (
+    DecisionRequestEvent,
+    DecisionResponseEvent,
 )
 from flink_agents.api.events.event import Event, InputEvent, OutputEvent
 from flink_agents.api.events.memory_event import MemoryEvent, ShortTermWriteEvent
@@ -680,3 +696,97 @@ def test_memory_ref_attachment_cross_language_snapshot_is_stable() -> None:
 
 def test_snapshot_directory_exists() -> None:
     assert _SNAPSHOT_DIR.is_dir(), f"Expected snapshot directory at {_SNAPSHOT_DIR}"
+
+
+# Decision snapshots cover the complete typed request/result payload, including
+# case-sensitive choices, original JSON score descriptions and a successful refusal.
+def _build_decision_events() -> dict[str, Event]:
+    request = DecisionRequest(
+        input={"receipt": True, "notes": ["first", "second"]},
+        questions={
+            "eligible": PredicateQuestion(
+                instructions="Has a receipt?",
+            ),
+            "route": ChoiceQuestion(
+                instructions="Choose a route.",
+                criteria={"Approve": None, "approve": None},
+            ),
+            "severity": ScoreQuestion(
+                instructions="Rate severity.",
+                criteria=["low", {"label": "medium"}, ["high"]],
+            ),
+            "restricted": PredicateQuestion(instructions="May this be disclosed?"),
+        },
+    )
+    result = DecisionResult(
+        answers={
+            "eligible": PredicateAnswer(probability_true=0.9),
+            "route": ChoiceAnswer(
+                choice="Approve",
+                probabilities={"Approve": 0.8, "approve": 0.2},
+                provider_confidence=0.7,
+            ),
+            "severity": ScoreAnswer(
+                score=1.25,
+                probabilities={0: 0.0, 1: 0.75, 2: 0.25},
+                legend=dict(enumerate(request.questions["severity"].criteria)),
+            ),
+            "restricted": RefusalAnswer(reason="Cannot answer"),
+        },
+        model="reported-model",
+        usage=TokenUsage(input_tokens=42),
+        metadata={"request_id": "provider-request", "usage": {"cached_tokens": 4}},
+    )
+    events = {
+        "decision_request_event.json": DecisionRequestEvent(
+            "registered-model",
+            request,
+            request_params={
+                "timeout": 4.0,
+                "extra_headers": {"X-Trace-ID": "review-1"},
+                "safety_identifier": "review-user",
+            },
+        ),
+        "decision_response_event.json": DecisionResponseEvent.success(
+            _FIXED_REQUEST_ID, result, 1, 2
+        ),
+        "decision_response_failed_event.json": DecisionResponseEvent.failed(
+            _FIXED_REQUEST_ID, "TimeoutError: timed out", 2, 3
+        ),
+    }
+    for name, event in events.items():
+        event.set_attachment("reference", {"key": "review"})
+        events[name] = _force_id(event, _FIXED_EVENT_ID)
+    return events
+
+
+def test_regenerate_decision_event_python_snapshots() -> None:
+    if not _regenerate_enabled():
+        pytest.skip("Set REGENERATE_SNAPSHOTS=1 to refresh.")
+    for name, event in _build_decision_events().items():
+        _write_python_snapshot(name, event)
+
+
+def test_decision_event_python_snapshots_are_stable() -> None:
+    for name, event in _build_decision_events().items():
+        _assert_python_snapshot_stable(name, event)
+
+
+def test_python_can_deserialize_decision_events_from_java_snapshots() -> None:
+    for name, expected in _build_decision_events().items():
+        restored = _read_java_snapshot(name)
+        assert type(restored) is type(expected)
+        assert restored.model_dump() == expected.model_dump()
+        if isinstance(restored, DecisionRequestEvent):
+            assert isinstance(restored.request, DecisionRequest)
+        elif restored.is_success:
+            assert isinstance(restored.response, DecisionResult)
+            assert restored.response.answers["route"].choice == "Approve"
+            assert list(restored.response.answers["route"].probabilities) == [
+                "Approve",
+                "approve",
+            ]
+            assert isinstance(restored.response.answers["restricted"], RefusalAnswer)
+        else:
+            with pytest.raises(RuntimeError, match="TimeoutError: timed out"):
+                _ = restored.response

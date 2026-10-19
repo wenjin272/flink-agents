@@ -1,0 +1,50 @@
+{
+  "id" : "00000000-0000-0000-0000-000000000001",
+  "attributes" : {
+    "request" : {
+      "input" : {
+        "receipt" : true,
+        "notes" : [ "first", "second" ]
+      },
+      "questions" : {
+        "eligible" : {
+          "type" : "predicate",
+          "instructions" : "Has a receipt?"
+        },
+        "route" : {
+          "type" : "choice",
+          "instructions" : "Choose a route.",
+          "criteria" : {
+            "Approve" : null,
+            "approve" : null
+          }
+        },
+        "severity" : {
+          "type" : "score",
+          "instructions" : "Rate severity.",
+          "criteria" : [ "low", {
+            "label" : "medium"
+          }, [ "high" ] ]
+        },
+        "restricted" : {
+          "type" : "predicate",
+          "instructions" : "May this be disclosed?"
+        }
+      }
+    },
+    "model" : "registered-model",
+    "request_params" : {
+      "timeout" : 4.0,
+      "extra_headers" : {
+        "X-Trace-ID" : "review-1"
+      },
+      "safety_identifier" : "review-user"
+    }
+  },
+  "attachments" : {
+    "reference" : {
+      "key" : "review"
+    }
+  },
+  "type" : "_decision_request_event"
+}
