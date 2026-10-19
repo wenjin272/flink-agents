@@ -30,6 +30,12 @@ under the License.
 
 Prompts are templates that define how your agents communicate with Large Language Models (LLMs). They provide structured instructions, context, and formatting guidelines that shape the LLM's responses. In Flink Agents, prompts are first-class resources that can be defined, reused, and referenced across agents and chat models.
 
+To reuse a prompt by name, register it as a `PROMPT` Resource and reference that
+name from a chat model setup's `prompt` field. See
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}})
+for registration methods and scopes. This page describes how to construct and
+format the prompt itself.
+
 ## Prompt Types
 
 Flink Agents supports two types of prompts:
@@ -194,153 +200,86 @@ braces in an actual tool result are not treated as template variables.
 
 ### Using Prompts in Agents
 
-Register a prompt as an agent resource using the `@prompt` decorator in python (or `@Prompt` annotation in java):
+Start with the Agent and connection in the
+[Resources example]({{< ref "docs/development/create-agent/resources#declaration-api" >}}).
+Add the following prompt and request Action, and replace the model setup with the
+one below. Each input is review text; `language` controls the summary language.
+Imports are omitted.
 
 {{< tabs "Using Prompts in Agents" >}}
-
 {{< tab "Python" >}}
 ```python
-class ReviewAnalysisAgent(Agent):
+@prompt
+@staticmethod
+def review_prompt() -> Prompt:
+    return Prompt.from_messages([
+        ChatMessage.system("Summarize the review in {language}."),
+    ])
 
-    @prompt
-    @staticmethod
-    def review_analysis_prompt() -> Prompt:
-        """Prompt for review analysis."""
-        return Prompt.from_messages(
-            messages=[
-                ChatMessage.system(
-                    """
-            Analyze the user review and product information to determine a
-            satisfaction score (1-5) and potential reasons for dissatisfaction.
 
-            Example input format:
-            {
-                "id": "12345",
-                "review": "The headphones broke after one week of use."
-            }
+@chat_model_setup
+@staticmethod
+def review_model() -> ResourceDescriptor:
+    return ResourceDescriptor(
+        clazz=ResourceName.ChatModel.OLLAMA_SETUP,
+        connection="ollama_server",
+        model="qwen3:8b",
+        prompt="review_prompt",
+    )
 
-            Ensure your response can be parsed by Python JSON:
-            {
-                "id": "12345",
-                "score": 1,
-                "reasons": ["poor quality"]
-            }
-            """
-                ),
-                ChatMessage.user(
-                    """
-            "input":
-            {input}
-            """
-                ),
-            ],
-        )
 
-    @chat_model_setup
-    @staticmethod
-    def review_analysis_model() -> ResourceDescriptor:
-        """ChatModel which focus on review analysis."""
-        return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.OLLAMA_SETUP,
-            connection="ollama_server",
-            model="qwen3:8b",
-            prompt="review_analysis_prompt",
-            extract_reasoning=True,
-        )
-
-    @action(EventType.InputEvent)
-    @staticmethod
-    def process_input(event: Event, ctx: RunnerContext) -> None:
-        """Process input event and send chat request for review analysis."""
-        input_event = InputEvent.from_event(event)
-        input: ProductReview = input_event.input
-        ctx.short_term_memory.set("id", input.id)
-
-        content = f"""
-            "id": {input.id},
-            "review": {input.review}
-        """
-        msg = ChatMessage(role=MessageRole.USER)
-        ctx.send_event(
-            ChatRequestEvent(
-                model="review_analysis_model",
-                messages=[msg],
-                prompt_args={"input": content},
-            )
-        )
+@action(EventType.InputEvent)
+@staticmethod
+def process_input(event: Event, ctx: RunnerContext) -> None:
+    input_event = InputEvent.from_event(event)
+    ctx.send_event(ChatRequestEvent(
+        model="review_model",
+        messages=[ChatMessage.user(str(input_event.input))],
+        prompt_args={"language": "English"},
+    ))
 ```
 {{< /tab >}}
-
 {{< tab "Java" >}}
 ```java
-public class ReviewAnalysisAgent extends Agent {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    @Prompt
-    public static org.apache.flink.agents.api.prompt.Prompt reviewAnalysisPrompt() {
-        return Prompt.fromMessages(
-                Arrays.asList(
-                        new ChatMessage(
-                                MessageRole.SYSTEM,
-                                "Analyze the user review and product information to determine a "
-                                        + "satisfaction score (1-5) and potential reasons for dissatisfaction.\n\n"
-                                        + "Example input format:\n"
-                                        + "{\n"
-                                        + "    \"id\": \"12345\",\n"
-                                        + "    \"review\": \"The headphones broke after one week of use. Very poor quality.\"\n"
-                                        + "}\n\n"
-                                        + "Ensure your response can be parsed by Java JSON, using this format as an example:\n"
-                                        + "{\n"
-                                        + " \"id\": \"12345\",\n"
-                                        + " \"score\": 1,\n"
-                                        + " \"reasons\": [\n"
-                                        + "   \"poor quality\"\n"
-                                        + "   ]\n"
-                                        + "}"),
-                        new ChatMessage(MessageRole.USER, "\"input\":\n" + "{input}")));
-    }
-
-    @ChatModelSetup
-    public static ResourceDescriptor reviewAnalysisModel() {
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
-                .addInitialArgument("connection", "ollamaChatModelConnection")
-                .addInitialArgument("model", "qwen3:8b")
-                .addInitialArgument("prompt", "reviewAnalysisPrompt")
-                .addInitialArgument("tools", Collections.singletonList("notifyShippingManager"))
-                .addInitialArgument("extract_reasoning", "true")
-                .build();
-    }
-
-    /** Process input event and send chat request for review analysis. */
-    @Action(EventType.InputEvent)
-    public static void processInput(Event event, RunnerContext ctx) throws Exception {
-        InputEvent inputEvent = InputEvent.fromEvent(event);
-        String input = (String) inputEvent.getInput();
-        MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        CustomTypesAndResources.ProductReview inputObj =
-                MAPPER.readValue(input, CustomTypesAndResources.ProductReview.class);
-
-        ctx.getShortTermMemory().set("id", inputObj.getId());
-
-        String content =
-                String.format(
-                        "{\n" + "\"id\": %s,\n" + "\"review\": \"%s\"\n" + "}",
-                        inputObj.getId(), inputObj.getReview());
-        ChatMessage msg = new ChatMessage(MessageRole.USER, "");
-
-        ctx.sendEvent(
-                new ChatRequestEvent(
-                        "reviewAnalysisModel", List.of(msg), Map.of("input", content), null));
-    }
+@Prompt
+public static org.apache.flink.agents.api.prompt.Prompt reviewPrompt() {
+    return org.apache.flink.agents.api.prompt.Prompt.fromMessages(List.of(
+            ChatMessage.system("Summarize the review in {language}.")));
 }
 
+@ChatModelSetup
+public static ResourceDescriptor reviewModel() {
+    return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
+            .addInitialArgument("connection", "ollamaServer")
+            .addInitialArgument("model", "qwen3:8b")
+            .addInitialArgument("prompt", "reviewPrompt")
+            .build();
+}
+
+@Action(EventType.InputEvent)
+public static void processInput(Event event, RunnerContext ctx) throws Exception {
+    InputEvent input = InputEvent.fromEvent(event);
+    ctx.sendEvent(new ChatRequestEvent(
+            "reviewModel",
+            List.of(ChatMessage.user(String.valueOf(input.getInput()))),
+            Map.of("language", "English"),
+            null));
+}
 ```
 {{< /tab >}}
-
 {{< /tabs >}}
 
-Prompts use `{variable_name}` syntax for template variables. Variables are filled from the `prompt_args` argument of `ChatRequestEvent` (Python) / the `promptArgs` constructor argument (Java). The prompt is automatically applied when the chat model is invoked.
+The setup's `prompt` field references the registered prompt. The framework fills
+its placeholders from `prompt_args` (Python) / `promptArgs` (Java), then places
+the rendered prompt before the request's messages. In this example, the model
+receives the system instruction "Summarize the review in English." followed by
+the user's review.
+
+For handling the response, see
+[Using Chat Events]({{< ref "docs/development/calling-llms/chat#chat-events" >}}).
+You can also supply prompt arguments when calling
+[`ctx.chat`]({{< ref "docs/development/calling-llms/chat#using-ctx-chat" >}}): use
+its `prompt_args` argument in Python, or pass a `ChatRequestEvent` in Java.
 
 ## Brace Handling
 

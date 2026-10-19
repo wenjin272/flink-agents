@@ -26,11 +26,72 @@ under the License.
 
 Agents interact with chat models by sending messages and receiving responses. A request identifies a registered chat model and supplies the messages for it to process. The response contains the model's answer or reports a failure.
 
-This chapter explains how chat requests and responses flow through an Agent, then walks through a text-only example and handling successful and failed responses. It then covers multimodal messages and the tool-calling loop.
+There are two ways to call a chat model:
 
-## Chat Flow {#chat-events}
+- **[Using Chat Events](#chat-events):** Send a request and handle the response in a separate Action.
+- **[Using `ctx.chat`](#using-ctx-chat):** Await the model's answer and continue in the same Action.
 
-Chat models communicate through built-in events:
+Both automatically handle tool calls: when the model requests a configured tool,
+the framework executes it and sends the result back to the model. This repeats
+until the model returns a final answer or the request fails; your Action does not
+need to execute the tools itself. See [Tool Calling](#built-in-events-and-actions)
+for details.
+
+Both also support retries and structured output. Select a registered
+[chat model setup]({{< ref "docs/development/calling-llms/chat-models" >}}) or
+[model router]({{< ref "docs/development/calling-llms/model_routing" >}}) by name.
+
+## Chat Messages
+
+A `ChatMessage` is one message in a conversation. Its `role` identifies who is
+speaking, and its `blocks` hold the message content in order. Optional `metadata`
+carries additional message attributes.
+
+| Role | Purpose | Construction |
+|---|---|---|
+| `system` | Instructions or context for the model; accepts text only. | `ChatMessage.system(...)` |
+| `user` | User input, containing text or supported media. | `ChatMessage.user(...)` |
+| `assistant` | A model response, which may include text, reasoning, or tool calls. | Returned by the model, or `ChatMessage.assistant(...)` for conversation history. |
+| `tool` | The result of one tool call. | Created by the tool-calling flow, or `ChatMessage.tool(...)` with a `ToolResultBlock`. |
+
+For text messages, pass a string to the factory method. It creates a message
+containing a `TextBlock`:
+
+{{< tabs "Text Messages" >}}
+{{< tab "Python" >}}
+```python
+from flink_agents.api.chat_message import ChatMessage
+
+messages = [
+    ChatMessage.system("Answer concisely."),
+    ChatMessage.user("What is stream processing?"),
+]
+```
+{{< /tab >}}
+{{< tab "Java" >}}
+```java
+import java.util.List;
+import org.apache.flink.agents.api.chat.messages.ChatMessage;
+
+List<ChatMessage> messages = List.of(
+        ChatMessage.system("Answer concisely."),
+        ChatMessage.user("What is stream processing?"));
+```
+{{< /tab >}}
+{{< /tabs >}}
+
+Pass messages in conversation order. To include previous answers, add them as
+assistant messages before the next user message. For reusable instructions or
+message templates, see [Prompts]({{< ref "docs/development/calling-llms/prompts" >}}).
+
+Use `message.text` (Python) or `message.getText()` (Java) to concatenate its
+text blocks in order. This excludes media, reasoning, tool calls, and text nested
+inside tool results. Use `message.blocks` / `message.getBlocks()` for the complete
+content. See [Multimodal Messages](#message-content-blocks) for combining text and media.
+
+## Using Chat Events {#chat-events}
+
+The event-based API uses two built-in events:
 
 - **ChatRequestEvent**: Sent by actions to request a chat completion from the LLM
 - **ChatResponseEvent**: Received by actions containing the LLM's response
@@ -46,185 +107,193 @@ InputEvent → request Action → ChatRequestEvent
 
 A `ChatRequestEvent` can name a model router instead of a chat model. The built-in action selects the model first and emits a `ModelRoutingEvent`; see [Model Routing]({{< ref "docs/development/calling-llms/model_routing" >}}).
 
-## Request and Response Example {#usage-example}
+### Example {#usage-example}
 
-The Agent below declares an Ollama connection and model, sends each input as a user message, and emits the model's text answer as an `OutputEvent`. The connection and model declarations are included to show which resource names the request references.
-
-The example uses Ollama at `http://localhost:11434` with `qwen3:8b`; adjust the endpoint and model to match your configuration.
-
-This example raises an exception when the chat response reports a failure, causing the Action to fail. Applications that need a fallback answer can instead handle the failed event explicitly before accessing its response.
+Start with the Agent and model declarations in the
+[Resources example]({{< ref "docs/development/create-agent/resources#declaration-api" >}}),
+which registers `review_model` in Python or `reviewModel` in Java. Add these two
+Actions to the Agent class to send each input to the model and emit its answer.
+Imports are omitted.
 
 {{< tabs "Usage Example" >}}
-
 {{< tab "Python" >}}
 ```python
-from flink_agents.api.agents.agent import Agent
-from flink_agents.api.chat_message import ChatMessage
-from flink_agents.api.decorators import action, chat_model_connection, chat_model_setup
-from flink_agents.api.events.chat_event import ChatRequestEvent, ChatResponseEvent
-from flink_agents.api.events.event import Event, InputEvent, OutputEvent
-from flink_agents.api.events.event_type import EventType
-from flink_agents.api.resource import ResourceDescriptor, ResourceName
-from flink_agents.api.runner_context import RunnerContext
+@action(EventType.InputEvent)
+@staticmethod
+def process_input(event: Event, ctx: RunnerContext) -> None:
+    input_event = InputEvent.from_event(event)
+    ctx.send_event(ChatRequestEvent(
+        model="review_model",
+        messages=[ChatMessage.user(str(input_event.input))],
+    ))
 
 
-class MyAgent(Agent):
-
-    @chat_model_connection
-    @staticmethod
-    def ollama_connection() -> ResourceDescriptor:
-        return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.OLLAMA_CONNECTION,
-            base_url="http://localhost:11434",
-            request_timeout=30.0
-        )
-
-    @chat_model_setup
-    @staticmethod
-    def ollama_chat_model() -> ResourceDescriptor:
-        return ResourceDescriptor(
-            clazz=ResourceName.ChatModel.OLLAMA_SETUP,
-            connection="ollama_connection",
-            model="qwen3:8b",
-            temperature=0.7
-        )
-
-    @action(EventType.InputEvent)
-    @staticmethod
-    def process_input(event: Event, ctx: RunnerContext) -> None:
-        input_event = InputEvent.from_event(event)
-        # Create a chat request with user message
-        user_message = ChatMessage.user(f"input: {input_event.input}")
-        ctx.send_event(
-            ChatRequestEvent(model="ollama_chat_model", messages=[user_message])
-        )
-
-    @action(EventType.ChatResponseEvent)
-    @staticmethod
-    def process_response(event: Event, ctx: RunnerContext) -> None:
-        chat_response = ChatResponseEvent.from_event(event)
-        if chat_response.is_failed:
-            raise RuntimeError(chat_response.error)
-        ctx.send_event(OutputEvent(output=chat_response.response.text))
+@action(EventType.ChatResponseEvent)
+@staticmethod
+def process_response(event: Event, ctx: RunnerContext) -> None:
+    response = ChatResponseEvent.from_event(event)
+    if response.is_failed:
+        raise RuntimeError(response.error)
+    ctx.send_event(OutputEvent(output=response.response.text))
 ```
 {{< /tab >}}
-
 {{< tab "Java" >}}
 ```java
-import java.util.List;
+@Action(EventType.InputEvent)
+public static void processInput(Event event, RunnerContext ctx) throws Exception {
+    InputEvent input = InputEvent.fromEvent(event);
+    ctx.sendEvent(new ChatRequestEvent(
+            "reviewModel", List.of(ChatMessage.user(String.valueOf(input.getInput())))));
+}
 
-import org.apache.flink.agents.api.Event;
-import org.apache.flink.agents.api.EventType;
-import org.apache.flink.agents.api.InputEvent;
-import org.apache.flink.agents.api.OutputEvent;
-import org.apache.flink.agents.api.agents.Agent;
-import org.apache.flink.agents.api.annotation.Action;
-import org.apache.flink.agents.api.annotation.ChatModelConnection;
-import org.apache.flink.agents.api.annotation.ChatModelSetup;
-import org.apache.flink.agents.api.chat.messages.ChatMessage;
-import org.apache.flink.agents.api.chat.messages.MessageRole;
-import org.apache.flink.agents.api.context.RunnerContext;
-import org.apache.flink.agents.api.event.ChatRequestEvent;
-import org.apache.flink.agents.api.event.ChatResponseEvent;
-import org.apache.flink.agents.api.resource.ResourceDescriptor;
-import org.apache.flink.agents.api.resource.ResourceName;
-
-public class MyAgent extends Agent {
-    @ChatModelConnection
-    public static ResourceDescriptor ollamaConnection() {
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_CONNECTION)
-                .addInitialArgument("endpoint", "http://localhost:11434")
-                .build();
+@Action(EventType.ChatResponseEvent)
+public static void processResponse(Event event, RunnerContext ctx) throws Exception {
+    ChatResponseEvent response = ChatResponseEvent.fromEvent(event);
+    if (response.isFailed()) {
+        throw new IllegalStateException(response.getError());
     }
-
-    @ChatModelSetup
-    public static ResourceDescriptor ollamaChatModel() {
-        return ResourceDescriptor.Builder.newBuilder(ResourceName.ChatModel.OLLAMA_SETUP)
-                .addInitialArgument("connection", "ollamaConnection")
-                .addInitialArgument("model", "qwen3:8b")
-                .build();
-    }
-
-    @Action(EventType.InputEvent)
-    public static void processInput(Event event, RunnerContext ctx) throws Exception {
-        InputEvent inputEvent = InputEvent.fromEvent(event);
-        ChatMessage userMessage =
-                new ChatMessage(MessageRole.USER, String.format("input: %s", inputEvent.getInput()));
-        ctx.sendEvent(new ChatRequestEvent("ollamaChatModel", List.of(userMessage)));
-    }
-
-    @Action(EventType.ChatResponseEvent)
-    public static void processResponse(Event event, RunnerContext ctx)
-            throws Exception {
-        ChatResponseEvent chatResponse = ChatResponseEvent.fromEvent(event);
-        if (chatResponse.isFailed()) {
-            throw new IllegalStateException(chatResponse.getError());
-        }
-        ctx.sendEvent(new OutputEvent(chatResponse.getResponse().getText()));
-    }
+    ctx.sendEvent(new OutputEvent(response.getResponse().getText()));
 }
 ```
 {{< /tab >}}
-
 {{< /tabs >}}
 
-In the request, `ollama_chat_model` (Python) or `ollamaChatModel` (Java) names the declared model setup. The provider model identifier, `qwen3:8b`, belongs in that setup. The response Action emits an `OutputEvent` so the Agent's answer can continue through the Flink pipeline.
+The response Action fails if the request fails. For fallback handling, see
+[Handle Success and Failure](#handle-success-and-failure).
+
+<span id="calling-chat-from-an-action"></span>
+
+## Using `ctx.chat` {#using-ctx-chat}
+
+Use `ctx.chat` when the same Action needs to continue with the model's answer.
+It returns a `DurableFuture<ChatResult>` (`DurableFuture[ChatResult]` in Python),
+which you await to receive the result. The response is returned to the caller and
+does not trigger Actions subscribed to `ChatResponseEvent`; the call uses the
+calling Action's resources and memory.
+
+Using the same registered model as the [Chat Events example](#usage-example),
+replace its two Actions with the following:
+
+{{< tabs "Chat calls" >}}
+{{< tab "Python" >}}
+```python
+@action(EventType.InputEvent)
+@staticmethod
+async def process_input(event: Event, ctx: RunnerContext) -> None:
+    input_event = InputEvent.from_event(event)
+    response = await ctx.chat(
+        "review_model",
+        [ChatMessage.user(str(input_event.input))],
+    )
+    ctx.send_event(OutputEvent(output=response.text))
+```
+
+Use the optional `prompt_args` and `output_schema` arguments for prompt parameters and structured output.
+{{< /tab >}}
+{{< tab "Java" >}}
+```java
+@Action(EventType.InputEvent)
+public static void processInput(Event event, RunnerContext ctx) throws Exception {
+    InputEvent inputEvent = InputEvent.fromEvent(event);
+    ChatResult response = ctx.chat(
+            "reviewModel",
+            List.of(ChatMessage.user(String.valueOf(inputEvent.getInput()))))
+            .await();
+    ctx.sendEvent(new OutputEvent(response.getText()));
+}
+```
+
+For prompt arguments or structured output, pass a `ChatRequestEvent` to `ctx.chat(request)`.
+{{< /tab >}}
+{{< /tabs >}}
+
+### Await and Recovery
+
+Await `ctx.chat` directly within the Action execution that created it; do not wrap
+it in `durable_execute_async` / `durableExecuteAsync`. Chat futures do not currently
+support `gather`. For general await behavior and durable execution, see
+[Async Execution]({{< ref "docs/development/create-agent/actions#async-execution" >}})
+and [Durable Execution]({{< ref "docs/development/create-agent/actions#durable-execution" >}}).
+
+With durable execution enabled, chat calls reuse recorded responses by Action
+execution and await order, not by model or message contents. Existing model and
+tool timeouts apply; `ctx.chat` adds no whole-call timeout.
+
+<span id="java-runtime-requirements"></span>
+
+{{< hint warning >}}
+Java `ctx.chat` calls require JDK 21 and
+`--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED` in `env.java.opts.all`.
+Earlier JDK versions are not supported: awaiting the call throws before sending
+the request. Use [Chat Events](#chat-events) on those versions.
+Python `ctx.chat` calls do not require JDK 21.
+{{< /hint >}}
+
+<span id="custom-response-producers"></span>
 
 ## Handle Success and Failure
 
-`ChatResponseEvent` reports whether a chat request succeeded or failed:
+A successful request returns a `ChatResult`, either through the response event
+or directly from `ctx.chat`. It contains the assistant message and, when
+available, the model name, response ID, token usage, and finish reason. Use
+`getMessage()` / `message` to access the message. The result also exposes
+`getText()` / `text` and `getBlocks()` / `blocks` with the same semantics described
+in [Chat Messages](#chat-messages).
 
-- On success, `event.getResponse()` (Java) or `event.response` (Python) returns a
-  `ChatResult`. It contains the assistant message and, when available, the model
-  name, response ID, token usage, and finish reason. Use `getText()` / `text` to
-  read the answer as text, or `getBlocks()` / `blocks` to include all content.
-- On failure, `event.getError()` (Java) or `event.error` (Python) provides an error
-  description. Check `event.isFailed()` / `event.is_failed` before reading the
-  response: accessing the response of a failed event raises an exception.
-  Serialization and trace logging do not invoke these accessors.
+| Calling style | Success | Failure |
+|---|---|---|
+| Events | Read `event.getResponse()` (Java) or `event.response` (Python). | Check `event.isFailed()` / `event.is_failed` and read `event.getError()` / `event.error`. Accessing the response of a failed event raises an exception. |
+| `ctx.chat` | Await the future to receive the `ChatResult`. | A failed chat response raises `ChatResponseEvent.ChatResponseException` (Java) or `ChatResponseError` (Python), which the calling Action can catch. |
 
-If you requested structured output, read the parsed result from
+When using events with structured output, read the parsed result from
 `event.getStructuredOutput()` (Java) or `event.structured_output` (Python). See
-[Structured Output]({{< ref "docs/development/calling-llms/structured-output" >}}) for how to declare a schema and which providers enforce it natively.
+[Structured Output]({{< ref "docs/development/calling-llms/structured-output" >}})
+for schemas and provider support.
 
-Applications that need to recover from a failed chat request should handle the
-failed event explicitly. The built-in ReAct agent propagates the failure.
+Applications that need a fallback should handle the failed event or catch the
+exception, depending on the calling style. The built-in ReAct agent propagates
+the failure.
 
-### Failures and Recovery
+<span id="failures-and-recovery"></span>
 
-Ordinary provider, resource-resolution, response-validation and structured-output errors produce a failed response after configured retries and routing fallbacks are exhausted. `max-retries` controls the number of additional attempts (default: 0), and `retry-wait-interval` controls exponential backoff. These settings also apply to routing judge calls. A judge call failure fails the request rather than selecting the default model; a normal abstaining verdict still selects the default. Intermediate attempts and Tool rounds do not emit terminal responses, and the final response always refers to the initial request ID.
+Model-call failures are reported after configured retries and routing fallbacks
+are exhausted. See [Core Options]({{< ref "docs/operations/configuration#core-options" >}})
+for retry settings and [Model Routing]({{< ref "docs/development/calling-llms/model_routing" >}})
+for fallbacks.
 
-Cancellation, interruption and fatal errors propagate. Durable persistence/recovery, required Tool context, and event-delivery failures also propagate to Flink rather than becoming Chat failures. A response cannot be guaranteed during cancellation or an unrecoverable runtime failure. Recovery may replay physical events; consumers must correlate by request ID and complete idempotently.
-
-### Custom Response Producers
-
-Create results with `ChatResponseEvent.success(...)` or `ChatResponseEvent.failed(...)`. This is a breaking event and durable-call format change: `status` is mandatory, and old events and old persisted Chat/routing call results are not supported. Update custom producers, consumers, and stored fixtures together.
+For how calls behave after a failure and recovery, see
+[Recovery Behavior]({{< ref "docs/development/create-agent/actions#recovery-behavior" >}})
+in Actions.
 
 ## Multimodal Messages {#message-content-blocks}
 
-Multimodal messages combine text with images, audio, video, or documents. Use
-`ChatMessage.blocks` to arrange these contents in the order you want them presented. Supported block types are `TextBlock`, `ImageBlock`,
-`AudioBlock`, `VideoBlock`, and `DocumentBlock`. Assistant messages can also contain
-`ReasoningBlock` and `ToolCallBlock`; a tool message contains one `ToolResultBlock`
-whose `call_id` matches the corresponding tool call and whose blocks hold the result.
+A message can combine text with images, audio, video, or documents. Pass an
+ordered list of blocks to `ChatMessage.user(...)`:
 
-To read the complete content of a message or `ChatResult`, use `getBlocks()` (Java)
-or `blocks` (Python). Use `getText()` (Java) or `text` (Python) when you only need
-text: these accessors concatenate the message's text blocks and omit media,
-reasoning, tool calls, and text inside tool results.
+| Block | Content |
+|---|---|
+| `TextBlock` | Plain text. |
+| `ImageBlock` | An image with a media type and source. |
+| `AudioBlock` | Audio with a media type and source. |
+| `VideoBlock` | Video with a media type and source. |
+| `DocumentBlock` | A document with a media type and source. |
 
-For tools that return text or media, see
-[Tool response content and metadata]({{< ref "docs/development/calling-llms/tool_use#tool-response-content-and-metadata" >}}).
+Assistant messages can also contain `ReasoningBlock` and `ToolCallBlock`. A tool
+message contains exactly one `ToolResultBlock`, whose `call_id` matches the tool
+call and whose blocks hold the result. See
+[Tool response content and metadata]({{< ref "docs/development/calling-llms/tool_use#tool-response-content-and-metadata" >}})
+for tool results.
 
-**Provider support:** The OpenAI Chat Completions integration, and the Azure OpenAI
-and vLLM integrations built on it, send media blocks to the model; see
-[Multimodal Input]({{< ref "docs/development/calling-llms/chat-models/providers#multimodal-input" >}}) for what each block becomes. Ollama sends
-Base64 images, and Anthropic sends images and PDF or plain-text documents; see the
-[Ollama]({{< ref "docs/development/calling-llms/chat-models/providers#ollama" >}}) and
-[Anthropic]({{< ref "docs/development/calling-llms/chat-models/providers#anthropic" >}}) provider
-sections. The Gemini, Amazon Bedrock, IBM watsonx.ai, DashScope and OpenAI Responses
-integrations do not send media yet: a message with a media block raises
-`UnsupportedContentBlockException` (Java) or `UnsupportedContentBlockError` (Python).
+{{< hint warning >}}
+Representable content does not imply support by the selected provider integration
+or model. Check [Provider Capabilities]({{< ref "docs/development/calling-llms/chat-models/providers#provider-capabilities" >}})
+before using media. In particular, OpenAI Chat Completions and OpenAI Responses
+have different support in Flink Agents: the Responses integration currently
+rejects media blocks. Media that the integration does not support raises
+`UnsupportedContentBlockException` (Java) or `UnsupportedContentBlockError` (Python)
+before the request is sent. Even when the integration accepts the media, the
+model service may reject it if the selected model or deployment does not support it.
+{{< /hint >}}
 
 For example, a message can contain a question followed by an image:
 
@@ -251,7 +320,13 @@ ChatMessage message = ChatMessage.user(List.of(
 
 {{< /tabs >}}
 
-Each media block requires a MIME type such as `image/png` and a media source.
+### Media Types and Sources
+
+Each media block requires a `media_type` such as `image/png` and a media source.
+There is no framework-wide format whitelist: the selected provider integration
+and model determine which media types and sources are supported. The framework
+does not verify that the contents match the declared media type.
+
 Use `from_url` (Python) or `fromUrl` (Java) for an externally managed URL, as above.
 For inline data, all four media block types provide two separate entry points:
 
@@ -286,22 +361,41 @@ ImageBlock encodedImage = ImageBlock.fromBase64("image/png", base64FromService);
 {{< /tab >}}
 {{< /tabs >}}
 
-The framework does not verify that the contents match the declared media type.
 Choose a concrete block such as `ImageBlock`, rather than constructing the shared
-`MediaBlock` base class. Both inline factories produce the same Base64 source
-representation for serialization and provider conversion.
+`MediaBlock` base class. Media blocks also accept optional metadata: `name` for a
+file name, `size_bytes` for the media size in bytes, and `sha256` for a content checksum.
 
-Media blocks also accept optional metadata: `name` for a file name, `size_bytes`
-for the media size in bytes, and `sha256` for a content checksum.
+### Serialization
 
-To read only the text, use `.text` (Python) or `getText()` (Java). These concatenate
-the text blocks and exclude media.
+Java and Python use the same serialized block and source structure. Each block
+has a `type`, such as `image`; a media block's `source.type` is either `url` or
+`base64`:
+
+- A URL source stores the address in `source.url`, not a copy of the media.
+  The address must remain accessible when the provider uses it, including after recovery.
+- An inline source stores Base64 text in `source.data`. Both `from_bytes` /
+  `fromBytes` and `from_base64` / `fromBase64` produce this same representation;
+  raw bytes are encoded before serialization.
+
+For example, an image block with a URL source has this structure (optional
+metadata omitted):
+
+```json
+{
+  "type": "image",
+  "media_type": "image/png",
+  "source": {
+    "type": "url",
+    "url": "https://example.org/image.png"
+  }
+}
+```
 
 ## Tool Calling {#built-in-events-and-actions}
 
 A chat model can use tools to perform operations while answering a request. To enable this, define or register the tools and reference their names in the model setup's `tools` list. See [Local Function as Tool]({{< ref "docs/development/calling-llms/tool_use#local-function-as-tool" >}}) for declaration and registration examples, [Tool Parameter Injection]({{< ref "docs/development/calling-llms/tool_use#tool-parameter-injection" >}}) for framework-provided arguments, and [Parallel tool-call batches]({{< ref "docs/development/calling-llms/tool_use#parallel-tool-call-batches" >}}) for execution settings and concurrency limits.
 
-Send a `ChatRequestEvent` as usual. The model decides whether to answer directly or request tool calls:
+Send a `ChatRequestEvent` or await `ctx.chat` as usual. Both use the following tool loop, in which the model decides whether to answer directly or request tool calls:
 
 ```text
 ChatRequestEvent → chat_model_action → ChatResponseEvent
@@ -311,7 +405,7 @@ ChatRequestEvent → chat_model_action → ChatResponseEvent
                   tool_call_action
 ```
 
-When the model requests tools, the framework executes them, adds their results to the conversation, and calls the model again. This cycle continues until the model produces a final answer or the chat request fails. Your Agent handles the final `ChatResponseEvent` using the [success and failure handling](#handle-success-and-failure) described above; intermediate tool calls do not produce a final chat response.
+When the model requests tools, the framework executes them, adds their results to the conversation, and calls the model again. This cycle continues until the model produces a final answer or the chat request fails. The final result reaches your response Action or the awaiting `ctx.chat` caller as described in [Handle Success and Failure](#handle-success-and-failure); intermediate tool calls do not produce a final chat response.
 
 The built-in `chat_model_action` and `tool_call_action` coordinate this cycle. For this flow, you do not need to send or handle `ToolRequestEvent` and `ToolResponseEvent` yourself. For details on tool execution and results, see [Built-in Events and Actions in Tool Use]({{< ref "docs/development/calling-llms/tool_use#built-in-events-and-actions" >}}).
 

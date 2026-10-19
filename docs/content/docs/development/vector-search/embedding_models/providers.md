@@ -26,12 +26,18 @@ under the License.
 
 ## Built-in Providers
 
+For connection and setup concepts, see
+[Embedding Models]({{< ref "docs/development/vector-search/embedding_models" >}});
+for registration methods and scopes, see
+[Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}}).
+This page describes the built-in implementations and their provider options.
+
 ### Amazon Bedrock
 
 Amazon Bedrock provides embedding capabilities through the Amazon Titan Text Embeddings V2 model via the [InvokeModel API](https://docs.aws.amazon.com/bedrock/latest/userguide/titan-embedding-models.html). The integration supports configurable output dimensions (256, 512, or 1024) and parallelizes batch embedding via a configurable thread pool, since the Titan V2 model processes one text per API call. Authentication is handled via SigV4 using the AWS default credentials chain.
 
 {{< hint info >}}
-Amazon Bedrock embedding models are only supported in Java currently. To use Amazon Bedrock embeddings from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/vector-search/embedding_models#using-cross-language-providers" >}}).
+The Amazon Bedrock embedding integration currently has a Java implementation only. To use Amazon Bedrock embeddings from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -64,7 +70,7 @@ Amazon Bedrock embedding models are only supported in Java currently. To use Ama
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | String | Required | Reference to connection method name |
+| `connection` | String | Required | Registered connection Resource name |
 | `model` | String | None | Override the default embedding model from the connection |
 | `dimensions` | int | None | Output embedding dimensions: 256, 512, or 1024 |
 
@@ -161,7 +167,7 @@ Ollama provides local embedding models that run on your machine, offering privac
 
 | Parameter           | Type      | Default  | Description                                     |
 |---------------------|-----------|----------|-------------------------------------------------|
-| `connection`        | str       | Required | Reference to connection method name             |
+| `connection`        | str       | Required | Registered connection Resource name             |
 | `model`             | str       | Required | Name of the embedding model to use              |
 | `truncate`          | bool      | `True`   | Whether to truncate text exceeding model limits |
 | `keep_alive`        | str/float | `"5m"`   | How long to keep model loaded in memory         |
@@ -173,7 +179,7 @@ Ollama provides local embedding models that run on your machine, offering privac
 
 | Parameter           | Type   | Default  | Description                                     |
 |---------------------|--------|----------|-------------------------------------------------|
-| `connection`        | String | Required | Reference to connection method name             |
+| `connection`        | String | Required | Registered connection Resource name             |
 | `model`             | String | Required | Name of the embedding model to use              |
 
 {{< /tab >}}
@@ -360,7 +366,7 @@ public class MyAgent extends Agent {
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | str | Required | Reference to connection method name |
+| `connection` | str | Required | Registered connection Resource name |
 | `model` | str | Required | OpenAI embedding model name |
 | `encoding_format` | str | `"float"` | Wire format, `"float"` or `"base64"`; base64 responses are decoded to floats |
 | `dimensions` | int | None | Output dimensions (text-embedding-3 models only) |
@@ -375,7 +381,7 @@ public class MyAgent extends Agent {
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | String | Required | Reference to connection method name |
+| `connection` | String | Required | Registered connection Resource name |
 | `model` | String | Required | OpenAI embedding model name |
 | `encoding_format` | String | `"float"` | Wire format, `"float"` or `"base64"`; base64 responses are decoded to floats |
 | `dimensions` | Number | None | Output dimensions, a positive integer (text-embedding-3 models only) |
@@ -403,12 +409,12 @@ Current popular models include:
 Model availability and specifications may change. Always check the official OpenAI documentation for the latest information before implementing in production.
 {{< /hint >}}
 
-### Alibaba Cloud Model Studio (DashScope)
+### DashScope (Alibaba Cloud Model Studio) {#alibaba-cloud-model-studio-dashscope}
 
 This integration connects to Alibaba Cloud Model Studio (Bailian) through the DashScope SDK to access embedding models.
 
 {{< hint info >}}
-The DashScope integration is currently supported in the Python API only. To use it from Java agents, see [Using Cross-Language Providers]({{< ref "docs/development/vector-search/embedding_models#using-cross-language-providers" >}}).
+The DashScope integration currently has a Python implementation only. To use it from Java agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -451,7 +457,7 @@ class MyAgent(Agent):
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `connection` | str | Required | Reference to connection method name |
+| `connection` | str | Required | Registered connection Resource name |
 | `model` | str | `"text-embedding-v4"` | Embedding model name |
 | `text_type` | str | None | Input type: `"query"` or `"document"` |
 | `dimension` | int | None | Output vector dimensions (model-dependent) |

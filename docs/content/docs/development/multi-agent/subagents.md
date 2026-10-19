@@ -54,7 +54,8 @@ metrics use. What you register depends on the form. An internal sub-agent regist
 a child `Agent`. An external sub-agent registers a descriptor that names your setup
 class. A YAML file declares either form, as
 [Declaring sub-agents]({{< ref "docs/development/create-agent/yaml#declaring-sub-agents" >}})
-describes.
+describes. See [Resources]({{< ref "docs/development/create-agent/resources" >}})
+for the common registration and access model.
 
 ### Internal: compile a child agent {#declare-an-internal-sub-agent}
 
@@ -73,7 +74,7 @@ parent's plan is built.
 
 Any workflow agent can serve as the child. The one used through this page is built
 the way
-[Request and Response Example]({{< ref "docs/development/calling-llms/chat#usage-example" >}})
+[Using Chat Events]({{< ref "docs/development/calling-llms/chat#usage-example" >}})
 builds an agent that owns a chat model, and this page calls it `ReviewAgent`. It has
 a connection resource, a model setup, an action that turns an `InputEvent` into a
 `ChatRequestEvent`, and an action that turns the `ChatResponseEvent` into
@@ -99,7 +100,7 @@ def ask(event: Event, ctx: RunnerContext) -> None:
     diff = task["code"] if isinstance(task, dict) else str(task)
     ctx.send_event(
         ChatRequestEvent(
-            model="ollama_chat_model",
+            model="review_model",
             messages=[ChatMessage.user(f"Review this diff:\n{diff}")],
         )
     )
@@ -121,7 +122,7 @@ public static void ask(Event event, RunnerContext ctx) throws Exception {
                     : String.valueOf(task);
     ctx.sendEvent(
             new ChatRequestEvent(
-                    "ollamaChatModel",
+                    "reviewModel",
                     List.of(new ChatMessage(MessageRole.USER, "Review this diff:\n" + diff))));
 }
 ```

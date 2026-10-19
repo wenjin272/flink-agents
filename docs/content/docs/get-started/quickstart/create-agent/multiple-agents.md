@@ -506,7 +506,7 @@ agentsEnv.execute("Workflow Multiple Agent Example Job");
 `ProductSuggestionAgent` needs no extra connection registration. Its chat model setup names
 `ollama_server` / `ollamaChatModelConnection`, and both Agents resolve that name against the
 environment they were applied to. See
-[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}}).
+[Registering Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}}).
 
 ## Run the Example
 

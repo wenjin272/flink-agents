@@ -1,6 +1,6 @@
 ---
 title: "YAML API"
-weight: 5
+weight: 6
 type: docs
 aliases:
   - /docs/development/yaml/
@@ -128,7 +128,7 @@ field selects the implementation language. Prompts and Skills do not accept `typ
 These declarations register Resources for use by name, just like decorators, annotations,
 or `add_resource` / `addResource`. Actions can get their instances through
 `ctx.get_resource` / `ctx.getResource`; see
-[Registering and Referencing Resources]({{< ref "docs/development/create-agent/overview#registering-and-referencing-resources" >}}).
+[Referencing and Accessing Resources]({{< ref "docs/development/create-agent/resources#referencing-and-accessing-resources" >}}).
 
 **Prompt** — declarative prompt template. Exactly one of `text` or `messages` must be non-empty.
 
@@ -708,7 +708,7 @@ Common chat-model aliases:
 | `gemini`             | —                           | Gemini (Java)               |
 | `azure_openai`       | Azure OpenAI (Python)       | Azure OpenAI (Java)         |
 | `bedrock`            | —                           | Bedrock (Java)              |
-| `dashscope`          | Alibaba Cloud Model Studio (DashScope, Python) | —                           |
+| `dashscope`          | DashScope (Alibaba Cloud Model Studio, Python) | —                           |
 | `vllm`               | vLLM (Python)               | vLLM (Java)                 |
 | `watsonx`            | IBM watsonx.ai (Python)     | IBM watsonx.ai (Java)       |
 
@@ -718,7 +718,7 @@ Embedding-model aliases (apply to both `embedding_model_connections` and `embedd
 | --------- | -------------- | -------------- |
 | `ollama`  | Ollama         | Ollama         |
 | `openai`  | OpenAI         | OpenAI (Java)  |
-| `dashscope` | Alibaba Cloud Model Studio (DashScope) | —              |
+| `dashscope` | DashScope (Alibaba Cloud Model Studio) | —              |
 | `bedrock` | —              | Bedrock (Java) |
 
 Vector-store aliases:

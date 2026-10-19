@@ -26,12 +26,18 @@ under the License.
 
 ## Built-in Providers
 
+For vector store operations, see
+[Vector Stores]({{< ref "docs/development/vector-search/vector_stores" >}});
+for registration methods and scopes, see
+[Resources]({{< ref "docs/development/create-agent/resources#registering-resources" >}}).
+This page describes the built-in implementations and their provider options.
+
 ### Amazon OpenSearch
 
 [Amazon OpenSearch](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/) is a managed vector search service available in two flavors: OpenSearch Service (provisioned domains) and OpenSearch Serverless (AOSS). The Flink Agents integration supports both via a single `service_type` parameter, with IAM (SigV4) or basic authentication.
 
 {{< hint info >}}
-Amazon OpenSearch is only supported in Java currently. To use Amazon OpenSearch from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/vector-search/vector_stores#using-cross-language-providers" >}}).
+The Amazon OpenSearch integration currently has a Java implementation only. To use Amazon OpenSearch from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 {{< hint info >}}
@@ -153,7 +159,7 @@ public static ResourceDescriptor opensearchDomainBasicAuth() {
 [Amazon S3 Vectors](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors.html) is a purpose-built vector storage service from Amazon S3 that provides native support for storing and querying vector embeddings with sub-second query performance. It uses the S3 Vectors SDK for PutVectors, QueryVectors, GetVectors, and DeleteVectors operations.
 
 {{< hint info >}}
-Amazon S3 Vectors is only supported in Java currently. To use Amazon S3 Vectors from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/vector-search/vector_stores#using-cross-language-providers" >}}).
+The Amazon S3 Vectors integration currently has a Java implementation only. To use Amazon S3 Vectors from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 {{< hint warning >}}
@@ -229,7 +235,7 @@ public class MyAgent extends Agent {
 [Chroma](https://www.trychroma.com/home) is an open-source vector database that provides efficient storage and querying of embeddings with support for multiple deployment modes.
 
 {{< hint info >}}
-Chroma is currently supported in the Python API only. To use Chroma from Java agents, see [Using Cross-Language Providers]({{< ref "docs/development/vector-search/vector_stores#using-cross-language-providers" >}}).
+The Chroma integration currently has a Python implementation only. To use Chroma from Java agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -365,7 +371,7 @@ def chroma_store() -> ResourceDescriptor:
 [Elasticsearch](https://www.elastic.co/elasticsearch/) is a distributed, RESTful search and analytics engine that supports vector search through dense vector fields and K-Nearest Neighbors (KNN).
 
 {{< hint info >}}
-Elasticsearch is currently supported in the Java API only. To use Elasticsearch from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/vector-search/vector_stores#using-cross-language-providers" >}}).
+The Elasticsearch integration currently has a Java implementation only. To use Elasticsearch from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 #### Prerequisites
@@ -427,7 +433,7 @@ public static ResourceDescriptor vectorStore() {
 [Mem0](https://docs.mem0.ai/) ships its own ecosystem of vector-store backends (pgvector, Milvus, Qdrant, Redis, Weaviate, ...). `Mem0VectorStore` is a gateway that exposes any of them through Flink Agents' resource system, so you can reach Mem0-supported backends without a dedicated integration for each.
 
 {{< hint info >}}
-Mem0 is currently supported in the Python API only. To use it from Java agents, see [Using Cross-Language Providers]({{< ref "docs/development/vector-search/vector_stores#using-cross-language-providers" >}}).
+The Mem0 integration currently has a Python implementation only. To use it from Java agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 {{< hint info >}}
@@ -499,7 +505,7 @@ class MyAgent(Agent):
 [Milvus](https://milvus.io/) is an open-source vector database designed for high-dimensional vector search at scale.
 
 {{< hint info >}}
-Milvus is currently supported in the Java API only. To use Milvus from Python agents, see [Using Cross-Language Providers]({{< ref "docs/development/vector-search/vector_stores#using-cross-language-providers" >}}).
+The Milvus integration currently has a Java implementation only. To use Milvus from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
 #### Prerequisites
