@@ -135,9 +135,10 @@ While a call runs, the child behaves like a scoped agent of its own:
 - Its `OutputEvent`s are accumulated, in order, into the call's result instead of
   landing on the parent's context. See
   [the result](#the-result) for the shape.
-- It resolves resources against its own plan. Register the resources a child uses,
-  such as its chat model connection, on the child itself. In Python a resource
-  registered solely on the parent is not visible to the child.
+- The child first looks for resources registered on itself, then falls back to
+  resources registered on the root agent. You can share a chat model connection
+  by registering it on the root, or override it on a child using the same name
+  and resource type. This also applies to nested sub-agents.
 - Its sensory and short-term memory start empty for each call, including calls
   continuing a session, and are shared by the child's actions within that call.
   Long-term memory, when configured, is shared with the caller.
