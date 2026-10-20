@@ -562,8 +562,9 @@ For example, if an Action fails after a profile lookup has completed and its res
 been persisted, recovery can reuse that profile instead of querying the service again.
 Code outside the durable call may still run again when the Action is re-executed.
 
-Durable execution requires an external action state store. Configure it as described in
-[Exactly-Once Action Consistency]({{< ref "docs/operations/deployment#exactly-once-action-consistency" >}}).
+To save and reuse call outcomes during recovery, configure checkpointing and an external
+Action State Store as described in
+[Consistency]({{< ref "docs/operations/consistency#configure-an-action-state-store" >}}).
 
 #### A Durable Call
 
@@ -628,18 +629,10 @@ Java's `getResultClass()` provides the type needed to deserialize a saved result
 
 #### Recovery Behavior
 
-When recovery re-executes an unfinished Action and reaches a durable call:
-
-| State of the matching call | Recovery behavior |
-| --- | --- |
-| A successful result has been persisted | Return the saved result without calling the function again. |
-| A failure has been persisted | Replay the failure without calling the function again. |
-| No completed outcome has been persisted | Execute the function again, or use the reconciler for a previously recorded in-flight call. |
-
-An external operation may finish before its result is persisted. If a failure occurs in
-that interval, calling the operation again can repeat its side effects. For such
-operations, use the external service's idempotency support or a reconciler that can
-recover the existing outcome.
+See [Recovery flow]({{< ref "docs/operations/consistency#recovery-flow" >}}) for how recovery
+handles saved outcomes and in-flight calls, and
+[Limits on external side effects]({{< ref "docs/operations/consistency#limits-on-external-side-effects" >}})
+for operations that may repeat.
 
 #### Reconciling an In-flight Call
 
@@ -799,9 +792,10 @@ worker and batch limits. Concurrency between Actions has additional requirements
   the cross-language Flink versions below.
 - **Python Actions:** use `async def` and the framework's futures and `gather` APIs.
 
-See [Core Options]({{< ref "docs/operations/configuration#core-options" >}}) for worker-pool
-and concurrency limits. These scheduling requirements apply to both ordinary and durable
-async calls. Durable calls additionally require the configured action state store.
+See [Runtime and async execution]({{< ref "docs/operations/configuration#runtime-and-async-execution" >}})
+for worker-pool and concurrency limits. These scheduling requirements apply to both ordinary
+and durable async calls. Saving durable call outcomes for recovery additionally requires
+an Action State Store.
 
 #### Cross-language Async Requirements
 
@@ -886,7 +880,7 @@ missing value.
 
 Reading a missing attribute without a guard or applying an operation to an incompatible
 value can fail while evaluating a condition for an Event. For failure handling options, see
-[`action.trigger-condition.evaluate-failure-strategy`]({{< ref "docs/operations/configuration#core-options" >}})
+[`action.trigger-condition.evaluate-failure-strategy`]({{< ref "docs/operations/configuration#condition-handling" >}})
 in Configuration.
 
 #### Limitations

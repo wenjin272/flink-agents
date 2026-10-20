@@ -1253,8 +1253,12 @@ triggers recovery.
 
 Sub-agent calls use
 [durable execution]({{< ref "docs/development/create-agent/actions#durable-execution" >}}).
-Recovery reuses persisted results. Work whose result has not been persisted may
-run again, so external services need to handle retried requests.
+With checkpointing and an
+[Action State Store]({{< ref "docs/operations/consistency#configure-an-action-state-store" >}}),
+recovery reuses persisted results. Work whose result has not been persisted may
+run again, so external services need to handle retried requests. See
+[Consistency]({{< ref "docs/operations/consistency#recovery-guarantees-and-user-responsibilities" >}})
+for replay conditions and limits on repeated effects.
 
 The framework generates stable `session_id` and `call_id` values for recovery.
 If you supply your own IDs, keep them unchanged when the same call is retried.
