@@ -274,7 +274,8 @@ One review is too little to suggest an improvement, so the job groups the per-re
 product id in a one-minute tumbling window and reduces each group to a `ProductReviewSummary`. That
 type is declared in the shared types file and carries the product id, the score distribution, and
 the collected unsatisfied reasons. Python returns the summary object, and Java emits it as JSON
-text, because the next stage reads it back with Jackson.
+text, because the next stage reads it back with Jackson. Scores outside 1–5 are excluded from
+the distribution; if none are valid, all five percentages are `0.0%`. The reasons are still retained.
 
 {{< tabs "Aggregate in a Window" >}}
 
@@ -298,7 +299,9 @@ class AggregateScoreDistributionAndDislikeReasons(ProcessWindowFunction):
                 rating_counts[rating - 1] += 1
             reason_list = reason_list + element.reasons
         total = sum(rating_counts)
-        percentages = [round((x / total) * 100, 1) for x in rating_counts]
+        percentages = [
+            round((x / total) * 100, 1) if total else 0.0 for x in rating_counts
+        ]
         formatted_percentages = [f"{p}%" for p in percentages]
         return [
             ProductReviewSummary(
