@@ -123,7 +123,9 @@ These metrics describe LLM, Tool, Skill, MCP Server and sub-agent calls that the
 
 #### Token Usage Metrics
 
-Token usage metrics are recorded when chat models are invoked through `ChatModelConnection`, which helps track LLM API usage and cost. In the built-in chat flow, token usage metrics appear under `action.chat_model_action.model.<model_name>`, not under the Action that sends `ChatRequestEvent`.
+Token usage metrics are recorded in the built-in [chat flow]({{< ref "docs/development/calling-llms/chat" >}}), including calls through `ChatRequestEvent` and `ctx.chat`, when the response provides a model name and both prompt and completion token counts. If any of these values is missing, neither counter is updated.
+
+These metrics appear under `action.chat_model_action.model.<model_name>`, where `<model_name>` is the model name reported in the response.
 
 | Scope | Metrics | Description | Type |
 |-------|---------|-------------|------|
