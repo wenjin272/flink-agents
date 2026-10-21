@@ -85,7 +85,7 @@ Flink Agents provides built-in metrics for input runs, Events, Actions, executio
 | **Action** | action.\<action_name\>.numOfActiveActionExecutions | Action executions that have started and not yet finished. [3] | Gauge |
 | **Action** | action.\<action_name\>.routingDecisionLatencyMs | Time to resolve a routing decision when a `ChatRequestEvent` names a `MODEL_ROUTER`, including replayed decisions; see [Model Routing]({{< ref "docs/development/calling-llms/model_routing#observability" >}}). | Histogram |
 | **Agent** | traceLogTruncatedRecords | Trace Log records whose attributes were truncated at `STANDARD` level, counted once per record. | Counter |
-| **Agent** | traceLogWriteFailures | Failed Trace Log writes. Writes are best effort and do not fail the job. | Counter |
+| **Agent** | traceLogWriteFailures | Detected Trace Log write failures. Writes are best effort and do not fail the job. | Counter |
 
 1. Input-run outcomes and latency samples are local to a task attempt. Input runs already active when a task is restored produce neither outcome counts nor latency samples, and Action executions already active when the task is restored produce no latency sample. An input restored from the pending queue records its outcome and processing latency once it starts in the new attempt, but not its queue or end-to-end latency.
 2. `numOfPendingInputEvents` counts buffered inputs and `numOfActiveInputRuns` counts runs; a run waiting for an asynchronous continuation stays active. Both gauges are rebuilt from Flink state after a restore.
@@ -235,7 +235,7 @@ You can read the logs of a running job in the Flink Web UI:
 
 Trace Log records Events, Action executions, and component calls as structured JSON. By default, it records only Events at `STANDARD` level. Configure [recording targets](#recording-targets) to select other entities or change their level.
 
-Trace Log writes are best effort. A failed write does not fail Event processing or the job; the first failure is logged at `WARN`, later ones at `DEBUG`, and each one increments `traceLogWriteFailures`.
+Trace Log writes are best effort. A detected write failure does not fail Event processing or the job; the first detected failure is logged at `WARN`, later ones at `DEBUG`, and each one increments `traceLogWriteFailures`. Failures swallowed by the logging backend cannot be reflected in this metric.
 
 ### Recording Targets
 

@@ -255,6 +255,7 @@ public class Slf4jTraceLogger implements TraceLogger {
                             .withFileName(traceLogFile)
                             .withAppend(true)
                             .setLayout(layout)
+                            .setIgnoreExceptions(false)
                             .build();
             appender.start();
             configuration.addAppender(appender);
