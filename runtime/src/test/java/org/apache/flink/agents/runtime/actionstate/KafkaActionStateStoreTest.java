@@ -155,7 +155,7 @@ public class KafkaActionStateStoreTest {
                         0L));
         mockConsumer.assign(
                 List.of(new TopicPartition(TEST_TOPIC, 0), new TopicPartition(TEST_TOPIC, 1)));
-        actionStates = new HashMap<>();
+        actionStates = new ActionStateCache();
         actionStateStore = createStore(MAX_PARALLELISM);
 
         // Create test objects
@@ -278,6 +278,36 @@ public class KafkaActionStateStoreTest {
     }
 
     @Test
+    void divergenceRemovesOffsetsFromRecoveryMarkers() throws Exception {
+        actionStateStore.put(TEST_KEY, 1L, testAction, testEvent, testActionState);
+        actionStateStore.put(TEST_KEY, 2L, testAction, testEvent, testActionState);
+        mockConsumer.updateEndOffsets(
+                Map.of(
+                        new TopicPartition(TEST_TOPIC, 0),
+                        2L,
+                        new TopicPartition(TEST_TOPIC, 1),
+                        0L));
+        Event changed = new InputEvent("different input history");
+        assertThat(actionStateStore.get(TEST_KEY, 1L, testAction, changed)).isNull();
+        assertThat(actionStates).isEmpty();
+        assertThat(
+                        ((KafkaActionStateRecoveryMarker) actionStateStore.getRecoveryMarker())
+                                .getOffsets())
+                .containsExactlyInAnyOrderEntriesOf(Map.of(0, 2L, 1, 0L));
+        actionStateStore.put(TEST_KEY, 1L, testAction, changed, new ActionState(changed));
+        mockConsumer.updateEndOffsets(
+                Map.of(
+                        new TopicPartition(TEST_TOPIC, 0),
+                        3L,
+                        new TopicPartition(TEST_TOPIC, 1),
+                        0L));
+        assertThat(
+                        ((KafkaActionStateRecoveryMarker) actionStateStore.getRecoveryMarker())
+                                .getOffsets())
+                .containsExactlyInAnyOrderEntriesOf(Map.of(0, 2L, 1, 0L));
+    }
+
+    @Test
     void testGetNonExistentActionState() throws Exception {
         actionStates.put(
                 generateKey(TEST_KEY, 1L, testAction, testEvent, MAX_PARALLELISM), testActionState);
@@ -297,12 +327,12 @@ public class KafkaActionStateStoreTest {
     }
 
     @Test
-    void testGetActionStateWithDiverge() throws Exception {
+    void testGetMultipleActionsForSameInputKeepsLaterStates() throws Exception {
         actionStates.put(
                 generateKey(TEST_KEY, 1L, testAction, testEvent, MAX_PARALLELISM), testActionState);
         actionStates.put(
                 generateKey(TEST_KEY, 2L, testAction, testEvent, MAX_PARALLELISM), testActionState);
-        // diverge here
+        // A second Action for the same InputEvent is normal fanout, not a fork.
         actionStates.put(
                 generateKey(TEST_KEY, 2L, new NoOpAction("test-2"), testEvent, MAX_PARALLELISM),
                 testActionState);
@@ -315,8 +345,8 @@ public class KafkaActionStateStoreTest {
 
         assertNotNull(actionStateStore.get(TEST_KEY, 1L, testAction, testEvent));
         assertNotNull(actionStateStore.get(TEST_KEY, 2L, testAction, testEvent));
-        assertNull(actionStateStore.get(TEST_KEY, 3L, testAction, testEvent));
-        assertNull(actionStateStore.get(TEST_KEY, 4L, testAction, testEvent));
+        assertNotNull(actionStateStore.get(TEST_KEY, 3L, testAction, testEvent));
+        assertNotNull(actionStateStore.get(TEST_KEY, 4L, testAction, testEvent));
     }
 
     @Test
@@ -476,7 +506,7 @@ public class KafkaActionStateStoreTest {
                 new ConsumerRecord<>(
                         TEST_TOPIC, recoveryPartition, 0L, persisted.key(), persisted.value()));
 
-        Map<String, ActionState> recoveredStates = new HashMap<>();
+        Map<String, ActionState> recoveredStates = new ActionStateCache();
         try (KafkaActionStateStore recoveredStore =
                 new KafkaActionStateStore(
                         recoveredStates,
@@ -551,7 +581,7 @@ public class KafkaActionStateStoreTest {
             recoveryConsumer.addRecord(
                     new ConsumerRecord<>(TEST_TOPIC, 0, offset, record.key(), record.value()));
         }
-        Map<String, ActionState> recoveredStates = new HashMap<>();
+        Map<String, ActionState> recoveredStates = new ActionStateCache();
         try (KafkaActionStateStore recoveredStore =
                 new KafkaActionStateStore(
                         recoveredStates,
@@ -737,7 +767,7 @@ public class KafkaActionStateStoreTest {
     @Test
     void testPruneStateWithNullProducer() throws Exception {
         // Arrange - tombstones enabled but producer is null
-        Map<String, ActionState> localStates = new HashMap<>();
+        Map<String, ActionState> localStates = new ActionStateCache();
         KafkaActionStateStore nullProducerStore = tombstoneEnabledStore(localStates, null);
         localStates.put(
                 generateKey(TEST_KEY, 1L, testAction, testEvent, MAX_PARALLELISM), testActionState);

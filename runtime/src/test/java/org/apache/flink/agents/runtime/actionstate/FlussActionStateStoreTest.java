@@ -76,7 +76,7 @@ public class FlussActionStateStoreTest {
         when(mockWriter.append(any(InternalRow.class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
-        actionStates = new HashMap<>();
+        actionStates = new ActionStateCache();
         store = createStore(MAX_PARALLELISM);
 
         testAction = new NoOpAction("test-action");

@@ -194,7 +194,28 @@ To match saved records to the correct work, replay must preserve the following:
   stored Events, Memory updates, and durable call outcomes, since recovery may
   replay them without running the code that produced them.
 
-### Limits on external side effects
+### Known limitations
+
+#### Shared Memory ordering
+
+The Action State Store saves each Action's Memory updates and output Events, but
+does not record and reproduce the original interleaving of asynchronous Actions.
+A completed Action can replay without the asynchronous waits that occurred during
+its original execution. Actions that share Sensory or Short-Term Memory must
+therefore not depend on those waits to establish their read/write order.
+
+If Actions A and B overwrite the same Memory value, applying A's saved update
+before B's can produce a different final value from applying B's before A's.
+Likewise, an unfinished Action may observe a different value if its reads occur
+in a different order relative to other Actions' replayed updates. Reusing saved
+Action completions alone does not guarantee the same result in these cases.
+
+Keep concurrent Actions' Memory accesses independent, or express required
+ordering through explicit Event dependencies: emit an Event after the preceding
+Action's update and use it to trigger the dependent Action. Do not rely on
+asynchronous call timing to order shared Memory access.
+
+#### External side effects
 
 The Action State Store cannot commit an external operation and its saved outcome
 as a single transaction. If the operation finishes but the job fails before its

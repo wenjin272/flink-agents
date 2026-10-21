@@ -93,7 +93,7 @@ public class KafkaActionStateStore implements ActionStateStore {
     private final AgentConfiguration agentConfiguration;
 
     // In memory action state for quick state retrieval
-    private final Map<String, ActionState> actionStates;
+    private final ActionStateCache actionStates;
 
     private final Map<String, StateRecordOffset> latestStateOffsets;
 
@@ -141,7 +141,7 @@ public class KafkaActionStateStore implements ActionStateStore {
             String topic,
             ActionStateKeyEncoder keyEncoder,
             KafkaActionStateCleanupCoordinator cleanupCoordinator) {
-        this.actionStates = actionStates;
+        this.actionStates = ActionStateCache.wrap(actionStates);
         this.producer = producer;
         this.consumer = consumer;
         this.topic = topic;
@@ -166,7 +166,7 @@ public class KafkaActionStateStore implements ActionStateStore {
     public KafkaActionStateStore(
             AgentConfiguration agentConfiguration, ActionStateKeyEncoder keyEncoder) {
         this.keyEncoder = Preconditions.checkNotNull(keyEncoder, "keyEncoder cannot be null");
-        this.actionStates = new HashMap<>();
+        this.actionStates = new ActionStateCache();
         this.latestStateOffsets = new HashMap<>();
         this.agentConfiguration = agentConfiguration;
         this.tombstoneEnabled = agentConfiguration.get(KAFKA_ACTION_STATE_TOMBSTONE_ENABLED);
@@ -248,47 +248,7 @@ public class KafkaActionStateStore implements ActionStateStore {
     @Override
     public ActionState get(Object key, long seqNum, Action action, Event event) throws Exception {
         String stateKey = keyEncoder.generateKey(key, seqNum, action, event);
-        String businessKeyIdentity = keyEncoder.generateBusinessKeyIdentity(key);
-
-        LOG.debug(
-                "Looking up action state: key={}, seqNum={}, stateKey={}, cachedStates={}",
-                key,
-                seqNum,
-                stateKey,
-                actionStates.keySet());
-
-        boolean hasDivergence = checkDivergence(businessKeyIdentity, seqNum);
-
-        if (!actionStates.containsKey(stateKey) || hasDivergence) {
-            List<String> keysToRemove = new ArrayList<>();
-            for (String cachedKey : actionStates.keySet()) {
-                if (ActionStateUtil.matchesBusinessKeyIdentityWithSeqNum(
-                        cachedKey, businessKeyIdentity, stateSeqNum -> stateSeqNum > seqNum)) {
-                    keysToRemove.add(cachedKey);
-                }
-            }
-            actionStates.keySet().removeAll(keysToRemove);
-            latestStateOffsets.keySet().removeAll(keysToRemove);
-        }
-
-        ActionState result = actionStates.get(stateKey);
-        if (result != null) {
-            LOG.debug("Found action state: key={}, isCompleted={}", stateKey, result.isCompleted());
-        } else {
-            LOG.debug("Action state not found: key={}", stateKey);
-        }
-
-        return result;
-    }
-
-    private boolean checkDivergence(String businessKeyIdentity, long seqNum) {
-        return actionStates.keySet().stream()
-                        .filter(
-                                k ->
-                                        ActionStateUtil.matchesBusinessKeyIdentityAndSeqNum(
-                                                k, businessKeyIdentity, seqNum))
-                        .count()
-                > 1;
+        return actionStates.lookup(stateKey, event, latestStateOffsets::remove);
     }
 
     @Override
@@ -359,7 +319,8 @@ public class KafkaActionStateStore implements ActionStateStore {
                         actionStates.remove(record.key());
                         latestStateOffsets.remove(record.key());
                     } else {
-                        actionStates.put(record.key(), record.value());
+                        actionStates.replay(
+                                record.key(), record.value(), latestStateOffsets::remove);
                         latestStateOffsets.put(
                                 record.key(),
                                 new StateRecordOffset(record.partition(), record.offset()));
@@ -538,13 +499,7 @@ public class KafkaActionStateStore implements ActionStateStore {
         String businessKeyIdentity = keyEncoder.generateBusinessKeyIdentity(key);
 
         // Collect state keys belonging to this key with sequence number <= seqNum.
-        List<String> keysToPrune = new ArrayList<>();
-        for (String stateKey : actionStates.keySet()) {
-            if (ActionStateUtil.matchesBusinessKeyIdentityWithSeqNum(
-                    stateKey, businessKeyIdentity, stateSeqNum -> stateSeqNum <= seqNum)) {
-                keysToPrune.add(stateKey);
-            }
-        }
+        List<String> keysToPrune = actionStates.keysThrough(businessKeyIdentity, seqNum);
 
         // Send tombstones to Kafka so log compaction can reclaim storage; opt-in because
         // tombstones break replay when restoring a checkpoint/savepoint older than the prune
@@ -580,8 +535,8 @@ public class KafkaActionStateStore implements ActionStateStore {
         }
 
         // Remove from in-memory cache (always, regardless of tombstone success)
-        actionStates.keySet().removeAll(keysToPrune);
-        latestStateOffsets.keySet().removeAll(keysToPrune);
+        keysToPrune.forEach(actionStates::remove);
+        keysToPrune.forEach(latestStateOffsets::remove);
 
         LOG.debug("Pruned state for key: {} up to sequence number: {}", key, seqNum);
     }
