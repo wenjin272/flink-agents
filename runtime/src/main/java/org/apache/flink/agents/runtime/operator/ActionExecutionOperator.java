@@ -78,6 +78,7 @@ import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.OperatorSnapshotFutures;
 import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.sorted.state.BatchExecutionKeyedStateBackend;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
@@ -1110,6 +1111,15 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
+
+        // Check the actual backend after Flink resolves AUTOMATIC and any configuration changes
+        // made after the Agent pipeline was built, before opening resources or recovering Actions.
+        checkState(
+                !(getKeyedStateBackend() instanceof BatchExecutionKeyedStateBackend),
+                "Flink Agents does not support Flink's batch keyed-state backend"
+                        + " (execution.batch-state-backend.enabled): switching keys can discard"
+                        + " unfinished Actions. Run this job with RuntimeExecutionMode.STREAMING,"
+                        + " or set execution.batch-state-backend.enabled to false.");
 
         int maxParallelism = getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks();
         durableExecManager.maybeInitActionStateStore(

@@ -130,10 +130,9 @@ public class CompileUtils {
      * {@code FINISHED}; only the affected records go missing. See
      * https://github.com/apache/flink-agents/issues/939.
      *
-     * <p>This only catches an explicitly configured {@code BATCH} runtime mode. {@code
-     * RuntimeExecutionMode.AUTOMATIC} (the default) that later resolves to batch execution because
-     * every source happens to be bounded is not detected here, since that resolution has not
-     * happened yet at graph-construction time.
+     * <p>This early check only catches an explicitly configured {@code BATCH} runtime mode. The
+     * operator also validates the actual keyed-state backend during initialization, covering {@code
+     * AUTOMATIC} with bounded sources and configuration changes after this check.
      */
     private static void checkBatchStateBackendCompatibility(KeyedStream<?, ?> keyedInputStream) {
         ReadableConfig configuration =
