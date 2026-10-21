@@ -213,6 +213,15 @@ public class ResourceCache implements AutoCloseable {
     }
 
     /**
+     * Checks registration along the same fallback chain as {@link #getResource}, without creating
+     * resources.
+     */
+    public boolean hasResourceInHierarchy(String name, ResourceType type) {
+        return hasResource(name, type)
+                || (parent != null && parent.hasResourceInHierarchy(name, type));
+    }
+
+    /**
      * Resolves a resource by name and type, creating it from its provider if not cached.
      *
      * @param name the resource name

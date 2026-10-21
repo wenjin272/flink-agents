@@ -1284,8 +1284,21 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
      * built-in writer and metrics first, followed by registered listeners.
      */
     private ExecutionReportingContext createExecutionReportingContext(ActionTask actionTask) {
+        // Bind to this execution's resources: the shared RunnerContext may have switched to
+        // another Agent by the time an asynchronous call reports its outcome.
+        RunnerContextImpl.ResourceScope scope = contextManager.getResourceScope(actionTask);
+        ResourceCache executionResources =
+                scope == null ? resourceCache : scope.getChildResourceCache();
+        ComponentExecutionListener metricListener =
+                builtInMetrics.createComponentMetricListener(
+                        actionTask.getAction().getName(),
+                        name -> executionResources.hasResourceInHierarchy(name, ResourceType.TOOL));
         List<ComponentExecutionListener> listeners = new ArrayList<>();
-        listeners.add(record -> observeExecutionRecord(actionTask.getAction().getName(), record));
+        listeners.add(
+                record -> {
+                    traceLogWriter.appendAndFlush(record);
+                    metricListener.onExecutionReported(record);
+                });
         listeners.addAll(componentExecutionListeners);
         return new ExecutionReportingContext(actionTask.getTraceContext(), listeners);
     }

@@ -41,6 +41,7 @@ import org.apache.flink.agents.api.subagent.SubagentResult;
 import org.apache.flink.agents.api.subagent.SubagentSetup;
 import org.apache.flink.agents.api.tools.Tool;
 import org.apache.flink.agents.plan.AgentPlan;
+import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
 import org.apache.flink.agents.runtime.operator.ActionExecutionOperator;
 import org.apache.flink.agents.runtime.operator.ActionExecutionOperatorFactory;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -52,9 +53,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledForJreRange;
 import org.junit.jupiter.api.condition.JRE;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nullable;
 
+import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -62,6 +66,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -243,9 +248,10 @@ public class ReActAgentSubagentTest {
                 .anySatisfy(text -> assertThat(text).contains("reviewed: ok"));
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     @Timeout(60)
-    void toolCallLoopRunsInsideTheChildScope() throws Exception {
+    void toolCallLoopRunsInsideTheChildScope(boolean inheritTool) throws Exception {
         ToolCallBlock lookup = new ToolCallBlock("call-1", "shout", Map.of("text", "hello world"));
         ChildScriptedConnection.REPLIES.add(assistantWithToolCall("let me check", lookup));
         ChildScriptedConnection.REPLIES.add(
@@ -253,13 +259,28 @@ public class ReActAgentSubagentTest {
 
         Agent parent = new Agent();
         registerConnections(parent);
-        parent.addResource("child", ResourceType.AGENT, toolCallingReactAgent());
+        parent.addResource("child", ResourceType.AGENT, toolCallingReactAgent(!inheritTool));
+        if (inheritTool) {
+            parent.addResource(
+                    "shout",
+                    ResourceType.TOOL,
+                    Tool.fromMethod(ReActAgentSubagentTest.class.getMethod("shout", String.class)));
+        }
         parent.addAction(
                 new String[] {InputEvent.EVENT_TYPE},
                 ReActAgentSubagentTest.class.getMethod(
                         "callReActChild", Event.class, RunnerContext.class));
 
-        List<Object> output = run(parent, 7L);
+        List<Object> output =
+                run(
+                        parent,
+                        7L,
+                        metrics -> {
+                            assertThat(toolCounter(metrics, "shout", "numOfToolCallsSucceeded"))
+                                    .isEqualTo(1);
+                            assertThat(toolCounter(metrics, "unknown", "numOfToolCallsSucceeded"))
+                                    .isZero();
+                        });
 
         // The tool schema was offered on the first round, the tool executed inside the child
         // scope, and the second round saw the tool result before answering.
@@ -273,6 +294,110 @@ public class ReActAgentSubagentTest {
                             ToolResultBlock result = (ToolResultBlock) message.getBlocks().get(0);
                             assertThat(result.getText()).isEqualTo("HELLO WORLD!");
                         });
+    }
+
+    @Test
+    @Timeout(60)
+    void parentAndChildToolsWithTheSameNameShareMetrics() throws Exception {
+        ReActAgent parent =
+                delegatingParent(null, null, toolCallingReactAgent(true), List.of("shout"));
+        parent.addResource(
+                "shout",
+                ResourceType.TOOL,
+                Tool.fromMethod(
+                        ReActAgentSubagentTest.class.getMethod("parentShout", String.class)));
+        ParentScriptedConnection.REPLIES.add(
+                assistantWithToolCall(
+                        "parent tool",
+                        new ToolCallBlock("root-tool", "shout", Map.of("text", "parent"))));
+        ParentScriptedConnection.REPLIES.add(assistantWithToolCall("delegate", delegation()));
+        ParentScriptedConnection.REPLIES.add(ChatMessage.assistant("done"));
+        ChildScriptedConnection.REPLIES.add(
+                assistantWithToolCall(
+                        "child tool",
+                        new ToolCallBlock("child-tool", "shout", Map.of("text", "child"))));
+        ChildScriptedConnection.REPLIES.add(ChatMessage.assistant("child done"));
+
+        assertThat(
+                        run(
+                                parent,
+                                7L,
+                                metrics -> {
+                                    assertThat(
+                                                    toolCounter(
+                                                            metrics,
+                                                            "shout",
+                                                            "numOfToolCallsSucceeded"))
+                                            .isEqualTo(2);
+                                    assertThat(
+                                                    toolCounter(
+                                                            metrics,
+                                                            "unknown",
+                                                            "numOfToolCallsSucceeded"))
+                                            .isZero();
+                                    assertThat(
+                                                    metrics.getSubGroup(
+                                                                    "action", "tool_call_action")
+                                                            .getSubGroup("tool", "shout")
+                                                            .getHistogram("toolCallLatencyMs")
+                                                            .getCount())
+                                            .isEqualTo(2);
+                                }))
+                .containsExactly("done");
+        assertThat(allTexts(ParentScriptedConnection.CONVERSATIONS.get(1)))
+                .anySatisfy(text -> assertThat(text).contains("parent:parent"));
+        assertThat(allTexts(ChildScriptedConnection.CONVERSATIONS.get(1)))
+                .anySatisfy(text -> assertThat(text).contains("CHILD!"));
+    }
+
+    @Test
+    @Timeout(60)
+    void missingToolsRemainUnknownInTheCallingScope() throws Exception {
+        ReActAgent parent = delegatingParent(null, null, toolCallingReactAgent(true), List.of());
+        // A Tool registered only in the child must not make the parent's failed call look
+        // registered.
+        ParentScriptedConnection.REPLIES.add(
+                assistantWithToolCall(
+                        "missing in parent",
+                        new ToolCallBlock("root-tool", "shout", Map.of("text", "parent"))));
+        ParentScriptedConnection.REPLIES.add(assistantWithToolCall("delegate", delegation()));
+        ParentScriptedConnection.REPLIES.add(ChatMessage.assistant("done"));
+        ChildScriptedConnection.REPLIES.add(
+                assistantWithToolCall(
+                        "missing everywhere",
+                        new ToolCallBlock("child-tool", "missing", Map.of())));
+        ChildScriptedConnection.REPLIES.add(ChatMessage.assistant("child done"));
+
+        assertThat(
+                        run(
+                                parent,
+                                7L,
+                                metrics -> {
+                                    assertThat(
+                                                    toolCounter(
+                                                            metrics,
+                                                            "unknown",
+                                                            "numOfToolCallsFailed"))
+                                            .isEqualTo(2);
+                                    assertThat(
+                                                    toolCounter(
+                                                            metrics,
+                                                            "shout",
+                                                            "numOfToolCallsFailed"))
+                                            .isZero();
+                                    assertThat(
+                                                    toolCounter(
+                                                            metrics,
+                                                            "missing",
+                                                            "numOfToolCallsFailed"))
+                                            .isZero();
+                                }))
+                .containsExactly("done");
+    }
+
+    @SuppressWarnings("unused")
+    public static String parentShout(@ToolParam(name = "text") String text) {
+        return "parent:" + text;
     }
 
     @Test
@@ -343,17 +468,25 @@ public class ReActAgentSubagentTest {
     /** A ReActAgent parent configured as given, declaring a bare ReActAgent child to its model. */
     private static ReActAgent delegatingParent(
             @Nullable Prompt prompt, @Nullable Class<?> outputSchema) {
+        return delegatingParent(prompt, outputSchema, bareReactAgent("child_conn"), List.of());
+    }
+
+    private static ReActAgent delegatingParent(
+            @Nullable Prompt prompt,
+            @Nullable Class<?> outputSchema,
+            Agent child,
+            List<String> tools) {
         ReActAgent parent =
                 new ReActAgent(
                         ResourceDescriptor.Builder.newBuilder(ScriptedModelSetup.class.getName())
                                 .addInitialArgument("connection", "parent_conn")
                                 .addInitialArgument("subagents", List.of("child"))
+                                .addInitialArgument("tools", tools)
                                 .build(),
                         prompt,
                         outputSchema);
         registerConnections(parent);
-        parent.addResource(
-                "child", ResourceType.AGENT, declaredChild(bareReactAgent("child_conn")));
+        parent.addResource("child", ResourceType.AGENT, declaredChild(child));
         return parent;
     }
 
@@ -371,7 +504,7 @@ public class ReActAgentSubagentTest {
                 .build();
     }
 
-    private static ReActAgent toolCallingReactAgent() throws Exception {
+    private static ReActAgent toolCallingReactAgent(boolean registerTool) throws Exception {
         ReActAgent child =
                 new ReActAgent(
                         ResourceDescriptor.Builder.newBuilder(ScriptedModelSetup.class.getName())
@@ -380,10 +513,12 @@ public class ReActAgentSubagentTest {
                                 .build(),
                         null,
                         null);
-        child.addResource(
-                "shout",
-                ResourceType.TOOL,
-                Tool.fromMethod(ReActAgentSubagentTest.class.getMethod("shout", String.class)));
+        if (registerTool) {
+            child.addResource(
+                    "shout",
+                    ResourceType.TOOL,
+                    Tool.fromMethod(ReActAgentSubagentTest.class.getMethod("shout", String.class)));
+        }
         return child;
     }
 
@@ -440,8 +575,22 @@ public class ReActAgentSubagentTest {
                         .build());
     }
 
-    @SuppressWarnings("unchecked")
     private static List<Object> run(Agent root, long input) throws Exception {
+        return run(root, input, metrics -> {});
+    }
+
+    private static long toolCounter(
+            FlinkAgentsMetricGroupImpl metrics, String tool, String counter) {
+        return metrics.getSubGroup("action", "tool_call_action")
+                .getSubGroup("tool", tool)
+                .getCounter(counter)
+                .getCount();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> run(
+            Agent root, long input, Consumer<FlinkAgentsMetricGroupImpl> checkMetrics)
+            throws Exception {
         try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> harness =
                 new KeyedOneInputStreamOperatorTestHarness<>(
                         new ActionExecutionOperatorFactory<>(new AgentPlan(root), true),
@@ -451,6 +600,9 @@ public class ReActAgentSubagentTest {
             harness.processElement(new StreamRecord<>(input));
             ((ActionExecutionOperator<Long, Object>) harness.getOperator())
                     .waitInFlightEventsFinished();
+            Field field = ActionExecutionOperator.class.getDeclaredField("metricGroup");
+            field.setAccessible(true);
+            checkMetrics.accept((FlinkAgentsMetricGroupImpl) field.get(harness.getOperator()));
             return ((List<StreamRecord<Object>>) harness.getRecordOutput())
                     .stream().map(StreamRecord::getValue).collect(Collectors.toList());
         }

@@ -20,6 +20,7 @@ package org.apache.flink.agents.runtime.metrics;
 
 import org.apache.flink.agents.api.trace.TraceContext;
 import org.apache.flink.agents.api.trace.TraceRecord;
+import org.apache.flink.agents.runtime.lifecycle.ComponentExecutionListener;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -38,24 +39,40 @@ final class BuiltInExecutionMetrics {
     BuiltInExecutionMetrics(
             FlinkAgentsMetricGroupImpl agentMetricGroup, Predicate<String> isRegisteredTool) {
         this.agentMetricGroup = agentMetricGroup;
+        this.metricRecordersByEntityType = createRecorders(isRegisteredTool);
+    }
+
+    private static Map<String, ExecutionMetricRecorder> createRecorders(
+            Predicate<String> isRegisteredTool) {
         ExecutionMetricRecorder llmMetricRecorder = new LlmExecutionMetricRecorder();
         ExecutionMetricRecorder toolMetricRecorder =
                 new ToolExecutionMetricRecorder(isRegisteredTool);
         ExecutionMetricRecorder subagentMetricRecorder = new SubagentExecutionMetricRecorder();
-        this.metricRecordersByEntityType =
-                Map.of(
-                        llmMetricRecorder.entityType(),
-                        llmMetricRecorder,
-                        toolMetricRecorder.entityType(),
-                        toolMetricRecorder,
-                        subagentMetricRecorder.entityType(),
-                        subagentMetricRecorder);
+        return Map.of(
+                llmMetricRecorder.entityType(),
+                llmMetricRecorder,
+                toolMetricRecorder.entityType(),
+                toolMetricRecorder,
+                subagentMetricRecorder.entityType(),
+                subagentMetricRecorder);
     }
 
     void executionRecordObserved(String actionName, TraceRecord record) {
+        executionRecordObserved(actionName, record, metricRecordersByEntityType);
+    }
+
+    ComponentExecutionListener createListener(
+            String actionName, Predicate<String> isRegisteredTool) {
+        Map<String, ExecutionMetricRecorder> recorders = createRecorders(isRegisteredTool);
+        // Recorders retain this Action's resource lookup; timing state remains shared so the
+        // normal Action terminal record can clean up unfinished calls from every scope.
+        return record -> executionRecordObserved(actionName, record, recorders);
+    }
+
+    private void executionRecordObserved(
+            String actionName, TraceRecord record, Map<String, ExecutionMetricRecorder> recorders) {
         TraceContext traceContext = record.getContext();
-        ExecutionMetricRecorder recorder =
-                metricRecordersByEntityType.get(traceContext.getEntityType());
+        ExecutionMetricRecorder recorder = recorders.get(traceContext.getEntityType());
         if (isBlank(actionName) || recorder == null) {
             return;
         }
