@@ -38,6 +38,8 @@ the following type names:
 |---|---|---|
 | `CHAT_MODEL_CONNECTION` | Connect to a chat model service, including endpoint and authentication settings. | [Chat Models]({{< ref "docs/development/calling-llms/chat-models" >}}) |
 | `CHAT_MODEL` | Configure a chat model setup: connection, model, prompt, tools, and generation parameters. | [Chat Models]({{< ref "docs/development/calling-llms/chat-models" >}}) |
+| `DECISION_MODEL_CONNECTION` | Connect to a decision model service. | [Decision Models]({{< ref "docs/development/decision_models" >}}) |
+| `DECISION_MODEL` | Configure a decision model setup: connection and model. | [Decision Models]({{< ref "docs/development/decision_models" >}}) |
 | `EMBEDDING_MODEL_CONNECTION` | Connect to an embedding model service. | [Embedding Models]({{< ref "docs/development/vector-search/embedding_models" >}}) |
 | `EMBEDDING_MODEL` | Configure an embedding model setup for converting text into vectors. | [Embedding Models]({{< ref "docs/development/vector-search/embedding_models" >}}) |
 | `VECTOR_STORE` | Store and retrieve documents using vector search. | [Vector Stores]({{< ref "docs/development/vector-search/vector_stores" >}}) |
@@ -269,10 +271,12 @@ for these workflows.
 ## Cross-Language Resources
 
 An Agent can use supported Resource implementations from either Java or Python.
-This applies to chat model connections and setups, embedding model connections
-and setups, and vector stores. Choose an implementation based on the provider
-capabilities you need; the Agent's definition language does not require the
-implementation to use that same language.
+Chat model connections and setups, embedding model connections and setups, and
+vector stores support cross-language use in both directions. Decision model
+connections and setups support cross-language use only from Java to Python:
+Java Agents can use Python implementations, but Python Agents cannot use Java
+implementations. Within these limits, choose an implementation based on the
+provider capabilities you need.
 
 | Calling language | Descriptor for the other language | Implementation class |
 |---|---|---|
