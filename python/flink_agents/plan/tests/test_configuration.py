@@ -259,6 +259,43 @@ def test_get_with_null_and_default() -> None:
     assert config.get(nullable_str) == "default"
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("FILE", LoggerType.FILE),
+        ("file", LoggerType.FILE),
+        ("File", LoggerType.FILE),
+        ("SLF4J", LoggerType.SLF4J),
+        ("slf4j", LoggerType.SLF4J),
+        ("Slf4j", LoggerType.SLF4J),
+    ],
+)
+def test_trace_log_output_type_from_yaml(
+    tmp_path: Path, value: str, expected: LoggerType
+) -> None:
+    config_file = tmp_path / "agent.yaml"
+    config_file.write_text(
+        yaml.safe_dump({"agent": {"trace-log": {"output-type": value}}}),
+        encoding="utf-8",
+    )
+    config = AgentConfiguration()
+    config.load_from_file(str(config_file))
+    assert config.get(AgentConfigOptions.TRACE_LOG_OUTPUT_TYPE) is expected
+
+    config.set(AgentConfigOptions.TRACE_LOG_OUTPUT_TYPE, expected)
+    serialized = config.model_dump_json()
+    assert json.loads(serialized)["conf_data"]["trace-log.output-type"] == value.lower()
+    restored = AgentConfiguration.model_validate_json(serialized)
+    assert restored.get(AgentConfigOptions.TRACE_LOG_OUTPUT_TYPE) is expected
+
+
+@pytest.mark.parametrize("value", ["unknown", "", 123])
+def test_trace_log_output_type_rejects_invalid_values(value: object) -> None:
+    config = AgentConfiguration({"trace-log.output-type": value})
+    with pytest.raises(ValueError, match="Invalid value for trace-log.output-type"):
+        config.get(AgentConfigOptions.TRACE_LOG_OUTPUT_TYPE)
+
+
 def test_trace_log_defaults_and_empty_targets_survive_json() -> None:
     config = AgentConfiguration()
     assert config.get(AgentConfigOptions.TRACE_LOG_TARGETS) == [

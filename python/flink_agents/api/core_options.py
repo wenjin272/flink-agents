@@ -49,6 +49,15 @@ class LoggerType(Enum):
     SLF4J = "slf4j"
     FILE = "file"
 
+    @classmethod
+    def _missing_(cls, value: object) -> "LoggerType | None":
+        """Accept case-insensitive configuration values, matching Java."""
+        if isinstance(value, str):
+            for member in cls:
+                if member.value.casefold() == value.casefold():
+                    return member
+        return None
+
 
 class ConditionEvaluationFailureStrategy(Enum):
     """Behavior when evaluating an action trigger condition fails.
