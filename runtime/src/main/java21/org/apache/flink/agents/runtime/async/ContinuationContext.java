@@ -25,6 +25,9 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Continuation context with JDK 21 continuation state. */
 public class ContinuationContext {
 
+    private long recordIndex = Long.MAX_VALUE;
+    private long taskIndex;
+
     private Continuation currentContinuation;
     private volatile Future<?> pendingFuture;
     private volatile Future<?> pendingBatchFuture;
@@ -33,6 +36,19 @@ public class ContinuationContext {
 
     private final AtomicReference<Object> asyncResult = new AtomicReference<>();
     private final AtomicReference<Throwable> asyncException = new AtomicReference<>();
+
+    public void setPriority(long recordIndex, long taskIndex) {
+        this.recordIndex = recordIndex;
+        this.taskIndex = taskIndex;
+    }
+
+    public long getRecordIndex() {
+        return recordIndex;
+    }
+
+    public long getTaskIndex() {
+        return taskIndex;
+    }
 
     public Continuation getCurrentContinuation() {
         return currentContinuation;

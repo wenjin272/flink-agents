@@ -601,8 +601,7 @@ public class ActionExecutionOperatorTest {
 
     @Test
     @Timeout(10)
-    void parallelEngineRetiresInputWithoutTriggeredActions() throws Exception {
-        assumeFalse(ContinuationActionExecutor.isContinuationSupported());
+    void concurrentEnginesRetireInputWithoutTriggeredActions() throws Exception {
         AgentConfiguration config = new AgentConfiguration();
         config.set(AgentExecutionOptions.NUM_ASYNC_THREADS, 1);
         config.set(AgentExecutionOptions.MAX_IN_FLIGHT_INPUT_RECORDS, 1);
@@ -671,9 +670,185 @@ public class ActionExecutionOperatorTest {
     }
 
     @Test
+    @Timeout(15)
+    void continuationAdmissionRestoresIncomingKeyAfterWaiting() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                ContinuationActionExecutor.isContinuationSupported());
+        AgentConfiguration config = new AgentConfiguration();
+        config.set(AgentExecutionOptions.MAX_IN_FLIGHT_INPUT_RECORDS, 1);
+        try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> harness =
+                new KeyedOneInputStreamOperatorTestHarness<>(
+                        new ActionExecutionOperatorFactory(
+                                TestAgent.getAgentPlanWithConfig(config), true),
+                        (KeySelector<Long, Long>) value -> value,
+                        TypeInformation.of(Long.class))) {
+            harness.open();
+            harness.processElement(new StreamRecord<>(1L));
+            harness.processElement(new StreamRecord<>(2L));
+            // The second input can only be admitted after the first chain finishes.
+            assertThat(harness.getRecordOutput())
+                    .extracting(StreamRecord::getValue)
+                    .containsExactly(4L);
+            ActionExecutionOperator<Long, Object> operator =
+                    (ActionExecutionOperator<Long, Object>) harness.getOperator();
+            assertThat(operator.getCurrentKey()).isEqualTo(2L);
+            operator.waitInFlightEventsFinished();
+            assertThat(harness.getRecordOutput())
+                    .extracting(StreamRecord::getValue)
+                    .containsExactly(4L, 6L);
+        }
+    }
+
+    @Test
+    @Timeout(15)
+    void continuationKeepsNoActionKeyBusyUntilItsInputRetires() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                ContinuationActionExecutor.isContinuationSupported());
+        AgentConfiguration config = new AgentConfiguration();
+        config.set(AgentExecutionOptions.MAX_IN_FLIGHT_INPUT_RECORDS, 2);
+        Action action =
+                new Action(
+                        "pending-events-single",
+                        new JavaFunction(
+                                TestAgent.class,
+                                "pendingEventsSingleAction",
+                                new Class<?>[] {Event.class, RunnerContext.class}),
+                        Collections.singletonList("type == EventType.InputEvent && input != 1"));
+        AgentPlan plan = new AgentPlan(Map.of(action.getName(), action), new HashMap<>(), config);
+        try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> harness =
+                new KeyedOneInputStreamOperatorTestHarness<>(
+                        new ActionExecutionOperatorFactory(plan, true),
+                        (KeySelector<Long, Long>) value -> 0L,
+                        TypeInformation.of(Long.class))) {
+            harness.open();
+            // The no-action input still has a retirement mail. The next same-key input must
+            // queue behind it, rather than starting a second concurrent round for that key.
+            harness.processElement(new StreamRecord<>(1L));
+            harness.processElement(new StreamRecord<>(2L));
+            harness.processElement(new StreamRecord<>(3L));
+            ((ActionExecutionOperator<Long, Object>) harness.getOperator())
+                    .waitInFlightEventsFinished();
+            assertThat(harness.getRecordOutput())
+                    .extracting(StreamRecord::getValue)
+                    .containsExactly("single-2", "single-3");
+            // A leaked no-action budget would block this record forever after the drain.
+            harness.processElement(new StreamRecord<>(4L));
+            harness.processElement(new StreamRecord<>(5L));
+            ((ActionExecutionOperator<Long, Object>) harness.getOperator())
+                    .waitInFlightEventsFinished();
+            assertThat(harness.getRecordOutput()).hasSize(4);
+        }
+    }
+
+    @Test
+    @Timeout(15)
+    void continuationRestoreCountsActiveAndPendingInputsBeforeNewAdmission() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                ContinuationActionExecutor.isContinuationSupported());
+        AgentConfiguration config = new AgentConfiguration();
+        config.set(AgentExecutionOptions.MAX_IN_FLIGHT_INPUT_RECORDS, 3);
+        OperatorSubtaskState snapshot;
+        try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> harness =
+                new KeyedOneInputStreamOperatorTestHarness<>(
+                        new ActionExecutionOperatorFactory(
+                                TestAgent.getAgentPlanWithConfig(config), true),
+                        (KeySelector<Long, Long>) value -> value,
+                        TypeInformation.of(Long.class))) {
+            harness.open();
+            harness.processElement(new StreamRecord<>(1L));
+            harness.processElement(new StreamRecord<>(1L));
+            harness.processElement(new StreamRecord<>(2L));
+            snapshot = harness.snapshot(1L, 1L);
+        }
+        config.set(AgentExecutionOptions.MAX_IN_FLIGHT_INPUT_RECORDS, 1);
+        try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> restored =
+                new KeyedOneInputStreamOperatorTestHarness<>(
+                        new ActionExecutionOperatorFactory(
+                                TestAgent.getAgentPlanWithConfig(config), true),
+                        (KeySelector<Long, Long>) value -> value,
+                        TypeInformation.of(Long.class))) {
+            restored.initializeState(snapshot);
+            restored.open();
+            restored.processElement(new StreamRecord<>(3L));
+            // A smaller restored cap must drain all three old inputs before admitting this one.
+            assertThat(restored.getRecordOutput())
+                    .extracting(StreamRecord::getValue)
+                    .containsExactlyInAnyOrder(4L, 4L, 6L);
+            ((ActionExecutionOperator<Long, Object>) restored.getOperator())
+                    .waitInFlightEventsFinished();
+            assertThat(restored.getRecordOutput())
+                    .extracting(StreamRecord::getValue)
+                    .containsExactlyInAnyOrder(4L, 4L, 6L, 8L);
+        }
+    }
+
+    @Test
+    @Timeout(15)
+    void continuationFollowUpActionInheritsInputPriority() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                ContinuationActionExecutor.isContinuationSupported());
+        TestAgent.PRIORITY_CALLS.clear();
+        TestAgent.PRIORITY_BLOCKER_STARTED = new CountDownLatch(1);
+        TestAgent.PRIORITY_RELEASE_BLOCKER = new CountDownLatch(1);
+        TestAgent.PRIORITY_FOLLOW_UP_SUBMITTED = false;
+        AgentConfiguration config = new AgentConfiguration();
+        config.set(AgentExecutionOptions.NUM_ASYNC_THREADS, 1);
+        Action first =
+                new Action(
+                        "priority-first",
+                        new JavaFunction(
+                                TestAgent.class,
+                                "priorityFirstAction",
+                                new Class<?>[] {Event.class, RunnerContext.class}),
+                        List.of(InputEvent.EVENT_TYPE));
+        Action followUp =
+                new Action(
+                        "priority-follow-up",
+                        new JavaFunction(
+                                TestAgent.class,
+                                "priorityFollowUpAction",
+                                new Class<?>[] {TestAgent.MiddleEvent.class, RunnerContext.class}),
+                        List.of(TestAgent.MiddleEvent.EVENT_TYPE));
+        AgentPlan plan =
+                new AgentPlan(
+                        Map.of(first.getName(), first, followUp.getName(), followUp),
+                        new HashMap<>(),
+                        config);
+        try (KeyedOneInputStreamOperatorTestHarness<Long, Long, Object> harness =
+                new KeyedOneInputStreamOperatorTestHarness<>(
+                        new ActionExecutionOperatorFactory(plan, true),
+                        (KeySelector<Long, Long>) value -> value,
+                        TypeInformation.of(Long.class))) {
+            harness.open();
+            harness.processElement(new StreamRecord<>(1L));
+            harness.processElement(new StreamRecord<>(2L));
+            harness.processElement(new StreamRecord<>(3L));
+            try {
+                // Input 2 holds the worker while input 3's first call and input 1's
+                // follow-up queue up. No task already executing is preempted.
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                while (!TestAgent.PRIORITY_FOLLOW_UP_SUBMITTED) {
+                    harness.getTaskMailbox().take(TaskMailbox.MIN_PRIORITY).run();
+                    assertThat(System.nanoTime()).isLessThan(deadline);
+                }
+                assertThat(TestAgent.PRIORITY_BLOCKER_STARTED.await(5, TimeUnit.SECONDS)).isTrue();
+            } finally {
+                TestAgent.PRIORITY_RELEASE_BLOCKER.countDown();
+            }
+            ((ActionExecutionOperator<Long, Object>) harness.getOperator())
+                    .waitInFlightEventsFinished();
+            assertThat(TestAgent.PRIORITY_CALLS).containsSubsequence("1-follow-up", "3-first");
+            assertThat(harness.getRecordOutput())
+                    .extracting(StreamRecord::getValue)
+                    .containsExactlyInAnyOrder(1L, 2L, 3L);
+        } finally {
+            TestAgent.PRIORITY_RELEASE_BLOCKER.countDown();
+        }
+    }
+
+    @Test
     @Timeout(30)
     void backpressureBlocksAdmissionAtCapAndReleasesOnRetirement() throws Exception {
-        assumeFalse(ContinuationActionExecutor.isContinuationSupported());
         TestAgent.resetSingleAsyncFixture();
         AgentConfiguration config = new AgentConfiguration();
         config.set(AgentExecutionOptions.NUM_ASYNC_THREADS, 2);
@@ -693,6 +868,9 @@ public class ActionExecutionOperatorTest {
             // Fill the in-flight cap with two records whose actions park in the async stage.
             testHarness.processElement(new StreamRecord<>(1L));
             testHarness.processElement(new StreamRecord<>(2L));
+            if (ContinuationActionExecutor.isContinuationSupported()) {
+                testHarness.getTaskMailbox().take(TaskMailbox.MIN_PRIORITY).run();
+            }
             assertThat(TestAgent.SINGLE_ASYNC_STARTED.await(5, TimeUnit.SECONDS)).isTrue();
 
             AtomicBoolean retirementReleased = new AtomicBoolean();
@@ -4095,6 +4273,43 @@ public class ActionExecutionOperatorTest {
             public Long getNum() {
                 return num;
             }
+        }
+
+        public static final List<String> PRIORITY_CALLS =
+                Collections.synchronizedList(new ArrayList<>());
+        public static CountDownLatch PRIORITY_BLOCKER_STARTED;
+        public static CountDownLatch PRIORITY_RELEASE_BLOCKER;
+        public static boolean PRIORITY_FOLLOW_UP_SUBMITTED;
+
+        public static void priorityFirstAction(Event event, RunnerContext context)
+                throws Exception {
+            Long input = (Long) InputEvent.fromEvent(event).getInput();
+            context.executeAsync(
+                            () -> {
+                                if (input == 2L) {
+                                    PRIORITY_BLOCKER_STARTED.countDown();
+                                    awaitLatch(PRIORITY_RELEASE_BLOCKER);
+                                }
+                                PRIORITY_CALLS.add(input + "-first");
+                                return input;
+                            })
+                    .await();
+            context.sendEvent(new MiddleEvent(input));
+        }
+
+        public static void priorityFollowUpAction(MiddleEvent event, RunnerContext context)
+                throws Exception {
+            Long input = event.getNum();
+            if (input == 1L) {
+                PRIORITY_FOLLOW_UP_SUBMITTED = true;
+            }
+            context.executeAsync(
+                            () -> {
+                                PRIORITY_CALLS.add(input + "-follow-up");
+                                return input;
+                            })
+                    .await();
+            context.sendEvent(new OutputEvent(input));
         }
 
         public static void action1(Event event, RunnerContext context) {

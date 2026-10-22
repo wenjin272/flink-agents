@@ -190,15 +190,20 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
     private transient boolean parallelExecutionWithoutCoroutineEnabled;
 
+    /** Active continuation input rounds, ordered by activation (rebuilt on recovery). */
+    private transient Map<Object, Long> continuationInputPriorities;
+
+    private transient long nextContinuationInputPriority;
+    private transient long nextContinuationTaskPriority;
+
     @Nullable private transient ParallelExecutionLock parallelExecutionLock;
 
     @Nullable private transient ParallelExecutionCoordinator executionCoordinator;
 
     /**
-     * Number of input records currently being processed (one per active key), compared against
-     * {@link #maxInFlightInputRecords} to apply input backpressure. Maintained on the mailbox
-     * thread alongside {@code addProcessingKey}/{@code removeProcessingKey} and rebuilt from the
-     * recovered processing keys.
+     * Number of admitted but unfinished input records, including inputs pending behind active keys.
+     * Maintained on the mailbox thread and rebuilt from active keys and pending inputs on recovery;
+     * compared against {@link #maxInFlightInputRecords} to apply input backpressure.
      */
     private transient int inFlightInputRecords;
 
@@ -319,6 +324,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 "%s must be positive, but was %s",
                 AgentExecutionOptions.NUM_ASYNC_THREADS.getKey(),
                 numAsyncThreads);
+
+        continuationInputPriorities = new LinkedHashMap<>();
+        nextContinuationInputPriority = 0;
+        nextContinuationTaskPriority = 0;
 
         maxInFlightInputRecords =
                 agentPlan.getConfig().get(AgentExecutionOptions.MAX_IN_FLIGHT_INPUT_RECORDS);
@@ -462,6 +471,13 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                         processElementInternal(record);
                     });
         } else {
+            if (ContinuationActionExecutor.isContinuationSupported()) {
+                while (inFlightInputRecords >= maxInFlightInputRecords) {
+                    mailboxExecutor.yield();
+                }
+                // Processing completion mails while waiting can switch the keyed-state context.
+                super.setKeyContextElement1(record);
+            }
             processElementInternal(record);
         }
     }
@@ -489,7 +505,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             boolean currentKeyBusy =
                     parallelExecutionWithoutCoroutineEnabled
                             ? executionCoordinator.hasOutstanding(getCurrentKey())
-                            : stateManager.hasMoreActionTasks();
+                            : continuationInputPriorities.containsKey(getCurrentKey())
+                                    || stateManager.hasMoreActionTasks();
             if (currentKeyBusy) {
                 // If there are already actions being processed for the current key, the newly
                 // incoming event should be queued and processed later. Therefore, we add it to
@@ -509,6 +526,9 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
 
     /** Resolves one context key for an input and reuses it for the entire agent run. */
     private void processInputEvent(Object key, Event inputEvent) throws Exception {
+        if (ContinuationActionExecutor.isContinuationSupported()) {
+            continuationInputPriorities.put(key, nextContinuationInputPriority++);
+        }
         final String contextKey;
         final TraceContext inputRunContext;
         try {
@@ -759,6 +779,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             ActionTask actionTask = pollNextActionTask();
             if (actionTask == null) {
                 int removedCount = stateManager.removeProcessingKey(key);
+                inFlightInputRecords--;
+                continuationInputPriorities.remove(key);
                 checkState(
                         removedCount == 1,
                         "Current processing key count for key "
@@ -802,6 +824,8 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                             .get(envelope.getInvocationId())
                             .getResourceScope();
         }
+        contextManager.ensureContexts(actionTask);
+        boolean newContinuationContext = !contextManager.hasContinuationContext(actionTask);
         contextManager.createAndSetRunnerContext(
                 actionTask,
                 contextKey,
@@ -816,6 +840,15 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 ltm,
                 resourceScope,
                 this::createExecutionReportingContext);
+        ContinuationContext continuationContext = contextManager.getContinuationContext(actionTask);
+        if (ContinuationActionExecutor.isContinuationSupported()
+                && newContinuationContext
+                && continuationContext != null) {
+            // Keep this Action's priority when its context transfers across yield/resume.
+            continuationContext.setPriority(
+                    checkNotNull(continuationInputPriorities.get(key)),
+                    nextContinuationTaskPriority++);
+        }
         notifyActionPrepared(actionTask);
 
         boolean isFinished;
@@ -991,6 +1024,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             // we can proceed to process the next InputEvent.
             int removedCount = stateManager.removeProcessingKey(key);
             inFlightInputRecords--;
+            continuationInputPriorities.remove(key);
             checkState(
                     removedCount == 1,
                     "Current processing key count for key "
@@ -1549,6 +1583,9 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                         executionCoordinator.addTask(key);
                     }
                 } else {
+                    if (ContinuationActionExecutor.isContinuationSupported()) {
+                        continuationInputPriorities.put(key, nextContinuationInputPriority++);
+                    }
                     // The normal engine has no workers; the kick mail drives
                     // processActionTaskForKey.
                     String contextKey = resolveContextKey(key);

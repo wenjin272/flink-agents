@@ -211,9 +211,16 @@ the built-in [parallel tool-call batches]({{< ref "docs/development/calling-llms
 | `async.batch.parallelism` | os cpu count | int | Maximum concurrent calls in one `ctx.gather(...)` batch, including ordinary, durable, and built-in tool calls. Values of `1` or less run calls sequentially. Worker-pool capacity can further limit concurrency. |
 | `async.batch.timeout.ms` | -1 (disabled) | long (milliseconds) | Overall timeout for one `ctx.gather(...)` batch, in milliseconds. Non-positive values disable it. A timeout does not guarantee that running calls stop and cannot undo their external effects. See [Tool Use]({{< ref "docs/development/calling-llms/tool_use#timeouts-and-external-effects" >}}) for built-in tool-batch behavior. |
 | `job-identifier` | none | String | Stable job identifier used to scope Mem0 long-term memory. Keep an explicit value unchanged across restores. If unset, the initial Flink JobID is stored in operator state and reused when restoring a checkpoint or savepoint. |
-| `max-in-flight-input-records` | 100 | int | Maximum input records in flight per Agent operator subtask on the experimental parallel engine. Must be positive. The limit is ignored by continuation-based execution and plans containing Python Actions. See [Execution Requirements]({{< ref "docs/development/create-agent/actions#execution-requirements" >}}). |
+| `max-in-flight-input-records` | 100 | int | Maximum input records in flight per Agent operator subtask on continuation-based execution and the experimental parallel engine. Must be positive. Serial execution ignores the limit. See [Execution Requirements]({{< ref "docs/development/create-agent/actions#execution-requirements" >}}). |
 | `num-async-threads` | os cpu count * 2 | int | Worker threads per async execution pool on each Agent operator subtask. Must be positive. `async.batch.parallelism` separately limits concurrency within each batch; see [Execution Requirements]({{< ref "docs/development/create-agent/actions#execution-requirements" >}}) for scheduling behavior. |
 | `parallel-execution.enabled` | true | boolean | **Experimental.** Enable the parallel engine for eligible plans with only Java Actions when continuation-based execution is unavailable. `false` selects serial execution. Ignored by the continuation engine and plans containing Python Actions. See [Execution Requirements]({{< ref "docs/development/create-agent/actions#execution-requirements" >}}) for JDK and Python Resource requirements. |
+
+On continuation-based execution, queued Java asynchronous calls favor earlier active
+input runs, including calls made by follow-up Actions and `gather` batches. Running
+calls are not preempted, and output order is not guaranteed. Scheduling priorities
+are rebuilt for active runs after recovery; their relative order across keys is not
+preserved through a checkpoint. Python-native asynchronous calls retain their Python
+executor scheduling.
 
 ### Memory
 

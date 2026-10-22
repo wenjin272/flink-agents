@@ -33,10 +33,14 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -55,6 +59,7 @@ public class ContinuationActionExecutor {
 
     private final ExecutorService asyncExecutor;
     private final AsyncExecutorThreadFactory asyncThreadFactory;
+    private final AtomicLong submissionOrder = new AtomicLong();
 
     public ContinuationActionExecutor(int numAsyncThreads) {
         this(numAsyncThreads, () -> {}, null, null);
@@ -73,7 +78,13 @@ public class ContinuationActionExecutor {
         LOG.info("Initialize fixed thread pool for async task with {} threads", numAsyncThreads);
         this.asyncThreadFactory = new AsyncExecutorThreadFactory(threadCleanup);
         this.asyncExecutor =
-                Executors.newFixedThreadPool(numAsyncThreads, asyncThreadFactory);
+                new ThreadPoolExecutor(
+                        numAsyncThreads,
+                        numAsyncThreads,
+                        0L,
+                        TimeUnit.MILLISECONDS,
+                        new PriorityBlockingQueue<>(),
+                        asyncThreadFactory);
     }
 
     /**
@@ -150,7 +161,8 @@ public class ContinuationActionExecutor {
 
         // Submit task to thread pool and store the Future
         Future<?> future =
-                asyncExecutor.submit(
+                submitAsyncTask(
+                        context,
                         () -> {
                             try {
                                 T result = supplier.get();
@@ -240,7 +252,7 @@ public class ContinuationActionExecutor {
                                     } catch (Exception e) {
                                         return Outcome.failure(e);
                                     }
-                                }, asyncExecutor);
+                                }, command -> executeAsyncTask(context, command));
             }
 
             List<CompletableFuture<?>> inFlight = new ArrayList<>(parallelismLimit);
@@ -405,6 +417,53 @@ public class ContinuationActionExecutor {
                 throw (Error) cause;
             }
             throw e;
+        }
+    }
+
+    private Future<?> submitAsyncTask(ContinuationContext context, Runnable command) {
+        FutureTask<Void> future = new FutureTask<>(command, null);
+        executeAsyncTask(context, future);
+        return future;
+    }
+
+    private void executeAsyncTask(ContinuationContext context, Runnable command) {
+        asyncExecutor.execute(
+                new PrioritizedTask(
+                        context.getRecordIndex(),
+                        context.getTaskIndex(),
+                        submissionOrder.getAndIncrement(),
+                        command));
+    }
+
+    /** Priorities are captured at submission; equal priorities preserve submission order. */
+    private static final class PrioritizedTask implements Runnable, Comparable<PrioritizedTask> {
+        private final long recordIndex;
+        private final long taskIndex;
+        private final long submissionIndex;
+        private final Runnable command;
+
+        private PrioritizedTask(
+                long recordIndex, long taskIndex, long submissionIndex, Runnable command) {
+            this.recordIndex = recordIndex;
+            this.taskIndex = taskIndex;
+            this.submissionIndex = submissionIndex;
+            this.command = command;
+        }
+
+        @Override
+        public int compareTo(PrioritizedTask other) {
+            int comparison = Long.compare(recordIndex, other.recordIndex);
+            if (comparison == 0) {
+                comparison = Long.compare(taskIndex, other.taskIndex);
+            }
+            return comparison == 0
+                    ? Long.compare(submissionIndex, other.submissionIndex)
+                    : comparison;
+        }
+
+        @Override
+        public void run() {
+            command.run();
         }
     }
 
