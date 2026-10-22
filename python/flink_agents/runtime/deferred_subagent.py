@@ -96,13 +96,18 @@ class DeferredSubagentFuture(SubagentFuture):
         A system-level failure escaping durable execution propagates and fails
         the action instead of being folded into an error result.
         """
-        durable_id, call, reconcile = self.prepare()
-        value = yield from self._ctx.durable_execute_async(
-            call,
-            reconciler=reconcile,
-            durable_id=durable_id,
-        ).__await__()
-        self._resolve(value)
+        try:
+            durable_id, call, reconcile = self.prepare()
+            value = yield from self._ctx.durable_execute_async(
+                call,
+                reconciler=reconcile,
+                durable_id=durable_id,
+            ).__await__()
+            self._resolve(value)
+        finally:
+            # The dispatcher may handle the exception and finish the action.
+            if self._registry is not None:
+                self._registry.untrack_pending_subagent_call(self.identity)
 
     def combine(self, *others: SubagentFuture) -> SubagentFutures:
         """Group this handle with others for a batched resolve."""
@@ -120,8 +125,6 @@ class DeferredSubagentFuture(SubagentFuture):
     def _resolve(self, value: SubagentResult) -> None:
         self._value = value
         self._done = True
-        if self._registry is not None:
-            self._registry.untrack_pending_subagent_call(self.identity)
 
 
 class DeferredSubagentSetup(BaseSubagentSetup, ABC):
