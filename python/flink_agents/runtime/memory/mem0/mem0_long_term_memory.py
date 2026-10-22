@@ -654,6 +654,8 @@ class Mem0LongTermMemory(InternalBaseLongTermMemory):
             items = []
             for memory_id in ids:
                 result = self._mem0_instance.get(memory_id=memory_id)
+                if result is None:
+                    continue
                 items.append(self._convert_mem0_result(memory_set.name, result))
                 item = items[-1]
                 self._record_ltm_op(

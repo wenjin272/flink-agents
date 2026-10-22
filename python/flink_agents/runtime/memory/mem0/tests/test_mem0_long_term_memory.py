@@ -24,6 +24,7 @@ import pytest
 from flink_agents.api.chat_message import ChatMessage, MessageRole, TextBlock
 from flink_agents.api.chat_result import ChatResult, TokenUsage
 from flink_agents.api.memory.long_term_memory import (
+    MemorySet,
     MemorySetItem,
 )
 from flink_agents.api.resource import ResourceType
@@ -306,6 +307,79 @@ def test_delete_by_id(ltm) -> None:
         items = memory_set.get()
         deleted_ids = {item.id for item in items}
         assert ids[0] not in deleted_ids
+
+
+def test_get_skips_missing_ids(ltm) -> None:
+    memory_set = ltm.get_memory_set(name="missing_get_set")
+    missing_id = "00000000-0000-0000-0000-000000000000"
+    ids = memory_set.add(items="A memory that still exists.")
+    assert len(ids) == 1
+
+    assert memory_set.get(ids=missing_id) == []
+    assert memory_set.get(ids=[missing_id]) == []
+    assert memory_set.get(ids=[]) == []
+    items = memory_set.get(ids=[missing_id, ids[0], missing_id])
+    assert [item.id for item in items] == ids
+    assert items[0].value == "A memory that still exists."
+
+    memory_set.delete(ids=ids)
+    assert memory_set.get(ids=ids) == []
+
+
+def test_delete_missing_id_raises_not_found(ltm) -> None:
+    memory_set = ltm.get_memory_set(name="missing_delete_set")
+    missing_id = "00000000-0000-0000-0000-000000000000"
+    with pytest.raises(ValueError, match=f"Memory with id {missing_id} not found"):
+        memory_set.delete(ids=missing_id)
+
+    ids = memory_set.add(items="A memory to delete only once.")
+    assert len(ids) == 1
+    memory_set.delete(ids=ids)
+    with pytest.raises(ValueError, match=f"Memory with id {ids[0]} not found"):
+        memory_set.delete(ids=ids)
+
+
+def test_delete_batch_stops_at_missing_id_without_rollback(ltm) -> None:
+    memory_set = ltm.get_memory_set(name="partial_delete_set")
+    first = memory_set.add(items="The first memory is deleted.")
+    last = memory_set.add(items="The last memory is retained.")
+    assert len(first) == len(last) == 1
+    missing_id = "00000000-0000-0000-0000-000000000000"
+
+    with pytest.raises(ValueError, match=f"Memory with id {missing_id} not found"):
+        memory_set.delete(ids=[first[0], missing_id, last[0]])
+
+    assert [item.id for item in memory_set.get()] == last
+
+
+@pytest.mark.parametrize("scope", ["job", "key", "set"])
+def test_explicit_ids_address_records_outside_memory_set(mock_ctx, scope) -> None:
+    def get_set(job: str, key: str, name: str) -> MemorySet:
+        memory = Mem0LongTermMemory(
+            ctx=mock_ctx,
+            job_id=job,
+            chat_model_name="test_chat_model",
+            embedding_model_name="test_embedding_model",
+            vector_store_name="test_vector_store",
+            mailbox_thread_checker=lambda: None,
+        )
+        memory.switch_context(key, observation_id="id-scope-action")
+        return memory.get_memory_set(name)
+
+    name = f"explicit_ids_{scope}"
+    owner = get_set("id-job", "id-key", name)
+    caller = get_set(
+        "other-job" if scope == "job" else "id-job",
+        "other-key" if scope == "key" else "id-key",
+        "other-set" if scope == "set" else name,
+    )
+    ids = owner.add(items="The owner prefers tea.")
+    assert len(ids) == 1
+    assert caller.get() == []
+    assert [item.id for item in caller.get(ids=ids)] == ids
+
+    caller.delete(ids=ids)
+    assert owner.get() == []
 
 
 def test_delete_all(ltm) -> None:

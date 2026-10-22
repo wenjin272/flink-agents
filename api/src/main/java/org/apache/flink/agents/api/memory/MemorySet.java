@@ -62,7 +62,9 @@ public class MemorySet {
 
     /**
      * Retrieves memory items. When {@code ids} is provided, {@code filters} and {@code limit} are
-     * ignored.
+     * ignored. IDs directly address records in the backing collection without checking job,
+     * partition, or set ownership. Use IDs returned by this set's {@link #add} operation. IDs that
+     * do not exist are skipped.
      *
      * @param ids optional list of item IDs to retrieve
      * @param filters optional metadata filters
@@ -97,6 +99,11 @@ public class MemorySet {
 
     /**
      * Deletes memory items. If {@code ids} is null, all items in the set are deleted.
+     *
+     * <p>Explicit IDs directly address records in the backing collection without checking job,
+     * partition, or set ownership. Use IDs returned by this set's {@link #add} operation. An ID
+     * that does not exist causes a backend not-found exception. IDs are deleted sequentially;
+     * earlier deletions are not rolled back when a later ID fails.
      *
      * @param ids optional list of item IDs to delete
      */

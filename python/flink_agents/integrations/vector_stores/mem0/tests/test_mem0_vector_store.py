@@ -190,6 +190,32 @@ def test_add_and_get_without_ids_returns_all(tmp_path) -> None:
     assert {d.id for d in got} == {"a", "b"}
 
 
+def test_get_skips_missing_ids(tmp_path) -> None:
+    vs = _make_store(tmp_path)
+    vs.add(documents=[_doc("found", "value")], collection_name="missing_ids")
+
+    assert vs.get(ids="missing", collection_name="missing_ids") == []
+    got = vs.get(
+        ids=["missing", "found", "missing"], collection_name="missing_ids"
+    )
+    assert [doc.id for doc in got] == ["found"]
+    assert got[0].content == "value"
+
+
+def test_get_propagates_chroma_read_errors(tmp_path, monkeypatch) -> None:
+    vs = _make_store(tmp_path)
+    vs.create_collection_if_not_exists("read_errors")
+    store = vs._stores["read_errors"]
+
+    def fail_get(*args: Any, **kwargs: Any) -> None:
+        msg = "Storage unavailable"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(type(store.collection), "get", fail_get)
+    with pytest.raises(RuntimeError, match="Storage unavailable"):
+        vs.get(ids="id", collection_name="read_errors")
+
+
 def test_get_respects_explicit_limit(tmp_path) -> None:
     vs = _make_store(tmp_path)
     vs.add(

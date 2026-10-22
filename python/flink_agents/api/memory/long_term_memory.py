@@ -118,12 +118,14 @@ class MemorySet(BaseModel):
 
         Args:
             ids: The ids of the items to retrieve. If provided, ``filters``
-                and ``limit`` are ignored.
+                and ``limit`` are ignored. IDs directly address records in the
+                backing collection without checking job, partition, or set
+                ownership. Use IDs returned by this set's ``add`` operation.
             filters: Optional metadata filters applied when listing items.
             limit: Maximum number of items to return. Defaults to 100.
 
         Returns:
-            The memory items retrieved.
+            The memory items retrieved. IDs that do not exist are skipped.
         """
         return self.ltm.get(memory_set=self, ids=ids, filters=filters, limit=limit)
 
@@ -151,7 +153,14 @@ class MemorySet(BaseModel):
 
         Args:
             ids: The ids of items to be deleted. If not provided, all items
-                will be deleted.
+                in this set will be deleted. Explicit IDs directly address
+                records in the backing collection without checking job,
+                partition, or set ownership. Use IDs returned by this set's
+                ``add`` operation.
+
+        Raises:
+            ValueError: If an ID does not exist. IDs are deleted sequentially;
+                earlier deletions are not rolled back when a later ID fails.
         """
         self.ltm.delete(memory_set=self, ids=ids)
 

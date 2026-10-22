@@ -174,7 +174,14 @@ class Mem0VectorStore(CollectionManageableVectorStore):
         if ids is not None:
             docs: List[Document] = []
             for id_ in _maybe_cast_to_list(ids):
-                output = store.get(vector_id=id_)
+                if self.provider == "chroma":
+                    # Mem0's Chroma get indexes the first parsed result even
+                    # when no record exists. Keep its payload conversion, but
+                    # handle the empty result before indexing it.
+                    outputs = store._parse_output(store.collection.get(ids=[id_]))
+                    output = outputs[0] if outputs else None
+                else:
+                    output = store.get(vector_id=id_)
                 if output is None or getattr(output, "id", None) is None:
                     continue
                 docs.append(_mem0_output_to_document(output))
