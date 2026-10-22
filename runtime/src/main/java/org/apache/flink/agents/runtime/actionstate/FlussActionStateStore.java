@@ -53,7 +53,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntPredicate;
-import java.util.function.LongPredicate;
 
 import static org.apache.flink.agents.api.configuration.AgentConfigOptions.FLUSS_ACTION_STATE_DATABASE;
 import static org.apache.flink.agents.api.configuration.AgentConfigOptions.FLUSS_ACTION_STATE_TABLE;
@@ -105,8 +104,8 @@ public class FlussActionStateStore implements ActionStateStore {
     private final Table table;
     private final AppendWriter writer;
 
-    /** In-memory cache for O(1) state lookups; rebuilt from Fluss log on recovery. */
-    private final Map<String, ActionState> actionStates;
+    /** In-memory state and replay-evidence indexes; rebuilt from Fluss log on recovery. */
+    private final ActionStateCache actionStates;
 
     // When set, only records whose key-group is accepted by this predicate are kept in the
     // in-memory cache during rebuildState; null means retain all keys (default).
@@ -125,7 +124,7 @@ public class FlussActionStateStore implements ActionStateStore {
         this.databaseName = null;
         this.tableName = null;
         this.tablePath = null;
-        this.actionStates = actionStates;
+        this.actionStates = ActionStateCache.wrap(actionStates);
         this.connection = connection;
         this.table = table;
         this.writer = writer;
@@ -148,7 +147,7 @@ public class FlussActionStateStore implements ActionStateStore {
                         agentConfiguration.get(FLUSS_ACTION_STATE_TABLE),
                         "flussActionStateTable must be explicitly configured");
         this.tablePath = TablePath.of(databaseName, tableName);
-        this.actionStates = new HashMap<>();
+        this.actionStates = new ActionStateCache();
 
         Configuration flussConf = new Configuration();
         flussConf.setString(
@@ -246,48 +245,16 @@ public class FlussActionStateStore implements ActionStateStore {
     @Override
     public ActionState get(Object key, long seqNum, Action action, Event event) throws Exception {
         String stateKey = keyEncoder.generateKey(key, seqNum, action, event);
-        String businessKeyIdentity = keyEncoder.generateBusinessKeyIdentity(key);
-
-        boolean hasDivergence = checkDivergence(businessKeyIdentity, seqNum);
-
-        if (!actionStates.containsKey(stateKey) || hasDivergence) {
-            removeStateEntries(businessKeyIdentity, stateSeqNum -> stateSeqNum > seqNum);
-        }
-
-        ActionState state = actionStates.get(stateKey);
-        LOG.debug("Lookup action state: key={}, found={}", stateKey, state != null);
-        return state;
-    }
-
-    private boolean checkDivergence(String businessKeyIdentity, long seqNum) {
-        return actionStates.keySet().stream()
-                        .filter(
-                                k ->
-                                        ActionStateUtil.matchesBusinessKeyIdentityAndSeqNum(
-                                                k, businessKeyIdentity, seqNum))
-                        .count()
-                > 1;
-    }
-
-    /**
-     * Removes cached state entries whose business-key identity equals {@code businessKeyIdentity}
-     * and whose parsed sequence number satisfies {@code seqNumFilter}.
-     */
-    private void removeStateEntries(String businessKeyIdentity, LongPredicate seqNumFilter) {
-        actionStates
-                .keySet()
-                .removeIf(
-                        cachedKey ->
-                                ActionStateUtil.matchesBusinessKeyIdentityWithSeqNum(
-                                        cachedKey, businessKeyIdentity, seqNumFilter));
+        return actionStates.lookup(stateKey, event, ignored -> {});
     }
 
     /**
      * Rebuilds in-memory state by scanning the Fluss log table. If recovery markers are provided,
      * computes the minimum offset per bucket across all markers and subscribes from those offsets.
      * Otherwise, skips rebuild since there is no checkpointed position to recover from. Reads from
-     * the start offset up to the latest offset captured at rebuild start. For the same state key
-     * appearing multiple times in the log, the latest record wins (last-write-wins).
+     * the start offset up to the latest offset captured at rebuild start. Records replace previous
+     * values of the same state key. Rewrites of earlier rounds also discard their cached suffix;
+     * conflicting input fingerprints discard the current round as well.
      */
     @Override
     public void rebuildState(List<Object> recoveryMarkers) {
@@ -467,7 +434,7 @@ public class FlussActionStateStore implements ActionStateStore {
             }
             byte[] payload = row.getBytes(COL_STATE_PAYLOAD);
             ActionState state = ActionStateSerde.deserialize(payload);
-            actionStates.put(stateKey, state);
+            actionStates.replay(stateKey, state, ignored -> {});
         }
         return lastSeenOffset;
     }
@@ -532,13 +499,13 @@ public class FlussActionStateStore implements ActionStateStore {
                                 keyEncoder.generateBusinessKeyIdentity(key), sequenceNumber));
         Map<Integer, Long> offsets = getBucketEndOffsets();
         try {
-            for (Map.Entry<String, ActionState> entry : actionStates.entrySet()) {
-                List<String> keyParts = ActionStateUtil.parseKey(entry.getKey());
+            for (String stateKey : actionStates.keysInReplayOrder()) {
+                List<String> keyParts = ActionStateUtil.parseKey(stateKey);
                 String identity = keyParts.get(4);
                 Long completedSequenceNumber = completedSequencesByIdentity.get(identity);
                 if (completedSequenceNumber == null
                         || Long.parseLong(keyParts.get(1)) > completedSequenceNumber) {
-                    appendState(entry.getKey(), identity, entry.getValue());
+                    appendState(stateKey, identity, actionStates.get(stateKey));
                 }
             }
         } catch (Exception e) {
@@ -554,8 +521,9 @@ public class FlussActionStateStore implements ActionStateStore {
     @Override
     public void pruneState(Object key, long seqNum) {
         LOG.debug("Pruning in-memory state for key: {} up to seqNum: {}", key, seqNum);
-        removeStateEntries(
-                keyEncoder.generateBusinessKeyIdentity(key), stateSeqNum -> stateSeqNum <= seqNum);
+        actionStates
+                .keysThrough(keyEncoder.generateBusinessKeyIdentity(key), seqNum)
+                .forEach(actionStates::remove);
     }
 
     @Override

@@ -631,7 +631,7 @@ Java's `getResultClass()` provides the type needed to deserialize a saved result
 
 See [Recovery flow]({{< ref "docs/operations/consistency#recovery-flow" >}}) for how recovery
 handles saved outcomes and in-flight calls, and
-[Limits on external side effects]({{< ref "docs/operations/consistency#limits-on-external-side-effects" >}})
+[Known limitations]({{< ref "docs/operations/consistency#known-limitations" >}})
 for operations that may repeat.
 
 #### Reconciling an In-flight Call
