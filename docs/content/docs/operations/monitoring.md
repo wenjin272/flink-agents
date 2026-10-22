@@ -85,7 +85,7 @@ Flink Agents provides built-in metrics for input runs, Events, Actions, executio
 | **Action** | action.\<action_name\>.numOfActiveActionExecutions | Action executions that have started and not yet finished. [3] | Gauge |
 | **Action** | action.\<action_name\>.routingDecisionLatencyMs | Time to resolve a routing decision when a `ChatRequestEvent` names a `MODEL_ROUTER`, including replayed decisions; see [Model Routing]({{< ref "docs/development/calling-llms/model_routing#observability" >}}). | Histogram |
 | **Agent** | traceLogTruncatedRecords | Trace Log records whose attributes were truncated at `STANDARD` level, counted once per record. | Counter |
-| **Agent** | traceLogWriteFailures | Failed Trace Log writes. Writes are best effort and do not fail the job. | Counter |
+| **Agent** | traceLogWriteFailures | Detected Trace Log write failures. Writes are best effort and do not fail the job. | Counter |
 
 1. Input-run outcomes and latency samples are local to a task attempt. Input runs already active when a task is restored produce neither outcome counts nor latency samples, and Action executions already active when the task is restored produce no latency sample. An input restored from the pending queue records its outcome and processing latency once it starts in the new attempt, but not its queue or end-to-end latency.
 2. `numOfPendingInputEvents` counts buffered inputs and `numOfActiveInputRuns` counts runs; a run waiting for an asynchronous continuation stays active. Both gauges are rebuilt from Flink state after a restore.
@@ -115,7 +115,7 @@ These metrics describe LLM, Tool, Skill, MCP Server and sub-agent calls that the
 | **Subagent** | action.\<action_name\>.subagent.\<agent_name\>.subagentCallLatencyMs | Time from handing the prompt to the sub-agent until its result is observed. [4] | Histogram |
 
 1. One sample is one framework invocation of `ChatModel`. A framework retry produces another outcome and latency sample; retries inside a provider client are not observed. A response that is later rejected for its finish reason or structured-output parsing still counts as a successful call.
-2. A Tool call fails when preparing or invoking it raises an exception, when it returns `ToolResponse.error(...)`, or when its return value cannot be converted to text. Tool names that are not registered resources are counted under `tool=unknown`.
+2. A Tool call fails when preparing or invoking it raises an exception, when it returns `ToolResponse.error(...)`, or when its return value cannot be converted to text. Calls to Tools registered in an Agent, including an internal sub-agent, are reported under their Tool names. Unregistered Tool names are counted under `tool=unknown`. Within one operator, calls with the same Action name and Tool name share metrics.
 3. A `load_skill` call or an MCP Tool call is also counted in its Tool scope. `numOfSkillLoads` increments even when the load fails, for example for a missing Skill. Skill names that do not resolve are counted under `skill=unknown`.
 4. Only delegations the model requests through the reserved `_subagent_` name are reported, under the Subagent scope keyed by the registered sub-agent name and not also under a Tool scope. A `_subagent_` name that does not resolve is counted under `tool=unknown`. For delegations dispatched together in one batch, the latency includes their overlap.
 5. A Tool call has a latency sample only when its callable started in the current task attempt.
@@ -123,7 +123,9 @@ These metrics describe LLM, Tool, Skill, MCP Server and sub-agent calls that the
 
 #### Token Usage Metrics
 
-Token usage metrics are recorded when chat models are invoked through `ChatModelConnection`, which helps track LLM API usage and cost. In the built-in chat flow, token usage metrics appear under `action.chat_model_action.model.<model_name>`, not under the Action that sends `ChatRequestEvent`.
+Token usage metrics are recorded in the built-in [chat flow]({{< ref "docs/development/calling-llms/chat" >}}), including calls through `ChatRequestEvent` and `ctx.chat`, when the response provides a model name and both prompt and completion token counts. If any of these values is missing, neither counter is updated.
+
+These metrics appear under `action.chat_model_action.model.<model_name>`, where `<model_name>` is the model name reported in the response.
 
 | Scope | Metrics | Description | Type |
 |-------|---------|-------------|------|
@@ -235,7 +237,7 @@ You can read the logs of a running job in the Flink Web UI:
 
 Trace Log records Events, Action executions, and component calls as structured JSON. By default, it records only Events at `STANDARD` level. Configure [recording targets](#recording-targets) to select other entities or change their level.
 
-Trace Log writes are best effort. A failed write does not fail Event processing or the job; the first failure is logged at `WARN`, later ones at `DEBUG`, and each one increments `traceLogWriteFailures`.
+Trace Log writes are best effort. A detected write failure does not fail Event processing or the job; the first detected failure is logged at `WARN`, later ones at `DEBUG`, and each one increments `traceLogWriteFailures`. Failures swallowed by the logging backend cannot be reflected in this metric.
 
 ### Recording Targets
 

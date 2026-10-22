@@ -21,11 +21,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.runtime.operator.ActionExecutionOperatorTest;
 import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.api.connector.source.Boundedness;
+import org.apache.flink.api.connector.source.lib.NumberSequenceSource;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ExecutionOptions;
+import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
@@ -35,6 +39,10 @@ import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -135,6 +143,106 @@ public class CompileUtilsTest {
 
         assertThatCode(() -> CompileUtils.connectToAgent(keyedInputStream, TEST_AGENT_PLAN))
                 .doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"AUTOMATIC, false", "AUTOMATIC, true", "BATCH, true"})
+    @Timeout(60)
+    void rejectsBatchStateBackendAtRuntime(
+            RuntimeExecutionMode mode, boolean configureAfterConnecting) throws Exception {
+        Configuration conf = new Configuration();
+        conf.set(RestartStrategyOptions.RESTART_STRATEGY, "none");
+        conf.set(
+                ExecutionOptions.RUNTIME_MODE,
+                configureAfterConnecting ? RuntimeExecutionMode.STREAMING : mode);
+        try (StreamExecutionEnvironment env =
+                StreamExecutionEnvironment.getExecutionEnvironment(conf)) {
+            env.setParallelism(1);
+            DataStream<Object> output =
+                    CompileUtils.connectToAgent(
+                            env.fromData(0L, 1L, 2L, 3L, 4L).keyBy(value -> value),
+                            TEST_AGENT_PLAN);
+            if (configureAfterConnecting) {
+                env.setRuntimeMode(mode);
+            }
+
+            // Flink resolves AUTOMATIC only when generating the job graph. The guard must also
+            // catch configuration changes after connectToAgent's early validation.
+            assertThatThrownBy(
+                            () -> {
+                                try (CloseableIterator<Object> iterator =
+                                        output.executeAndCollect()) {
+                                    iterator.forEachRemaining(ignored -> {});
+                                }
+                            })
+                    .hasStackTraceContaining(
+                            "Flink Agents does not support Flink's batch keyed-state backend")
+                    .hasStackTraceContaining("execution.batch-state-backend.enabled")
+                    .hasStackTraceContaining("RuntimeExecutionMode.STREAMING");
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(RuntimeExecutionMode.class)
+    @Timeout(60)
+    void processesAllKeysWithCompatibleStateBackend(RuntimeExecutionMode mode) throws Exception {
+        Configuration conf = new Configuration();
+        conf.set(ExecutionOptions.RUNTIME_MODE, mode);
+        conf.set(RestartStrategyOptions.RESTART_STRATEGY, "none");
+        // In STREAMING mode the default option must remain harmless. In batch execution,
+        // disabling the batch-specific backend must preserve pending work across key switches.
+        conf.set(ExecutionOptions.USE_BATCH_STATE_BACKEND, mode == RuntimeExecutionMode.STREAMING);
+        try (StreamExecutionEnvironment env =
+                StreamExecutionEnvironment.getExecutionEnvironment(conf)) {
+            env.setParallelism(1);
+            DataStream<Object> output =
+                    CompileUtils.connectToAgent(
+                            env.fromData(0L, 1L, 2L, 3L, 4L).keyBy(value -> value),
+                            TEST_AGENT_PLAN);
+            List<Object> results = new ArrayList<>();
+            try (CloseableIterator<Object> iterator = output.executeAndCollect()) {
+                iterator.forEachRemaining(results::add);
+            }
+            assertThat(results).containsExactlyInAnyOrder(2L, 4L, 6L, 8L, 10L);
+        }
+    }
+
+    @Test
+    @Timeout(60)
+    void allowsAutomaticModeWithUnboundedSource() throws Exception {
+        Configuration conf = new Configuration();
+        conf.set(ExecutionOptions.RUNTIME_MODE, RuntimeExecutionMode.AUTOMATIC);
+        conf.set(RestartStrategyOptions.RESTART_STRATEGY, "none");
+        try (StreamExecutionEnvironment env =
+                StreamExecutionEnvironment.getExecutionEnvironment(conf)) {
+            env.setParallelism(1);
+            DataStream<Object> output =
+                    CompileUtils.connectToAgent(
+                            env.fromSource(
+                                            new UnboundedSequenceSource(),
+                                            WatermarkStrategy.noWatermarks(),
+                                            "unbounded-input")
+                                    .keyBy(value -> value),
+                            TEST_AGENT_PLAN);
+            List<Object> results = new ArrayList<>();
+            try (CloseableIterator<Object> iterator = output.executeAndCollect()) {
+                iterator.forEachRemaining(results::add);
+            }
+            assertThat(results).containsExactlyInAnyOrder(2L, 4L, 6L, 8L, 10L);
+        }
+    }
+
+    private static class UnboundedSequenceSource extends NumberSequenceSource {
+        UnboundedSequenceSource() {
+            super(0, 4);
+        }
+
+        @Override
+        public Boundedness getBoundedness() {
+            // Report unbounded input to exercise AUTOMATIC's streaming selection, but finish
+            // after five records so the test can verify every result without cancelling the job.
+            return Boundedness.CONTINUOUS_UNBOUNDED;
+        }
     }
 
     @Test

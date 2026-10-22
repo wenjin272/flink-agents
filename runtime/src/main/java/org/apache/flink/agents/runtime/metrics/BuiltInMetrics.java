@@ -24,6 +24,7 @@ import org.apache.flink.agents.api.trace.ExecutionReporter;
 import org.apache.flink.agents.api.trace.TraceContext;
 import org.apache.flink.agents.api.trace.TraceRecord;
 import org.apache.flink.agents.plan.AgentPlan;
+import org.apache.flink.agents.runtime.lifecycle.ComponentExecutionListener;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Meter;
 
@@ -151,6 +152,12 @@ public class BuiltInMetrics {
         } else {
             executionMetrics.executionRecordObserved(actionName, record);
         }
+    }
+
+    /** Creates a component listener bound to the resources of one Action execution. */
+    public ComponentExecutionListener createComponentMetricListener(
+            String actionName, Predicate<String> isRegisteredTool) {
+        return executionMetrics.createListener(actionName, isRegisteredTool);
     }
 
     /** Returns the counter tracking Trace Log records with truncated attributes. */

@@ -79,6 +79,7 @@ import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.OperatorSnapshotFutures;
 import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.sorted.state.BatchExecutionKeyedStateBackend;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
@@ -1174,6 +1175,15 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
 
+        // Check the actual backend after Flink resolves AUTOMATIC and any configuration changes
+        // made after the Agent pipeline was built, before opening resources or recovering Actions.
+        checkState(
+                !(getKeyedStateBackend() instanceof BatchExecutionKeyedStateBackend),
+                "Flink Agents does not support Flink's batch keyed-state backend"
+                        + " (execution.batch-state-backend.enabled): switching keys can discard"
+                        + " unfinished Actions. Run this job with RuntimeExecutionMode.STREAMING,"
+                        + " or set execution.batch-state-backend.enabled to false.");
+
         int maxParallelism = getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks();
         durableExecManager.maybeInitActionStateStore(
                 agentPlan.getConfig(), maxParallelism, getActionStateKeySerializer());
@@ -1381,8 +1391,21 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
      * built-in writer and metrics first, followed by registered listeners.
      */
     private ExecutionReportingContext createExecutionReportingContext(ActionTask actionTask) {
+        // Bind to this execution's resources: the shared RunnerContext may have switched to
+        // another Agent by the time an asynchronous call reports its outcome.
+        RunnerContextImpl.ResourceScope scope = contextManager.getResourceScope(actionTask);
+        ResourceCache executionResources =
+                scope == null ? resourceCache : scope.getChildResourceCache();
+        ComponentExecutionListener metricListener =
+                builtInMetrics.createComponentMetricListener(
+                        actionTask.getAction().getName(),
+                        name -> executionResources.hasResourceInHierarchy(name, ResourceType.TOOL));
         List<ComponentExecutionListener> listeners = new ArrayList<>();
-        listeners.add(record -> observeExecutionRecord(actionTask.getAction().getName(), record));
+        listeners.add(
+                record -> {
+                    traceLogWriter.appendAndFlush(record);
+                    metricListener.onExecutionReported(record);
+                });
         listeners.addAll(componentExecutionListeners);
         return new ExecutionReportingContext(actionTask.getTraceContext(), listeners);
     }

@@ -23,9 +23,12 @@ import org.apache.flink.agents.api.trace.TraceContext;
 import org.apache.flink.agents.api.trace.TraceRecord;
 import org.apache.flink.agents.api.trace.TraceRecords;
 import org.apache.flink.agents.plan.AgentPlan;
+import org.apache.flink.agents.runtime.lifecycle.ComponentExecutionListener;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Map;
 import java.util.UUID;
@@ -95,8 +98,9 @@ class BuiltInMetricsTest {
         assertThat(actionMetricGroup.getCounter("numOfActionsExecuted").getCount()).isEqualTo(1L);
     }
 
-    @Test
-    void actionTerminalDropsOnlyItsUnpairedChildLatencyState() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void actionTerminalDropsOnlyItsUnpairedChildLatencyState(boolean scopedListeners) {
         MetricGroup parentMetricGroup =
                 UnregisteredMetricGroups.createUnregisteredOperatorMetricGroup();
         FlinkAgentsMetricGroupImpl metricGroup = new FlinkAgentsMetricGroupImpl(parentMetricGroup);
@@ -121,11 +125,19 @@ class BuiltInMetricsTest {
                         Map.of());
         metrics.restoreActionTask(completedAction, false);
 
-        metrics.markExecutionRecord("restored_action", TraceRecords.started(completedActionLlm));
-        metrics.markExecutionRecord("restored_action", TraceRecords.started(activeActionLlm));
+        ComponentExecutionListener completedListener =
+                scopedListeners
+                        ? metrics.createComponentMetricListener("restored_action", ignored -> true)
+                        : record -> metrics.markExecutionRecord("restored_action", record);
+        ComponentExecutionListener activeListener =
+                scopedListeners
+                        ? metrics.createComponentMetricListener("restored_action", ignored -> false)
+                        : record -> metrics.markExecutionRecord("restored_action", record);
+        completedListener.onExecutionReported(TraceRecords.started(completedActionLlm));
+        activeListener.onExecutionReported(TraceRecords.started(activeActionLlm));
         metrics.markExecutionRecord("restored_action", TraceRecords.succeeded(completedAction));
-        metrics.markExecutionRecord("restored_action", TraceRecords.succeeded(completedActionLlm));
-        metrics.markExecutionRecord("restored_action", TraceRecords.succeeded(activeActionLlm));
+        completedListener.onExecutionReported(TraceRecords.succeeded(completedActionLlm));
+        activeListener.onExecutionReported(TraceRecords.succeeded(activeActionLlm));
 
         assertThat(
                         metricGroup
