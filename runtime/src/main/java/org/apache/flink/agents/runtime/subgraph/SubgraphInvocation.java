@@ -22,6 +22,8 @@ import org.apache.flink.agents.plan.actions.Action;
 import org.apache.flink.agents.plan.utils.CancellationUtils;
 import org.apache.flink.agents.runtime.context.JavaRunnerContextImpl;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
+import org.apache.flink.agents.runtime.memory.MemoryScope;
+import org.apache.flink.agents.runtime.operator.parallel.UncapturableException;
 
 import javax.annotation.Nullable;
 
@@ -33,36 +35,50 @@ import java.util.concurrent.ExecutionException;
 /**
  * Runtime-only state of one internal graph call, shared by Java and Python.
  *
- * <p>All mutations run on the mailbox. A logical action remains in flight across yield/resume; it
- * is retired only after its durable output has been dispatched. This accounts for buffered events
- * and nested calls without counting continuation tasks as new executions. Each dispatch registers
- * all successor actions before its producer is retired.
+ * <p>All mutations run on the mailbox thread or under the parallel execution lock. A logical action
+ * remains in flight across yield/resume; it is retired only after its durable output has been
+ * dispatched. This accounts for buffered events and nested calls without counting continuation
+ * tasks as new executions. Each dispatch registers all successor actions before its producer is
+ * retired.
  *
  * <p>The future is not checkpointed. Root replay rebuilds this object and child ActionState
  * supplies completed work. Waiters capture this object instead of reading a switched context.
  */
 public class SubgraphInvocation<R> {
     private final String id;
+    private final String durableSlotKey;
     @Nullable private final Object key;
     private final SubgraphDefinition<R> definition;
-    private final RunnerContextImpl.MemoryContext memory;
+    @Nullable private final MemoryScope memoryScope;
     @Nullable private final RunnerContextImpl.ResourceScope resourceScope;
     private final CompletableFuture<R> response = new CompletableFuture<>();
     private final List<Event> outputs = new ArrayList<>();
     private int runningActions;
     private boolean started;
+    private boolean replayed;
     @Nullable private IllegalStateException failure;
+
+    /** Creates a call with no memory policy of its own: its actions use the enclosing stores. */
+    public SubgraphInvocation(
+            String id,
+            @Nullable Object key,
+            SubgraphDefinition<R> definition,
+            @Nullable RunnerContextImpl.ResourceScope resourceScope) {
+        this(id, key, definition, null, resourceScope);
+    }
 
     public SubgraphInvocation(
             String id,
             @Nullable Object key,
             SubgraphDefinition<R> definition,
-            RunnerContextImpl.MemoryContext memory,
+            @Nullable MemoryScope memoryScope,
             @Nullable RunnerContextImpl.ResourceScope resourceScope) {
         this.id = id;
+        // Ids are only unique within their kind, so the slot carries the kind too.
+        this.durableSlotKey = definition.kind() + ":" + id;
         this.key = key;
         this.definition = definition;
-        this.memory = memory;
+        this.memoryScope = memoryScope;
         this.resourceScope = resourceScope;
     }
 
@@ -70,13 +86,20 @@ public class SubgraphInvocation<R> {
         return id;
     }
 
+    /** The caller's durable slot this call's terminal result is recorded in and read back from. */
+    public final String getDurableSlotKey() {
+        return durableSlotKey;
+    }
+
     @Nullable
     public final Object getKey() {
         return key;
     }
 
-    public final RunnerContextImpl.MemoryContext getMemory() {
-        return memory;
+    /** The stores this call's actions share, or {@code null} to inherit the enclosing ones. */
+    @Nullable
+    public final MemoryScope getMemoryScope() {
+        return memoryScope;
     }
 
     @Nullable
@@ -88,7 +111,12 @@ public class SubgraphInvocation<R> {
         return response.isDone();
     }
 
-    /** Routes one persisted output or an authorized bootstrap on the mailbox thread. */
+    /** Whether the terminal outcome came from the caller's durable slot rather than the graph. */
+    public final boolean isReplayed() {
+        return replayed;
+    }
+
+    /** Routes one persisted output or an authorized bootstrap under operator ownership. */
     public final List<Action> dispatch(Event event) {
         if (failure != null) {
             // Already scheduled siblings may finish after a captured child failure. Their outputs
@@ -125,32 +153,59 @@ public class SubgraphInvocation<R> {
         tryComplete();
     }
 
-    /** Only ordinary action-body failures can become a graph outcome. */
+    /**
+     * Only ordinary action-body failures can become a graph outcome. Anything carrying an {@link
+     * UncapturableException} is excluded too, so a framework fault fails the job instead of being
+     * reported as this call's own result. The scan walks causes because either can arrive wrapped.
+     */
     public final boolean capturesActionFailure(Throwable failure) {
         if (!(failure instanceof Exception) || CancellationUtils.isCancellation(failure)) {
             return false;
         }
         Throwable cause = failure;
         for (int depth = 0; cause != null && depth < 64; depth++, cause = cause.getCause()) {
-            if (cause instanceof Error) {
+            if (cause instanceof Error || cause instanceof UncapturableException) {
                 return false;
             }
             if (cause.getCause() == cause) {
                 break;
             }
         }
+        return capturesActionFailures();
+    }
+
+    /**
+     * Whether this call's graph failure belongs to its own result instead of failing the caller.
+     */
+    public final boolean capturesActionFailures() {
         return definition.capturesActionFailures();
+    }
+
+    public final R captureActionFailure(Throwable cause) {
+        return definition.captureActionFailure(cause);
+    }
+
+    public final Class<R> resultClass() {
+        return definition.resultClass();
+    }
+
+    public final Event inputEvent(Object input) {
+        return definition.inputEvent(input);
     }
 
     public final void cancel() {
         response.cancel(false);
     }
 
-    /** Reuses a recorded terminal outcome without starting the graph. */
-    protected final void replay(R result) {
+    /**
+     * Reuses a recorded terminal outcome without starting the graph, marking the call replayed so
+     * its result is not persisted a second time.
+     */
+    public final void installRecorded(R result) {
         if (started || !response.complete(result)) {
             throw new IllegalStateException("Duplicate subgraph result: " + id);
         }
+        replayed = true;
     }
 
     public final R awaitResult() throws InterruptedException, ExecutionException {

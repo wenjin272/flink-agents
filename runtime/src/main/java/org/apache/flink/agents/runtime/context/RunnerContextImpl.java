@@ -30,9 +30,12 @@ import org.apache.flink.agents.api.context.MemoryObject;
 import org.apache.flink.agents.api.context.MemoryUpdate;
 import org.apache.flink.agents.api.context.Outcome;
 import org.apache.flink.agents.api.context.RunnerContext;
+import org.apache.flink.agents.api.event.ChatRequestEvent;
+import org.apache.flink.agents.api.event.ChatResponseEvent;
 import org.apache.flink.agents.api.memory.BaseLongTermMemory;
 import org.apache.flink.agents.api.resource.Resource;
 import org.apache.flink.agents.api.resource.ResourceType;
+import org.apache.flink.agents.api.subagent.SubagentResult;
 import org.apache.flink.agents.api.trace.ExecutionReporter;
 import org.apache.flink.agents.api.trace.TraceContext;
 import org.apache.flink.agents.api.trace.TraceRecord;
@@ -44,24 +47,29 @@ import org.apache.flink.agents.plan.utils.JsonUtils;
 import org.apache.flink.agents.runtime.ResourceCache;
 import org.apache.flink.agents.runtime.actionstate.ActionState;
 import org.apache.flink.agents.runtime.actionstate.CallResult;
-import org.apache.flink.agents.runtime.chat.ChatContext;
+import org.apache.flink.agents.runtime.chat.ChatSubgraphDefinition;
 import org.apache.flink.agents.runtime.lifecycle.ComponentExecutionListener;
 import org.apache.flink.agents.runtime.memory.CachedMemoryStore;
 import org.apache.flink.agents.runtime.memory.EventAttachmentUtils;
 import org.apache.flink.agents.runtime.memory.InteranlBaseLongTermMemory;
-import org.apache.flink.agents.runtime.memory.IsolatedCachedMemoryStore;
 import org.apache.flink.agents.runtime.memory.MemoryEventBuilder;
 import org.apache.flink.agents.runtime.memory.MemoryEventSettings;
 import org.apache.flink.agents.runtime.memory.MemoryObjectImpl;
 import org.apache.flink.agents.runtime.memory.MemoryValueObservation;
 import org.apache.flink.agents.runtime.metrics.BuiltInMetrics;
 import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
+import org.apache.flink.agents.runtime.operator.parallel.UncapturableException;
+import org.apache.flink.agents.runtime.subagent.InternalSubagentInvocation;
 import org.apache.flink.agents.runtime.subagent.InternalSubagentSetup;
 import org.apache.flink.agents.runtime.subgraph.SubgraphCallManager;
 import org.apache.flink.agents.runtime.subgraph.SubgraphEvent;
+import org.apache.flink.agents.runtime.subgraph.SubgraphExecution;
 import org.apache.flink.agents.runtime.subgraph.SubgraphInvocation;
+import org.apache.flink.agents.runtime.utils.DeterministicIdAllocator;
+import org.apache.flink.agents.runtime.utils.IdAllocatorSource;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.util.Preconditions;
+import org.apache.flink.util.function.ThrowingRunnable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,7 +78,6 @@ import javax.annotation.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -133,16 +140,6 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         public CachedMemoryStore getSensoryMemStore() {
             return sensoryMemStore;
         }
-
-        /**
-         * Builds the isolated memory context for one internal sub-agent call. The child does not
-         * share memory with its caller, so the stores start empty and are not seeded from any
-         * parent view.
-         */
-        public static MemoryContext createChildContext() {
-            return new MemoryContext(
-                    new IsolatedCachedMemoryStore(), new IsolatedCachedMemoryStore());
-        }
     }
 
     /**
@@ -199,19 +196,27 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
      */
     @Nullable private ResourceScope resourceScope;
 
-    /** Current action's chat context, replaced as a unit on each task switch or restore. */
-    @Nullable private ChatContext chatContext;
+    /**
+     * The raw key of the record the current task belongs to; see {@link #switchActionContext} for
+     * why it is kept beside {@link #contextKey} rather than derived from it.
+     */
+    @Nullable private Object recordKey;
+
+    /**
+     * The current action's id counters, replaced on each task switch or restore. Owned by {@code
+     * ActionTaskContextManager}; this is only the reference the executing action reads through,
+     * exactly as for the memory context.
+     */
+    @Nullable private IdAllocatorSource idAllocatorSource;
 
     @Nullable private SubgraphInvocation<?> subgraphInvocation;
     private SubgraphCallManager subgraphCalls = new SubgraphCallManager();
 
     /**
-     * Index of the internal sub-agent setups owning a bootstrapped call session, keyed by session
-     * id. Populated by {@link InternalSubagentSetup#bootstrap} so {@link #awaitSubagentCall} can
-     * resolve the owning setup off the mailbox thread without depending on the scope currently
-     * wired onto this shared context.
+     * Starts a call's graph as soon as it is issued, installed only by an engine whose actions
+     * never yield. See {@link #dispatchSubgraphBootstrap()}.
      */
-    private final Map<String, InternalSubagentSetup> internalCallOwners = new HashMap<>();
+    @Nullable private ThrowingRunnable<Exception> subgraphBootstrapDispatcher;
 
     /** Textual key shared by long-term-memory isolation and framework observation events. */
     protected String contextKey;
@@ -272,16 +277,17 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
     }
 
     /**
-     * Bootstraps an internal sub-agent call by scope name, without blocking.
+     * Issues an internal sub-agent call by scope name, without waiting for it.
      *
      * <p>Cross-language (Python) entry point invoked over pemja: the Python side cannot hold a Java
      * setup instance, so it passes the resource scope and this method resolves the materialized
      * {@link InternalSubagentSetup} from the cache in effect (a nested call resolves against the
-     * caller's child plan). Must run on the mailbox thread (it sends the bootstrap event); the
-     * caller subsequently offloads {@link #awaitSubagentCall} onto a Python async worker so the
-     * mailbox stays free to dispatch the child agent's actions.
+     * caller's child plan). Must run on the mailbox thread. Issuing reads the caller's durable
+     * slot, so a replay returns without starting the child graph; the caller then polls {@link
+     * #tryCompleteInternalSubagentCall}, yielding the mailbox between polls so the operator can
+     * dispatch the child agent's actions.
      */
-    public void bootstrapSubagentCallForScope(
+    public void bootstrapInternalSubagentCallForScope(
             String scope, String sessionId, String callId, Object prompt) throws Exception {
         Resource resource = getResource(scope, ResourceType.AGENT);
         Preconditions.checkState(
@@ -294,33 +300,19 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
     }
 
     /**
-     * Blocks until the internal sub-agent call identified by {@code (sessionId, callId)} completes
-     * and returns its accumulated output.
+     * Takes the result of the internal sub-agent call issued under {@code (sessionId, callId)} as
+     * JSON, or returns {@code null} while its child graph still runs so the caller can yield the
+     * mailbox and poll again.
      *
-     * <p>Cross-language (Python) entry point invoked over pemja off the mailbox thread; resolves
-     * the owning setup through the session index rather than the currently wired scope.
+     * <p>Cross-language (Python) entry point invoked over pemja on the mailbox thread. A child
+     * failure comes back inside that JSON rather than being thrown, so the bridge needs no catch
+     * that would also fold this call's own persistence failure into the child's answer.
      */
-    public List<Object> awaitSubagentCall(String sessionId, String callId) throws Exception {
-        InternalSubagentSetup owner = internalCallOwners.get(sessionId);
-        Preconditions.checkNotNull(
-                owner,
-                "No internal sub-agent call registered for sessionId=%s, callId=%s",
-                sessionId,
-                callId);
-        return owner.awaitSubagentCall(sessionId, callId);
-    }
-
-    /**
-     * Registers the setup owning a call session; invoked by {@link
-     * InternalSubagentSetup#bootstrap}.
-     */
-    public void registerInternalCallOwner(String sessionId, InternalSubagentSetup setup) {
-        internalCallOwners.put(sessionId, setup);
-    }
-
-    /** Drops the session index entry; invoked by the owning setup when its record finishes. */
-    public void unregisterInternalCallOwner(String sessionId) {
-        internalCallOwners.remove(sessionId);
+    @Nullable
+    public String tryCompleteInternalSubagentCall(String sessionId, String callId)
+            throws Exception {
+        SubagentResult result = InternalSubagentInvocation.tryComplete(this, sessionId, callId);
+        return result == null ? null : OBJECT_MAPPER.writeValueAsString(result);
     }
 
     /**
@@ -356,9 +348,58 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         return subgraphInvocation;
     }
 
-    /** Installs the current task's chat context, or clears it when none is attached. */
-    public void setChatContext(@Nullable ChatContext chatContext) {
-        this.chatContext = chatContext;
+    /**
+     * The raw key of the caller's record, for a subgraph invocation to carry into record-scoped
+     * cleanup. Null outside an executing action.
+     */
+    @Nullable
+    public Object getRecordKey() {
+        return recordKey;
+    }
+
+    /** Installs the current task's id counters, or clears them when it carries none. */
+    public void setIdAllocatorSource(@Nullable IdAllocatorSource idAllocatorSource) {
+        this.idAllocatorSource = idAllocatorSource;
+    }
+
+    /** The current action's id counters, read back by a transfer to hand them to its successor. */
+    @Nullable
+    public IdAllocatorSource getIdAllocatorSource() {
+        return idAllocatorSource;
+    }
+
+    /**
+     * The id counter of the executing action for one call target — a named sub-agent, or the
+     * built-in chat graph's own namespace.
+     */
+    public DeterministicIdAllocator idAllocator(String targetName) {
+        return Preconditions.checkNotNull(
+                        idAllocatorSource, "Id allocation requires an executing action")
+                .allocator(targetName);
+    }
+
+    /**
+     * Issues a chat call from its serialized request and returns the id its response is polled
+     * under.
+     *
+     * <p>Cross-language (Python) entry point invoked over pemja on the mailbox thread, and the chat
+     * adapter for {@link SubgraphExecution#prepare}. Issuing reads the caller's durable slot, so a
+     * replay returns without starting the chat graph; what remains chat's here is the wire format.
+     */
+    public String prepareChatCall(String requestJson) throws Exception {
+        ChatRequestEvent request = (ChatRequestEvent) Event.fromJson(requestJson);
+        return SubgraphExecution.prepare(this, ChatSubgraphDefinition.invocationFor(this), request);
+    }
+
+    /**
+     * Returns the serialized response of the chat call {@code id}, or {@code null} while its graph
+     * still runs so the caller can yield the mailbox and poll again. Only terminal responses are
+     * persisted, never runtime errors; the serialized response is also the bridge's wire format.
+     */
+    @Nullable
+    public String tryCompleteChatCall(String id) throws Exception {
+        ChatResponseEvent response = SubgraphExecution.tryFinish(this, id);
+        return response == null ? null : OBJECT_MAPPER.writeValueAsString(response);
     }
 
     /** Checks thread confinement for runtime components accessing this shared context. */
@@ -366,15 +407,20 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         mailboxThreadChecker.run();
     }
 
-    /** Returns the current action's chat context, also used by the Python bridge. */
-    public ChatContext getChatContext() {
-        return Preconditions.checkNotNull(chatContext, "Chat calls require an executing action");
-    }
-
+    /**
+     * Points this shared context at one action execution.
+     *
+     * <p>The record's key arrives in both forms because they are not interconvertible here: {@code
+     * recordKey} is the operator's raw Flink key, which a subgraph invocation carries so that
+     * record-scoped cleanup can match it with {@code Objects.equals}, while {@code contextKey} is
+     * the resolved string form whose derivation depends on the input language and on whether a
+     * Python key arrived pickled.
+     */
     public void switchActionContext(
             String actionName,
             MemoryContext memoryContext,
             List<Event> pendingEvents,
+            @Nullable Object recordKey,
             String contextKey,
             @Nullable String observationId,
             boolean observationSuppressed,
@@ -382,11 +428,13 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         this.actionName = actionName;
         this.memoryContext = memoryContext;
         this.pendingEvents = pendingEvents;
+        this.recordKey = recordKey;
         this.contextKey = contextKey;
         this.observationId = observationId;
         this.observationSuppressed = observationSuppressed;
         this.ltmObservationEnabled = !observationSuppressed && ltmObservationConfigured;
         this.executionReportingContext = executionReportingContext;
+        this.subgraphBootstrapDispatcher = null;
         if (ltm != null) {
             ltm.switchContext(contextKey, observationId, observationSuppressed);
         }
@@ -435,6 +483,27 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
                     e);
         }
         pendingEvents.add(event);
+    }
+
+    /**
+     * Starts the graph of a call issued from this action, if the running engine needs that done
+     * before the action finishes. An engine that suspends actions leaves this a no-op, because the
+     * operator drains the bootstrap when it drains the caller's yield; an engine that runs an
+     * action to completion in one turn installs a dispatcher instead.
+     */
+    public void dispatchSubgraphBootstrap() throws Exception {
+        if (subgraphBootstrapDispatcher != null) {
+            subgraphBootstrapDispatcher.run();
+        }
+    }
+
+    /**
+     * Installs the dispatcher {@link #dispatchSubgraphBootstrap()} runs. Cleared on every action
+     * context switch, so a binding never leaks from one task to the next on this shared context.
+     */
+    public void setSubgraphBootstrapDispatcher(
+            @Nullable ThrowingRunnable<Exception> subgraphBootstrapDispatcher) {
+        this.subgraphBootstrapDispatcher = subgraphBootstrapDispatcher;
     }
 
     public List<Event> drainEventsAtActionYield(Long timestamp) {
@@ -856,7 +925,12 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
         return new SingleAsyncFuture<>(this, Preconditions.checkNotNull(callable));
     }
 
-    protected <T> T resolveAsync(Callable<T> callable) throws Exception {
+    /**
+     * Runs one blocking call through this engine's async mechanism and returns its result. Public
+     * because {@code SubgraphExecution} offloads a graph-call wait through it on an engine that has
+     * no continuation to yield.
+     */
+    public <T> T resolveAsync(Callable<T> callable) throws Exception {
         return callable.call();
     }
 
@@ -932,6 +1006,10 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
                 if (CancellationUtils.isInterruption(e)) {
                     Thread.currentThread().interrupt();
                 }
+                throw e;
+            }
+            // A framework fault is not this call's outcome, so it is not recorded as one.
+            if (UncapturableException.isUncapturable(e)) {
                 throw e;
             }
             exception = e;
@@ -1298,6 +1376,10 @@ public class RunnerContextImpl implements RunnerContext, ExecutionReporter {
                 if (CancellationUtils.isInterruption(e)) {
                     Thread.currentThread().interrupt();
                 }
+                throw e;
+            }
+            // A framework fault is not this call's outcome, so it is not recorded as one.
+            if (UncapturableException.isUncapturable(e)) {
                 throw e;
             }
             exception = e;

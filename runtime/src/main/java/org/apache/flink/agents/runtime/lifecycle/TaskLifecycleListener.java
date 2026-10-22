@@ -23,19 +23,24 @@ import org.apache.flink.agents.runtime.operator.ActionTask;
 /**
  * Observes the per-record and per-action lifecycle of {@code ActionExecutionOperator}.
  *
- * <p>All callbacks run on the mailbox thread.
+ * <p>Callbacks are serialized within one operator: on the mailbox thread for cooperative execution,
+ * or under the execution lock for parallel execution. No fixed thread affinity is guaranteed.
  *
  * <p>Event pairing semantics:
  *
  * <ul>
  *   <li>{@code onRecordStart}/{@code onRecordFinished} bracket the processing of one input record
- *       for a key; a record that triggers no actions emits neither callback.
- *   <li>{@code onActionPrepared} fires on every preparation of an action task, including
- *       re-preparation of a suspended or resumed task, and pairs with exactly one of the terminal
- *       callbacks: {@code onActionFinishing} followed by {@code onActionFinished} on normal
- *       completion, {@code onActionReused} when a replay skips an already-completed action, {@code
- *       onActionFailed} when the invocation fails, or {@code onActionTransferred} when a
- *       non-finished task hands its contexts over to the task it generated.
+ *       for a key. The bracket is unconditional: it depends on the record being admitted and
+ *       retired, not on whether any action ran, so a record that triggers no actions still emits
+ *       both.
+ *   <li>{@code onActionPrepared} marks entry into each execution phase after the task's contexts
+ *       are bound, not necessarily another invocation of its body. The phase ends with {@code
+ *       onActionFinishing} followed by {@code onActionFinished} on normal completion, {@code
+ *       onActionReused} when a replay skips an already-completed action, or {@code
+ *       onActionTransferred} when the task yields execution. A transfer may retain the same task,
+ *       including a worker-to-mailbox handoff.
+ *   <li>{@code onActionFailed} reports that processing a task failed. It is not a phase exit and
+ *       does not imply an open phase.
  *   <li>{@code onActionStarted} fires at most once per action execution, before the first real
  *       invocation and never on a re-preparation; the gate is checkpointed with the task, so a
  *       failover replay re-emits {@code onRecordStart} for the resumed round but not {@code
@@ -48,18 +53,18 @@ import org.apache.flink.agents.runtime.operator.ActionTask;
 public interface TaskLifecycleListener {
 
     /**
-     * The first action task of the input record of {@code key} has just been created and is about
-     * to be prepared. Also re-emitted when the task chain of a record that was in flight at
-     * snapshot time resumes after a failover, so listeners observe a paired bracket for the
-     * replayed round.
+     * The input record of {@code key} has been admitted for processing and is about to trigger its
+     * actions, if it triggers any. Also re-emitted when the task chain of a record that was in
+     * flight at snapshot time resumes after a failover, so listeners observe a paired bracket for
+     * the replayed round.
      *
      * @param key the Flink key of the input record starting processing.
      */
     default void onRecordStart(Object key) {}
 
     /**
-     * An action task's runner context has been wired up and the task is ready to run. Fires on
-     * every preparation, including re-preparation of a suspended or resumed task.
+     * An action task's contexts are fully bound for the execution phase it is entering. Fires again
+     * after a handoff or suspension; the phase need not invoke the action body again.
      *
      * @param task the prepared action task.
      */
@@ -74,12 +79,12 @@ public interface TaskLifecycleListener {
     default void onActionStarted(ActionTask task) {}
 
     /**
-     * A non-finished task handed its per-task contexts to the task it generated. Listeners that
-     * keep per-task bookkeeping must move their entries from {@code from} to {@code to} so the
-     * continuation keeps its state.
+     * A task is yielding execution. Listeners unbind it and move per-task bookkeeping from {@code
+     * from} to {@code to}, preserving it unchanged when both are the same task. What comes next is
+     * {@code onActionPrepared} for a further phase, or {@code onActionFailed}.
      *
-     * @param from the finishing task whose contexts were transferred.
-     * @param to the generated task that inherited the contexts.
+     * @param from the task yielding execution.
+     * @param to the task retaining the contexts for its next execution phase.
      */
     default void onActionTransferred(ActionTask from, ActionTask to) {}
 
@@ -110,19 +115,23 @@ public interface TaskLifecycleListener {
     default void onActionReused(ActionTask task) {}
 
     /**
-     * An action invocation failed. Purely observational: listeners perceive the failure for
+     * Processing an action task failed. Purely observational: listeners perceive the failure for
      * logging, metrics, or bookkeeping cleanup, but must not compensate or decide on rethrowing.
      *
+     * <p>Not a phase exit, and it does not imply an open phase: a task that failed after a transfer
+     * arrives here with no {@code onActionPrepared} in between, so cleanup must tolerate a task it
+     * already unbound.
+     *
      * @param task the failed action task.
-     * @param error the failure thrown by the invocation.
+     * @param error the task processing failure.
      */
     default void onActionFailed(ActionTask task, Throwable error) {}
 
     /**
      * Every task spawned by the input record of {@code key} has completed and the record is fully
-     * processed. Implementations must make their per-record cleanup idempotent: after a failover
-     * replay the notification may not be delivered again for records that completed before the
-     * snapshot.
+     * processed; a record that spawned none is retired here as well. Implementations must make
+     * their per-record cleanup idempotent: after a failover replay the notification may not be
+     * delivered again for records that completed before the snapshot.
      *
      * @param key the Flink key of the finished input record.
      */

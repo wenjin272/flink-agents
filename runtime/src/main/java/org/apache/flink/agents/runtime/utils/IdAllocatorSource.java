@@ -15,17 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.agents.runtime.operator.parallel;
 
-import org.apache.flink.agents.runtime.operator.ActionTask;
+package org.apache.flink.agents.runtime.utils;
 
 /**
- * Restores the shared runner context to a resuming action task. Called by the async executor after
- * a worker re-acquires the lock, so the shared context is repointed at the task's key, memory,
- * continuation, and durable-execution contexts before control returns to user code.
+ * The executing action's source of {@link DeterministicIdAllocator}s, one per call target.
+ *
+ * <p>Installed on the runner context by the operator on every task switch, restore and transfer, so
+ * a caller reads the executing action's counters off the context it was handed. The mapping from an
+ * execution to its allocators is owned by the installer and outlives a single task, so a
+ * suspend/resume transfer hands the successor the same counters instead of restarting them.
  */
-@FunctionalInterface
-public interface ParallelExecutionContextRestorer {
+public interface IdAllocatorSource {
 
-    void restore(Object key, ActionTask actionTask);
+    /** The counter assigning ids for one target of the executing action, created on first use. */
+    DeterministicIdAllocator allocator(String targetName);
 }

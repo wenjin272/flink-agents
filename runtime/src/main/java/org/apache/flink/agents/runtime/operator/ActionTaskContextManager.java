@@ -25,21 +25,22 @@ import org.apache.flink.agents.plan.PythonFunction;
 import org.apache.flink.agents.runtime.ResourceCache;
 import org.apache.flink.agents.runtime.async.ContinuationActionExecutor;
 import org.apache.flink.agents.runtime.async.ContinuationContext;
-import org.apache.flink.agents.runtime.chat.ChatCallManager;
-import org.apache.flink.agents.runtime.chat.ChatCallOwner;
-import org.apache.flink.agents.runtime.chat.ChatContext;
 import org.apache.flink.agents.runtime.context.JavaRunnerContextImpl;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl;
 import org.apache.flink.agents.runtime.context.RunnerContextImpl.ExecutionReportingContext;
 import org.apache.flink.agents.runtime.memory.CachedMemoryStore;
 import org.apache.flink.agents.runtime.memory.InteranlBaseLongTermMemory;
 import org.apache.flink.agents.runtime.memory.MemoryObjectImpl;
+import org.apache.flink.agents.runtime.memory.MemoryScope;
 import org.apache.flink.agents.runtime.metrics.FlinkAgentsMetricGroupImpl;
+import org.apache.flink.agents.runtime.operator.parallel.ParallelExecutionContextLifecycle;
 import org.apache.flink.agents.runtime.operator.parallel.ParallelExecutionLock;
 import org.apache.flink.agents.runtime.python.context.PythonRunnerContextImpl;
 import org.apache.flink.agents.runtime.subgraph.SubgraphCallManager;
 import org.apache.flink.agents.runtime.subgraph.SubgraphEvent;
 import org.apache.flink.agents.runtime.subgraph.SubgraphInvocation;
+import org.apache.flink.agents.runtime.utils.DeterministicIdAllocator;
+import org.apache.flink.agents.runtime.utils.IdAllocatorSource;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.Preconditions;
@@ -85,7 +86,6 @@ class ActionTaskContextManager implements AutoCloseable {
 
     private RunnerContextImpl runnerContext;
     private final SubgraphCallManager subgraphCalls = new SubgraphCallManager();
-    private final ChatCallManager chatCallManager = new ChatCallManager(subgraphCalls);
 
     private final Map<ActionTask, ActionTaskContexts> actionTaskContexts;
 
@@ -109,15 +109,46 @@ class ActionTaskContextManager implements AutoCloseable {
         this.actionTaskContexts = new HashMap<>();
         this.continuationActionExecutor =
                 new ContinuationActionExecutor(
-                        numAsyncThreads, asyncThreadCleanup, parallelExecutionLock, this::restore);
-    }
+                        numAsyncThreads,
+                        asyncThreadCleanup,
+                        parallelExecutionLock,
+                        new ParallelExecutionContextLifecycle() {
+                            @Override
+                            public void suspend(Object key, ActionTask task) {
+                                operator.suspendParallelAction(task);
+                            }
 
-    ChatCallManager getChatCallManager() {
-        return chatCallManager;
+                            @Override
+                            public void resume(Object key, ActionTask task) {
+                                operator.resumeParallelAction(key, task);
+                            }
+                        });
     }
 
     SubgraphCallManager getSubgraphCalls() {
         return subgraphCalls;
+    }
+
+    /**
+     * The id counters of one action execution: its caller-side facts captured once, plus one
+     * counter per call target created on first use. Living in the task's contexts record gives them
+     * the two lifetimes they need — a replay builds a fresh record and counts from zero again,
+     * reproducing the ids whose results the original run recorded, while {@link #transferContexts}
+     * carries this same source to a successor so a suspend/resume keeps counting instead of
+     * reissuing ids.
+     */
+    private static IdAllocatorSource newIdAllocators(ActionTask task) {
+        Object key = task.getKey();
+        long sequenceNumber = task.getSequenceNumber();
+        String actionName = task.getAction().getName();
+        Event event = task.getEvent();
+        Map<String, DeterministicIdAllocator> byTarget = new HashMap<>();
+        return targetName ->
+                byTarget.computeIfAbsent(
+                        targetName,
+                        name ->
+                                new DeterministicIdAllocator(
+                                        key, sequenceNumber, actionName, event, name));
     }
 
     /**
@@ -129,11 +160,25 @@ class ActionTaskContextManager implements AutoCloseable {
         @Nullable private ContinuationContext continuationContext;
         @Nullable private String pythonAwaitableRef;
         @Nullable private RunnerContextImpl.ResourceScope resourceScope;
-        @Nullable private ChatContext chatContext;
+        @Nullable private IdAllocatorSource idAllocators;
         @Nullable private SubgraphInvocation<?> subgraphInvocation;
         private List<Event> pendingEvents = new ArrayList<>();
         @Nullable private ExecutionReportingContext executionReportingContext;
         @Nullable private String contextKey;
+
+        /**
+         * Whether the task currently owns an execution phase on the parallel engine, so a
+         * suspend/resume pair cannot re-emit {@code onActionPrepared} for a phase already open.
+         */
+        private boolean lifecycleActive;
+    }
+
+    boolean isLifecycleActive(ActionTask actionTask) {
+        return requireContexts(actionTask).lifecycleActive;
+    }
+
+    void setLifecycleActive(ActionTask actionTask, boolean active) {
+        requireContexts(actionTask).lifecycleActive = active;
     }
 
     private boolean hasContexts(ActionTask actionTask) {
@@ -245,7 +290,8 @@ class ActionTaskContextManager implements AutoCloseable {
      * <ol>
      *   <li>Selects a Java or Python runner context based on the action's {@code Exec} type.
      *   <li>Reuses any existing {@link RunnerContextImpl.MemoryContext} for this task; otherwise
-     *       builds a fresh one backed by the supplied sensory/short-term memory states.
+     *       builds one over the enclosing subgraph call's {@link MemoryScope} stores when it
+     *       carries any, or over the supplied sensory/short-term memory states.
      *   <li>Creates or reuses the per-Action call reporting context and wires it onto the runner
      *       context.
      *   <li>Calls {@link RunnerContextImpl#switchActionContext} so the shared context now points at
@@ -280,7 +326,6 @@ class ActionTaskContextManager implements AutoCloseable {
             MapState<String, MemoryObjectImpl.MemoryItem> shortTermMemState,
             PythonRunnerContextImpl pythonRunnerContext,
             @Nullable InteranlBaseLongTermMemory longTermMemory,
-            @Nullable RunnerContextImpl.ResourceScope resourceScope,
             @Nullable
                     Function<ActionTask, ExecutionReportingContext>
                             executionReportingContextFactory) {
@@ -290,16 +335,12 @@ class ActionTaskContextManager implements AutoCloseable {
             // transferContexts), so we never recreate here.
             createContexts(actionTask);
         }
-        if (resourceScope != null) {
-            setResourceScope(actionTask, resourceScope);
-        }
         ActionTaskContexts taskContexts = requireContexts(actionTask);
-        if (taskContexts.chatContext == null) {
-            ChatCallOwner owner =
-                    new ChatCallOwner(
-                            actionTask.getKey(), actionTask.getSequenceNumber(),
-                            actionTask.getAction().getName(), actionTask.getEvent());
-            taskContexts.chatContext = new ChatContext(chatCallManager, owner);
+        if (taskContexts.idAllocators == null) {
+            // Eager, though the per-target counters inside it are not: transferContexts reads this
+            // reference back off the runner context, so a lazily built source would hand a
+            // successor task a null.
+            taskContexts.idAllocators = newIdAllocators(actionTask);
         }
         if (actionTask.getEvent() instanceof SubgraphEvent) {
             taskContexts.subgraphInvocation =
@@ -308,12 +349,14 @@ class ActionTaskContextManager implements AutoCloseable {
         SubgraphInvocation<?> call = taskContexts.subgraphInvocation;
         if (call != null) {
             taskContexts.resourceScope = call.getResourceScope();
-            // Share the stores, not the per-action update/observation journal.
-            if (taskContexts.memoryContext == null) {
+            MemoryScope memoryScope = call.getMemoryScope();
+            // Share the call's stores, not the per-action update/observation journal. A call
+            // without a memory scope inherits the root stores wired below.
+            if (memoryScope != null && taskContexts.memoryContext == null) {
                 taskContexts.memoryContext =
                         new RunnerContextImpl.MemoryContext(
-                                call.getMemory().getSensoryMemStore(),
-                                call.getMemory().getShortTermMemStore());
+                                memoryScope.getSensoryMemStore(),
+                                memoryScope.getShortTermMemStore());
             }
         }
         RunnerContextImpl context;
@@ -358,6 +401,7 @@ class ActionTaskContextManager implements AutoCloseable {
                 actionTask.action.getName(),
                 memoryContext,
                 requireContexts(actionTask).pendingEvents,
+                actionTask.getKey(),
                 contextKey,
                 actionTask.getObservationId(),
                 MemoryEvent.isMemoryType(actionTask.event.getType()),
@@ -365,7 +409,7 @@ class ActionTaskContextManager implements AutoCloseable {
         // Applied on every switch (possibly null): the shared context must not inherit the scope
         // of whichever task was wired on previously.
         context.setResourceScope(getResourceScope(actionTask));
-        context.setChatContext(taskContexts.chatContext);
+        context.setIdAllocatorSource(taskContexts.idAllocators);
         context.setSubgraphCalls(subgraphCalls);
         context.setSubgraphInvocation(taskContexts.subgraphInvocation);
 
@@ -410,12 +454,13 @@ class ActionTaskContextManager implements AutoCloseable {
                 actionTask.action.getName(),
                 memoryContext,
                 requireContexts(actionTask).pendingEvents,
+                actionTask.getKey(),
                 requireContexts(actionTask).contextKey,
                 actionTask.getObservationId(),
                 MemoryEvent.isMemoryType(actionTask.event.getType()),
                 requireContexts(actionTask).executionReportingContext);
         context.setResourceScope(getResourceScope(actionTask));
-        context.setChatContext(requireContexts(actionTask).chatContext);
+        context.setIdAllocatorSource(requireContexts(actionTask).idAllocators);
         context.setSubgraphCalls(subgraphCalls);
         context.setSubgraphInvocation(requireContexts(actionTask).subgraphInvocation);
         if (context instanceof JavaRunnerContextImpl) {
@@ -432,6 +477,9 @@ class ActionTaskContextManager implements AutoCloseable {
             context.setDurableExecutionContext(durableContext);
         }
         actionTask.setRunnerContext(context);
+        // Last, because the hook captures the context just bound: an engine whose actions never
+        // yield needs the dispatcher to start a call's graph before the caller waits for it.
+        operator.installParallelSubgraphBootstrap(actionTask);
     }
 
     private void putMemoryContext(
@@ -480,7 +528,10 @@ class ActionTaskContextManager implements AutoCloseable {
         // Retain the parent Action context and listeners for reports emitted after suspension.
         requireContexts(toTask).executionReportingContext =
                 fromTask.getRunnerContext().getExecutionReportingContext();
-        requireContexts(toTask).chatContext = fromTask.getRunnerContext().getChatContext();
+        // Read off the runner context, not off fromTask's own record: the operator removes the
+        // finishing task's contexts before this runs. The counters are carried over rather than
+        // rebuilt — rebuilding from the successor's facts would change the digest and the ordinals.
+        requireContexts(toTask).idAllocators = fromTask.getRunnerContext().getIdAllocatorSource();
         requireContexts(toTask).subgraphInvocation =
                 fromTask.getRunnerContext().getSubgraphInvocation();
         RunnerContextImpl.DurableExecutionContext durableContext =

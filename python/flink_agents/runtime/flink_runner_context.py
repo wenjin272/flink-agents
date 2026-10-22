@@ -21,7 +21,7 @@ import logging
 import os
 import time
 from collections.abc import Mapping
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import CancelledError, ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Callable, Dict, Literal
@@ -49,6 +49,7 @@ from flink_agents.api.runner_context import (
     Outcome,
     RunnerContext,
 )
+from flink_agents.api.subagent import SubagentResult
 from flink_agents.api.trace import ExecutionReporter
 from flink_agents.runtime.chat_future import _ChatFuture
 from flink_agents.runtime.close_utils import failure_of, first_or_logged
@@ -673,8 +674,8 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
         # registered via add_task_lifecycle_listener() (aligned with the Java
         # operator's taskLifecycleListeners).
         self.__task_lifecycle_listeners: list = []
-        # The namespace of the task the operator last reported prepared, extracted
-        # eagerly so no pemja reference is retained across calls. Replayed onto a
+        # The namespace of the task's current prepared phase, extracted eagerly
+        # so no pemja reference is retained across calls. Replayed onto a
         # sub-agent handle materialized lazily during the action body — see
         # __observe_subagent_setup().
         self.__prepared_namespace: Any = None
@@ -875,7 +876,10 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
 
     def notify_action_transferred(self, from_task: Any, to_task: Any) -> None:
         """Fan out the operator's onActionTransferred to the listeners."""
-        self.__capture_prepared_namespace(to_task)
+        # A transfer may retain the same task (a worker-to-mailbox handoff on the
+        # parallel engine), so the next phase's namespace is left to its own
+        # onActionPrepared rather than assumed to be the successor's here.
+        self.__prepared_namespace = None
         for listener in self.__task_lifecycle_listeners:
             listener.on_action_transferred(from_task, to_task)
 
@@ -898,8 +902,35 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
 
     def notify_action_failed(self, task: Any, error: Any) -> None:
         """Fan out the operator's onActionFailed to the task lifecycle listeners."""
+        from flink_agents.runtime.base_subagent import Namespace
+
+        try:
+            failed_identity = Namespace.from_task(task).task_identity
+        except Exception:
+            # Placeholder tasks expose no accessor surface; nothing to unbind.
+            failed_identity = None
+        if (
+            failed_identity is not None
+            and self.__prepared_namespace is not None
+            and self.__prepared_namespace.task_identity == failed_identity
+        ):
+            self.__prepared_namespace = None
         for listener in self.__task_lifecycle_listeners:
-            listener.on_action_failed(task, error)
+            # Guarded per listener, so one listener's failure neither starves the
+            # remaining ones nor derails the failure being reported. Exception
+            # rather than BaseException: a KeyboardInterrupt or SystemExit raised
+            # here is not a listener bug, and swallowing it into a warning would
+            # hide an operator's attempt to stop the process.
+            try:
+                listener.on_action_failed(task, error)
+            except CancelledError:  # noqa: PERF203
+                # CancelledError derives from Exception, so the guard below would
+                # otherwise demote the caller's control flow to a warning.
+                raise
+            except Exception:
+                # The warning is the whole report: `error` is a pemja proxy, so
+                # nothing attached to it reaches the throwable Java rethrows.
+                logger.warning("Task failure listener failed", exc_info=True)
 
     def notify_record_finished(self, key: Any) -> None:
         """Fan out the operator's onRecordFinished to the task lifecycle listeners."""
@@ -1739,31 +1770,48 @@ class FlinkRunnerContext(RunnerContext, ExecutionReporter):
             kwargs,
         )
 
-    def bootstrap_subagent_call(
+    def bootstrap_internal_subagent_call(
         self, scope: str, session_id: str, call_id: str, prompt: Any
     ) -> None:
-        """Bootstrap an internal sub-agent call under the assigned identity.
+        """Issue an internal sub-agent call under the assigned identity.
 
         Implements
         :class:`~flink_agents.runtime.internal_subagent.InternalSubagentCallFactory`.
-        Delegates to the Java ``RunnerContextImpl.bootstrapSubagentCallForScope``,
-        which resolves the materialized sub-agent setup by ``scope`` and sends
-        the bootstrap event. Must run on the mailbox thread.
+        Delegates to the Java
+        ``RunnerContextImpl.bootstrapInternalSubagentCallForScope``, which
+        resolves the materialized sub-agent setup by ``scope``, reads the
+        caller's durable slot, and sends the bootstrap event only on a miss.
+        Must run on the mailbox thread.
         """
-        self._j_runner_context.bootstrapSubagentCallForScope(
+        self._j_runner_context.bootstrapInternalSubagentCallForScope(
             scope, session_id, call_id, prompt
         )
 
-    def await_subagent_call(self, session_id: str, call_id: str) -> list:
-        """Block until the identified internal sub-agent call quiesces.
+    def try_complete_internal_subagent_call(
+        self, session_id: str, call_id: str
+    ) -> SubagentResult | None:
+        """Take an issued internal sub-agent call's result, if it has one.
 
         Implements
         :class:`~flink_agents.runtime.internal_subagent.InternalSubagentCallFactory`.
-        Delegates to the Java ``RunnerContextImpl.awaitSubagentCall``. Must run
-        off the mailbox thread (e.g. on the durable-execution async worker) so
-        the mailbox stays free to dispatch the child agent's actions.
+        Delegates to the Java ``RunnerContextImpl.tryCompleteInternalSubagentCall``,
+        which returns ``None`` while the child graph still runs and the result as
+        JSON once it does not, so the payload's types come from the bridge rather
+        than from the child. A child failure rides inside the result rather than
+        being raised, so anything raised here belongs to the call itself. Must run
+        on the mailbox thread.
         """
-        return list(self._j_runner_context.awaitSubagentCall(session_id, call_id))
+        result_json = self._j_runner_context.tryCompleteInternalSubagentCall(
+            session_id, call_id
+        )
+        if result_json is None:
+            return None
+        payload = json.loads(result_json)
+        return SubagentResult(
+            success=payload["success"],
+            result=payload["result"],
+            error_message=payload["errorMessage"],
+        )
 
     @property
     @override
