@@ -310,11 +310,11 @@ class FlinkAgentsMem0VectorStore(VectorStoreBase):
             **self._vs.store_kwargs,
         )
 
-    def get(self, vector_id: str) -> _OutputData:
-        """Return the document with ``vector_id``, or an empty OutputData."""
+    def get(self, vector_id: str) -> _OutputData | None:
+        """Return the document with ``vector_id``, or None if it does not exist."""
         docs = self._vs.get(ids=[vector_id], collection_name=self._col)
         if not docs:
-            return _OutputData(id=None, score=None, payload=None)
+            return None
         d = docs[0]
         return _OutputData(
             id=d.id,

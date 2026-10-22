@@ -136,7 +136,7 @@ Represents a single memory item stored in Long-Term Memory:
 
 ### MemorySet
 
-A named collection of memory items. Memory sets provide logical grouping and isolation of memories. See [Context Isolation](#context-isolation) for details on how memories are scoped and isolated.
+A named collection of memory items. Memory sets provide logical grouping and context-scoped operations. Explicit ID reads and deletes directly address records in the backing collection. See [Context Isolation](#context-isolation) for the scope rules and caller responsibilities.
 
 ## Operations
 
@@ -184,6 +184,8 @@ A memory set is scoped to the key of the action that obtained it. Call `get_memo
 `getMemorySet` inside each action that needs one, rather than caching a set and reusing it
 in a later action. Reusing a set would apply another key's operations to the key it was
 originally obtained for, and operating on a set that carries no scope raises an error.
+Explicit ID reads and deletes do not check record ownership against that scope; see
+[Context Isolation](#context-isolation).
 
 Call `getMemorySet` / `get_memory_set` and `deleteMemorySet` / `delete_memory_set` in
 the Action body, outside functions submitted for async or durable execution. Operations
@@ -247,6 +249,12 @@ ids = memorySet.add(
 {{< /tabs >}}
 
 ### Retrieving Items
+
+When IDs are supplied, records are read directly from the backing collection without
+checking job, partition-key, or memory-set ownership. Use IDs returned by the intended
+set's `add` operation; see [Context Isolation](#context-isolation). IDs that do not
+exist are skipped, so the result is empty if none are found. Without IDs, `get` lists
+items within the calling set's scope.
 
 {{< tabs "Retrieving Items" >}}
 
@@ -353,6 +361,13 @@ results = memorySet.search(
 {{< /tabs >}}
 
 ### Deleting Items
+
+When IDs are supplied, records are deleted directly from the backing collection without
+checking job, partition-key, or memory-set ownership. Use IDs returned by the intended
+set's `add` operation; see [Context Isolation](#context-isolation). A nonexistent ID
+raises a not-found error (`ValueError` in Python, propagated through the Python bridge
+in Java). IDs are deleted sequentially: processing stops at the first error, and earlier
+deletions are not rolled back. Without IDs, deletion is limited to the calling set's scope.
 
 {{< tabs "Deleting Items" >}}
 
@@ -557,14 +572,25 @@ public static void processEvent(Event event, RunnerContext ctx) throws Exception
 
 ## Context Isolation
 
-Long-Term Memory automatically provides context isolation through Flink's keyed partition model. Each keyed partition normally maintains its own isolated set of memories.
+Long-Term Memory scopes additions, listing, semantic search, and whole-set deletion
+by job identifier, partition key, and memory-set name. Explicit ID reads and deletes
+are an exception to these scope rules.
 
 The isolation hierarchy works as follows:
-- **Job-level** (`JOB_IDENTIFIER`): Separates memories between different Flink jobs
+- **Job-level** (`JOB_IDENTIFIER`): Separates memories by job identifier
 - **Partition-level** (keyed partition key): Separates memories between different keys within the same job
 - **Set-level** (memory set name): Separates memories between different logical categories within the same partition
 
-This means you can reuse the same memory set name across different partitions, and each partition will normally access only its own memories.
+This means you can reuse the same memory set name across different partitions for
+context-scoped operations.
+
+When you explicitly supply IDs to `get` or `delete`, those IDs directly address records
+in the configured backing collection. Flink Agents does not verify that the records
+belong to the calling set's job identifier, partition key, or set name. The caller is
+responsible for using IDs returned by the intended set's `add` operation and keeping
+them associated with that context. Passing IDs from another context can read or delete
+that context's records if they share the same backing collection. This behavior is the
+same in Java and Python and avoids adding ownership-validation reads before deletion.
 
 > **Note:** Partition-level isolation uses a textual identity derived from the logical key instead of `key.hashCode()`. Java keys use `String.valueOf(key)`. Default-serialized PyFlink keys are deserialized and use Python `str`; explicitly typed PyFlink keys use `String.valueOf`, except byte-array keys, which use Python's bytes representation. This avoids hash collisions, but distinct keys may still share a memory context if they produce the same text, for example when custom key types have non-unique `toString()` or `__str__()` implementations. Key representations should therefore be stable and unique, and this isolation should not be treated as a security boundary.
 

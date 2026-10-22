@@ -173,6 +173,19 @@ def test_get_delete_and_search_keep_structured_identity() -> None:
     assert records[2]["query"] == "refund"
 
 
+def test_missing_ids_do_not_produce_get_observations() -> None:
+    mem0 = MagicMock()
+    mem0.get.side_effect = [None, {"id": "found", "memory": "value"}, None]
+    ltm = _make_ltm(mem0)
+
+    items = ltm.get_memory_set("prefs").get(ids=["missing", "found", "missing"])
+
+    assert [item.id for item in items] == ["found"]
+    assert [(record["op"], record["id"]) for record in _drain(ltm)] == [
+        ("GET", "found"),
+    ]
+
+
 def test_context_switch_changes_observation_owner_and_current_suppression() -> None:
     mem0 = MagicMock()
     mem0.add.return_value = {
