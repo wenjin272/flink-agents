@@ -88,10 +88,11 @@ The `install.sh` script downloads Apache Flink and copies the Flink Agents distr
 into `$FLINK_HOME/lib`. When you enable PyFlink, it also creates a Python virtual environment
 and installs `flink-agents` and `apache-flink` into it.
 
-Run the one-liner from the directory where you want the virtual environment created:
+Run the following command from the directory where you want the virtual environment created:
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/apache/flink-agents/main/tools/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/apache/flink-agents/main/tools/install.sh | bash -s -- \
+  --flink-agents-version {{< stable_version >}}
 ```
 
 The script asks whether to install Flink and whether to enable PyFlink. Answer **Yes** to
@@ -101,7 +102,7 @@ PyFlink for a PyFlink job, and **No** for a Java-only setup. To run it without p
 
 ```shell
 curl -fsSL https://raw.githubusercontent.com/apache/flink-agents/main/tools/install.sh | bash -s -- \
-  --non-interactive --install-flink --flink-version <flink-version> --flink-agents-version <flink-agents-version>
+  --non-interactive --install-flink --flink-version <flink-version> --flink-agents-version {{< stable_version >}}
 ```
 
 Run the script with `--dry-run` to print the plan without changing anything, and with
@@ -171,11 +172,11 @@ Choose one of the following installation methods:
 
 #### From Official Release
 
-Install Flink Agents using pip:
+Install the stable Flink Agents {{< stable_version >}} release using pip:
 
 ```shell
 # Install Flink Agents and Flink Python package
-pip install flink-agents apache-flink==${FLINK_VERSION}
+pip install flink-agents=={{< stable_version >}} apache-flink==${FLINK_VERSION}
 ```
 
 {{< hint warning >}}
@@ -185,7 +186,7 @@ pip install flink-agents apache-flink==${FLINK_VERSION}
 echo "setuptools<82" > /tmp/constraint.txt
 PIP_CONSTRAINT=/tmp/constraint.txt \
 PIP_BUILD_CONSTRAINT=/tmp/constraint.txt \
-  pip install flink-agents apache-flink==${FLINK_VERSION}
+  pip install flink-agents=={{< stable_version >}} apache-flink==${FLINK_VERSION}
 ```
 
 Set both variables for compatibility with older pip versions. Since pip 26.2,
@@ -307,11 +308,11 @@ directory:
 {{< tabs "Install Flink Agents Java Library" >}}
 
 {{< tab "From Official Release" >}}
-Download the published JAR from Maven Central into Flink's `lib` directory.
-Set `FLINK_AGENTS_VERSION` to the release you want (e.g. `0.3.0`):
+Download the stable Flink Agents {{< stable_version >}} JAR from Maven Central into
+Flink's `lib` directory:
 
 ```shell
-export FLINK_AGENTS_VERSION=<version>
+export FLINK_AGENTS_VERSION="{{< stable_version >}}"
 export FLINK_MAJOR_MINOR=${FLINK_VERSION%.*}
 
 curl -fL \
@@ -326,8 +327,8 @@ After building from source, copy the self-contained distribution JAR
 (without the `-thin` suffix) to Flink's `lib` directory:
 
 ```shell
-# Set the Flink Agents version (from the version you built, e.g. 0.4-SNAPSHOT)
-export FLINK_AGENTS_VERSION=<version>
+# Use the artifacts built from the source version matching these docs.
+export FLINK_AGENTS_VERSION="{{< version >}}"
 
 cp dist/flink-${FLINK_VERSION%.*}/target/flink-agents-dist-flink-${FLINK_VERSION%.*}-${FLINK_AGENTS_VERSION}.jar $FLINK_HOME/lib/
 ```
@@ -369,7 +370,7 @@ For execution in IDE, enable the feature `add dependencies with provided scope t
 ```xml
 <properties>
     <flink.version>2.2.1</flink.version>
-    <flink-agents.version>0.3.0</flink-agents.version>
+    <flink-agents.version>{{< stable_version >}}</flink-agents.version>
 </properties>
 
 <dependencies>
