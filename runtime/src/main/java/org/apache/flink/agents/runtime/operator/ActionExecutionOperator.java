@@ -96,6 +96,7 @@ import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -254,10 +255,9 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     private transient boolean drainAborted;
 
     /**
-     * Number of input records currently being processed (one per active key), compared against
-     * {@link #maxInFlightInputRecords} to apply input backpressure. Maintained on the mailbox
-     * thread alongside {@code addProcessingKey}/{@code removeProcessingKey} and rebuilt from the
-     * recovered processing keys.
+     * Number of admitted input records not yet retired, including pending inputs for busy keys,
+     * compared against {@link #maxInFlightInputRecords} to apply input backpressure. Maintained on
+     * the mailbox thread and rebuilt from the recovered processing keys and pending input events.
      */
     private transient int inFlightInputRecords;
 
@@ -265,6 +265,17 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
      * Configured cap on concurrently processed input records; see {@link #inFlightInputRecords}.
      */
     private int maxInFlightInputRecords;
+
+    /**
+     * Priority of each active input record by the order it started processing, keyed by its key.
+     * Continuation execution passes it to the async executor so the work of records that started
+     * earlier runs first. Set when an input event starts processing and removed when it retires, so
+     * it also tells whether a key has an active input.
+     */
+    private transient Map<Object, RecordPriority> recordPriorities;
+
+    /** Next record index to assign; see {@link #recordPriorities}. */
+    private transient long nextRecordIndex;
 
     // Long-term memory backed by Mem0; non-null only when LongTermMemoryOptions.Mem0 is configured.
     private transient Mem0LongTermMemory ltm;
@@ -386,6 +397,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 "%s must be positive, but was %s",
                 AgentExecutionOptions.MAX_IN_FLIGHT_INPUT_RECORDS.getKey(),
                 maxInFlightInputRecords);
+        recordPriorities = new HashMap<>();
 
         parallelExecutionWithoutCoroutineEnabled =
                 shouldEnableParallelExecutionWithoutCoroutine(
@@ -522,6 +534,14 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                         processElementInternal(record);
                     });
         } else {
+            if (ContinuationActionExecutor.isContinuationSupported()) {
+                // Mails run while yielding can change the current key, so set the record's key
+                // after the last yield.
+                while (inFlightInputRecords >= maxInFlightInputRecords) {
+                    mailboxExecutor.yield();
+                }
+                super.setKeyContextElement1(record);
+            }
             processElementInternal(record);
         }
     }
@@ -546,10 +566,12 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         try {
             eventRouter.getKeySegmentQueue().addKeyToLastSegment(key);
 
+            // An input that triggers no Actions keeps its key active until its retirement mail
+            // runs, so check the active inputs rather than the queued Action tasks.
             boolean currentKeyBusy =
                     parallelExecutionWithoutCoroutineEnabled
                             ? executionCoordinator.hasOutstanding(getCurrentKey())
-                            : stateManager.hasMoreActionTasks();
+                            : recordPriorities.containsKey(key);
             if (currentKeyBusy) {
                 // If there are already actions being processed for the current key, the newly
                 // incoming event should be queued and processed later. Therefore, we add it to
@@ -662,6 +684,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                     freshRecordRound = true;
                 }
                 stateManager.addProcessingKey(key);
+                recordPriorities.put(key, new RecordPriority(nextRecordIndex++));
                 stateManager.initOrIncSequenceNumber();
                 if (freshRecordRound) {
                     // Announced once the record's own bookkeeping is in place and before anything
@@ -798,6 +821,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
         notifyRecordFinished(key);
         int removedCount = stateManager.removeProcessingKey(key);
         inFlightInputRecords--;
+        recordPriorities.remove(key);
         checkState(
                 removedCount == 1,
                 "Current processing key count for key "
@@ -832,6 +856,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 notifyRecordFinished(key);
                 int removedCount = stateManager.removeProcessingKey(key);
                 inFlightInputRecords--;
+                recordPriorities.remove(key);
                 checkState(
                         removedCount == 1,
                         "Current processing key count for key "
@@ -863,6 +888,10 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             throws Exception {
         // 2. Invoke the action task.
         long sequenceNumber = stateManager.getSequenceNumber();
+        // A resumed Action keeps its first-dispatch priority for queued async work.
+        boolean firstDispatch =
+                !contextManager.hasContexts(actionTask)
+                        || !contextManager.hasContinuationContext(actionTask);
         contextManager.createAndSetRunnerContext(
                 actionTask,
                 contextKey,
@@ -876,6 +905,13 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                 pythonBridge.getPythonRunnerContext(),
                 ltm,
                 this::createExecutionReportingContext);
+        ContinuationContext continuationContext = contextManager.getContinuationContext(actionTask);
+        if (firstDispatch && continuationContext != null) {
+            RecordPriority priority = recordPriorities.get(key);
+            if (priority != null) {
+                continuationContext.setPriority(priority.recordIndex, priority.nextTaskIndex++);
+            }
+        }
         notifyActionPrepared(actionTask);
 
         boolean isFinished;
@@ -1049,6 +1085,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
             // we can proceed to process the next InputEvent.
             int removedCount = stateManager.removeProcessingKey(key);
             inFlightInputRecords--;
+            recordPriorities.remove(key);
             checkState(
                     removedCount == 1,
                     "Current processing key count for key "
@@ -1661,6 +1698,7 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
                     continue;
                 }
                 eventRouter.getKeySegmentQueue().addKeyToLastSegment(key);
+                recordPriorities.put(key, new RecordPriority(nextRecordIndex++));
                 // Align with the task-level replay: re-emit the record start for the resumed round
                 // so listeners observe a paired start/finished bracket as well. Emitted before
                 // either engine dispatches, so no callback for this record can precede it.
@@ -2146,6 +2184,16 @@ public class ActionExecutionOperator<IN, OUT> extends AbstractStreamOperator<OUT
     public static class ActionTaskExecutionException extends Exception {
         public ActionTaskExecutionException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    /** Processing-start order of an active input record and the next index for its Actions. */
+    private static final class RecordPriority {
+        private final long recordIndex;
+        private long nextTaskIndex;
+
+        private RecordPriority(long recordIndex) {
+            this.recordIndex = recordIndex;
         }
     }
 }
