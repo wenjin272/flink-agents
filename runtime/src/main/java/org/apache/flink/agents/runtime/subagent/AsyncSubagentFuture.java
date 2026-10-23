@@ -84,12 +84,16 @@ final class AsyncSubagentFuture extends SubagentFuture {
                     "Sub-agent call cancelled: " + getSessionId() + "#" + getCallId());
         }
         if (!consumed) {
-            DurableCallable<SubagentResult> awaitCall =
-                    setup.awaitResult(ctx, getSessionId(), getCallId());
-            value = ctx.durableExecuteAsync(awaitCall).await();
-            consumed = true;
-            if (registry != null) {
-                registry.untrackPendingSubagentCall(identity());
+            try {
+                DurableCallable<SubagentResult> awaitCall =
+                        setup.awaitResult(ctx, getSessionId(), getCallId());
+                value = ctx.durableExecuteAsync(awaitCall).await();
+                consumed = true;
+            } finally {
+                // Preserve the exception while releasing the action's pending-handle obligation.
+                if (registry != null) {
+                    registry.untrackPendingSubagentCall(identity());
+                }
             }
         }
         return value;

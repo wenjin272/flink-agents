@@ -44,8 +44,15 @@ public abstract class SubagentFuture {
     public abstract boolean isDone();
 
     /**
-     * Resolves the invocation, waiting until it reaches a terminal state. Failures converge into a
-     * failed {@link SubagentResult} rather than a separately reported exceptional completion.
+     * Resolves the invocation, waiting until it reaches a terminal state. A comprehensible
+     * sub-agent failure is returned as a failed {@link SubagentResult}; system-level exceptions,
+     * cancellation and interruption propagate to the caller.
+     *
+     * <p>Do not retry an await that throws. Any retry belongs inside its await implementation.
+     * Successful repeated awaits may return the cached result. The built-in deferred and async
+     * handles release their pending-call registration when the await exits, including
+     * exceptionally; callers need no additional cleanup to finish an action after handling an await
+     * failure.
      */
     public abstract SubagentResult await() throws Exception;
 

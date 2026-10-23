@@ -176,8 +176,14 @@ class SubagentFuture(ABC):
     def __await__(self) -> Any:
         """Resolve the invocation, waiting until it reaches a terminal state.
 
-        Failures converge into a failed :class:`SubagentResult` rather than a
-        separately raised exception.
+        Comprehensible sub-agent failures return a failed :class:`SubagentResult`;
+        system-level exceptions, cancellation and interruption propagate.
+
+        Do not retry an await that raises. Any retry belongs inside its implementation.
+        Successful repeated awaits may return the cached result. The built-in deferred
+        and async handles release their pending-call registration when the await
+        exits, including exceptionally, so
+        callers need no extra cleanup after handling an await failure.
         """
 
 

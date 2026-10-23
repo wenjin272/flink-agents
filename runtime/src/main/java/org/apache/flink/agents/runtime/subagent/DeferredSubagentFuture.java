@@ -76,8 +76,15 @@ public final class DeferredSubagentFuture extends SubagentFuture implements Phas
      */
     @Override
     public void execute() throws Exception {
-        prepare();
-        complete(ctx.durableExecuteAsync(prepared).await());
+        try {
+            prepare();
+            complete(ctx.durableExecuteAsync(prepared).await());
+        } finally {
+            // Await failures may be handled by ToolCallAction; they still resolve this obligation.
+            if (registry != null) {
+                registry.untrackPendingSubagentCall(identity());
+            }
+        }
     }
 
     /**
@@ -103,9 +110,6 @@ public final class DeferredSubagentFuture extends SubagentFuture implements Phas
     private void complete(SubagentResult outcome) {
         this.value = outcome;
         this.done = true;
-        if (registry != null) {
-            registry.untrackPendingSubagentCall(identity());
-        }
     }
 
     @Override
