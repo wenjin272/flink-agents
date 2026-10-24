@@ -32,7 +32,7 @@ pygmentsUseClasses = true
   # Keep Flink Agents versions centralized here and use shortcodes in the docs.
   # Source/artifact version for this branch, also used by the page version label.
   # Updated by the release/version-update scripts; exposed by the version shortcode.
-  Version = "0.4-SNAPSHOT"
+  Version = "1.0-SNAPSHOT"
 
   # Published release used by installation instructions and Maven examples.
   # Update after publication, independently of the branch's development version.
@@ -41,7 +41,7 @@ pygmentsUseClasses = true
 
   # For stable releases, leave the bugfix version out (e.g. 1.2). For snapshot
   # release this should be the same as the regular version
-  VersionTitle = "0.4-SNAPSHOT"
+  VersionTitle = "1.0-SNAPSHOT"
 
   # The branch for this version of Apache Flink Agents
   Branch = "main"
