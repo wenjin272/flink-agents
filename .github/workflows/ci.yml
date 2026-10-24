@@ -268,7 +268,7 @@ jobs:
             java-version: "21"
             flink-version: "2.2"
           - os: 'ubuntu-latest'
-            java-version: "17"
+            java-version: "21"
             flink-version: "2.3"
     steps:
       - uses: actions/checkout@v7
