@@ -57,7 +57,7 @@ current_dir = Path(__file__).parent
 
 os.environ["PYTHONPATH"] = sysconfig.get_paths()["purelib"]
 
-OLLAMA_MODEL = os.environ.get("REACT_OLLAMA_MODEL", "qwen3:1.7b")
+OLLAMA_MODEL = os.environ.get("REACT_OLLAMA_MODEL", "qwen3.5:2b")
 
 
 class MyKeySelector(KeySelector):
@@ -140,6 +140,7 @@ def test_react_agent_on_remote_runner(
             clazz=ResourceName.ChatModel.OLLAMA_SETUP,
             connection="ollama",
             model=OLLAMA_MODEL,
+            think=False,
             tools=["add", "multiply"],
         ),
         prompt=prompt,
@@ -251,6 +252,7 @@ def test_react_agent_no_output_schema_on_remote_runner(
             clazz=ResourceName.ChatModel.OLLAMA_SETUP,
             connection="ollama",
             model=OLLAMA_MODEL,
+            think=False,
             tools=["add", "multiply"],
         ),
         prompt=prompt,
@@ -330,6 +332,7 @@ def test_react_agent_native_structured_output_on_remote_runner(
             clazz=ResourceName.ChatModel.OLLAMA_SETUP,
             connection="recording_ollama",
             model=OLLAMA_MODEL,
+            think=False,
             tools=["add", "multiply"],
         ),
         prompt=prompt,
