@@ -24,6 +24,7 @@ import org.apache.flink.agents.api.InputEvent;
 import org.apache.flink.agents.api.OutputEvent;
 import org.apache.flink.agents.api.agents.Agent;
 import org.apache.flink.agents.api.annotation.Action;
+import org.apache.flink.agents.api.configuration.AgentConfigOptions;
 import org.apache.flink.agents.api.context.RunnerContext;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.api.common.JobID;
@@ -59,10 +60,14 @@ import org.apache.flink.testutils.TestingUtils;
 import org.apache.flink.testutils.executor.TestExecutorResource;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.TestLogger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -91,6 +96,26 @@ import static org.junit.Assert.assertTrue;
 /** This test case is derived from an existing test in Flink. */
 @RunWith(Parameterized.class)
 public class RescalingTest extends TestLogger {
+
+    // Suppress MiniCluster INFO logs for this class, including cluster shutdown.
+    @ClassRule
+    public static final ExternalResource LOG_LEVEL =
+            new ExternalResource() {
+                private Level originalLevel;
+
+                @Override
+                protected void before() {
+                    originalLevel = LogManager.getRootLogger().getLevel();
+                    if (originalLevel.isLessSpecificThan(Level.WARN)) {
+                        Configurator.setRootLevel(Level.WARN);
+                    }
+                }
+
+                @Override
+                protected void after() {
+                    Configurator.setRootLevel(originalLevel);
+                }
+            };
 
     @ClassRule
     public static final TestExecutorResource<ScheduledExecutorService> EXECUTOR_RESOURCE =
@@ -318,10 +343,11 @@ public class RescalingTest extends TestLogger {
                                 });
 
         // insert agent topology
+        AgentPlan agentPlan = new AgentPlan(new TestAgent());
+        // This bulk state-recovery test does not verify per-event trace logs.
+        agentPlan.getConfig().set(AgentConfigOptions.TRACE_LOG_TARGETS, Collections.emptyList());
         input =
-                CompileUtils.connectToAgent(
-                                (KeyedStream<Integer, Integer>) input,
-                                new AgentPlan(new TestAgent()))
+                CompileUtils.connectToAgent((KeyedStream<Integer, Integer>) input, agentPlan)
                         .map(
                                 new MapFunction<Object, Integer>() {
                                     @Override
