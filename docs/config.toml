@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-baseURL = '//nightlies.apache.org/flink/flink-agents-docs-main'
+baseURL = '//nightlies.apache.org/flink/flink-agents-docs-release-0.4'
 languageCode = "en-us"
 title = "Apache Flink Agents"
 enableGitInfo = false
@@ -24,7 +24,7 @@ pygmentsUseClasses = true
 [params]
   # Flag whether this is a stable version or not.
   # Used for the quickstart page.
-  IsStable = false
+  IsStable = true
 
   # Flag to indicate whether an outdated warning should be shown.
   ShowOutDatedWarning = false
@@ -32,7 +32,7 @@ pygmentsUseClasses = true
   # Keep Flink Agents versions centralized here and use shortcodes in the docs.
   # Source/artifact version for this branch, also used by the page version label.
   # Updated by the release/version-update scripts; exposed by the version shortcode.
-  Version = "0.4-SNAPSHOT"
+  Version = "0.4.0"
 
   # Published release used by installation instructions and Maven examples.
   # Update after publication, independently of the branch's development version.
@@ -41,10 +41,10 @@ pygmentsUseClasses = true
 
   # For stable releases, leave the bugfix version out (e.g. 1.2). For snapshot
   # release this should be the same as the regular version
-  VersionTitle = "0.4-SNAPSHOT"
+  VersionTitle = "0.4"
 
   # The branch for this version of Apache Flink Agents
-  Branch = "main"
+  Branch = "release-0.4"
 
   # The github repository for Apache Flink Agents
   Repo = "//github.com/apache/flink-agents"
