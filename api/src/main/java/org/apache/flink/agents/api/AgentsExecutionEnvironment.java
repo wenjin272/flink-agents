@@ -133,11 +133,13 @@ public abstract class AgentsExecutionEnvironment {
      * Set input for agents from a DataStream. Used for remote execution.
      *
      * <p>This method integrates agents with Flink DataStream API, allowing agents to process
-     * streaming data with optional keying for stateful operations.
+     * streaming data keyed for stateful operations.
      *
      * @param input DataStream to be processed by agents.
-     * @param keySelector Optional KeySelector for extracting keys from input records. If null, the
-     *     stream will be processed without keying.
+     * @param keySelector Optional KeySelector for extracting keys from input records. An explicit
+     *     selector is always used, even when the input is already keyed; if null, the input must be
+     *     a KeyedStream, whose key is kept, otherwise building the pipeline fails with a clear
+     *     error rather than silently keying by the whole record.
      * @param <T> Type of elements in the input DataStream.
      * @param <K> Type of the key extracted by the KeySelector.
      * @return AgentBuilder for configuring the agent pipeline.
@@ -146,7 +148,10 @@ public abstract class AgentsExecutionEnvironment {
             DataStream<T> input, KeySelector<T, K> keySelector);
 
     /**
-     * Set input for agents from a DataStream without keying.
+     * Set input for agents from a DataStream, keeping the stream's own key.
+     *
+     * <p>The input must be a KeyedStream; its existing key is preserved. A non-keyed input is
+     * rejected with a clear error asking for a keyed stream or a key selector.
      *
      * @param input DataStream to be processed by agents.
      * @param <T> Type of elements in the input DataStream.
@@ -163,17 +168,23 @@ public abstract class AgentsExecutionEnvironment {
      * and processing it through agents.
      *
      * @param input Table to be processed by agents.
-     * @param keySelector Optional KeySelector for extracting keys from table rows.
+     * @param keySelector Required KeySelector for extracting the business key from table rows. Rows
+     *     with the same key share the agent's short-term memory.
      * @param <K> Type of the key extracted by the KeySelector.
      * @return AgentBuilder for configuring the agent pipeline.
+     * @throws IllegalArgumentException in remote execution if keySelector is null.
      */
     public abstract <K> AgentBuilder fromTable(Table input, KeySelector<Object, K> keySelector);
 
     /**
-     * Set input for agents from a Table without keying.
+     * Table input requires an explicit key selector.
+     *
+     * <p>Remote execution rejects this overload. Use {@link #fromTable(Table, KeySelector)} to
+     * choose the key used for the agent's short-term memory.
      *
      * @param input Table to be processed by agents.
      * @return AgentBuilder for configuring the agent pipeline.
+     * @throws IllegalArgumentException in remote execution because a key selector is required.
      */
     public AgentBuilder fromTable(Table input) {
         return fromTable(input, null);

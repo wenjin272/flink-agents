@@ -28,7 +28,7 @@ import pytest
 import yaml
 from pyflink.common import Row
 from pyflink.common.typeinfo import ExternalTypeInfo, Types
-from pyflink.datastream import StreamExecutionEnvironment
+from pyflink.datastream import KeyedStream, StreamExecutionEnvironment
 from pyflink.table import DataTypes, Schema, StreamTableEnvironment
 
 from flink_agents.api.agents.agent import Agent
@@ -665,3 +665,51 @@ def test_datastream_to_table_uses_input_environment(provide_table_env, use_schem
     assert output.get_execution_environment()._j_stream_execution_environment.equals(
         env._j_stream_execution_environment
     )
+
+
+def test_key_selection_combinations() -> None:
+    """Key selection follows the same rules as the Java runtime.
+
+    An explicit selector always wins (even over the key of an already-keyed
+    input), a keyed input without a selector keeps its key, and an unkeyed
+    input without a selector is rejected with a clear error instead of being
+    silently keyed by the whole record.
+    """
+    env = StreamExecutionEnvironment.get_execution_environment()
+    unkeyed = env.from_collection(["same:first", "other:first"])
+    keyed = unkeyed.key_by(lambda value: value.split(":")[0])
+    process = (
+        RemoteExecutionEnvironment._RemoteExecutionEnvironment__process_input_datastream
+    )
+
+    def session(value: str) -> str:
+        return value.split(":")[0]
+
+    # An explicit selector wins even on a keyed input: the pipeline is re-keyed
+    # (a new stream) rather than silently keeping the input's own key.
+    assert process(keyed, session) is not keyed
+    # A keyed input without a selector keeps its key.
+    assert process(keyed, None) is keyed
+    # An unkeyed input with a selector is keyed by that selector.
+    assert isinstance(process(unkeyed, session), KeyedStream)
+    # An unkeyed input without a selector is rejected with a clear error.
+    with pytest.raises(RuntimeError, match="key selector"):
+        process(unkeyed, None)
+
+
+@pytest.mark.parametrize("provide_selector", [False, True])
+def test_table_requires_explicit_key_selector(provide_selector: bool) -> None:
+    """Table input must be keyed explicitly, including when None is passed."""
+    env = StreamExecutionEnvironment.get_execution_environment()
+    t_env = StreamTableEnvironment.create(env)
+    remote_env = RemoteExecutionEnvironment(env=env, t_env=t_env)
+    table = t_env.from_elements([("same", "first"), ("same", "second")], ["id", "text"])
+
+    if provide_selector:
+        builder = remote_env.from_table(table, key_selector=lambda row: row[0])
+        assert isinstance(builder._RemoteAgentBuilder__input, KeyedStream)
+    else:
+        with pytest.raises(RuntimeError, match="key selector.*Table input"):
+            remote_env.from_table(table)
+        with pytest.raises(RuntimeError, match="key selector.*Table input"):
+            remote_env.from_table(table, key_selector=None)
