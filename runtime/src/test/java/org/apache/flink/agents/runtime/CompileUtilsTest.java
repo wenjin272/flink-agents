@@ -18,6 +18,7 @@
 package org.apache.flink.agents.runtime;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import org.apache.flink.agents.api.configuration.AgentConfigOptions;
 import org.apache.flink.agents.plan.AgentPlan;
 import org.apache.flink.agents.runtime.operator.ActionExecutionOperatorTest;
 import org.apache.flink.api.common.RuntimeExecutionMode;
@@ -67,6 +68,9 @@ public class CompileUtilsTest {
 
     @BeforeAll
     static void setup() {
+        TEST_AGENT_PLAN
+                .getConfig()
+                .set(AgentConfigOptions.TRACE_LOG_TARGETS, Collections.emptyList());
         testSequence = getTestSequence();
         testSequence.sort(Long::compareTo);
     }
