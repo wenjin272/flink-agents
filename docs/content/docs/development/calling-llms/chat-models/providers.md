@@ -881,10 +881,9 @@ See [Provider Capabilities](#provider-capabilities) for other integrations.
 The OpenAI Responses integration currently has a Java implementation only. To use OpenAI Responses API from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
-The Flink Agents Responses integration currently rejects media blocks before
-sending a request. Its capabilities differ from the Chat Completions integration
-above, even when both connect to OpenAI. This is an integration limit, not a claim
-that the upstream Responses API lacks multimodal support.
+The Flink Agents Responses integration sends images and documents from user
+messages, but not audio or video; see **Multimodal input** below. Its capabilities
+differ from the Chat Completions integration above, even when both connect to OpenAI.
 
 ##### OpenAIResponsesModelConnection Parameters
 
