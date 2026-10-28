@@ -27,29 +27,19 @@ permissions:
 
 jobs:
   reproduce:
-    name: exit diagnostics [flink-${{ matrix.flink }}] [sample-${{ matrix.sample }}]
+    name: exit diagnostics [${{ matrix.mode }}] [flink-${{ matrix.flink }}] [sample-${{ matrix.sample }}]
     if: github.repository == 'wenjin272/flink-agents'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - flink: '1.20'
-            sample: 1
-          - flink: '1.20'
-            sample: 2
-          - flink: '1.20'
-            sample: 3
-          - flink: '1.20'
-            sample: 4
-          - flink: '1.20'
-            sample: 5
-          - flink: '1.20'
-            sample: 6
+        flink: ['1.20']
+        mode: [raw, wrapper]
+        sample: [1, 2, 3]
     env:
       SKIP_SPOTLESS_CHECK: 'true'
-      PYTHON_EXIT_DIAGNOSTICS_DIR: ${{ github.workspace }}/output/ci-exit
+      CI_EXIT_LOG_DIR: ${{ github.workspace }}/output/ci-exit
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -65,25 +55,32 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Build exact source and Python environment
         run: |
-          mkdir -p "$PYTHON_EXIT_DIAGNOSTICS_DIR"
-          bash tools/build.sh 2>&1 | tee "$PYTHON_EXIT_DIAGNOSTICS_DIR/build.log"
+          mkdir -p "$CI_EXIT_LOG_DIR"
+          bash tools/build.sh 2>&1 | tee "$CI_EXIT_LOG_DIR/build.log"
       - name: Install Ollama
         run: bash tools/start_ollama_server.sh
       - name: Reproduce Python IT exit
         timeout-minutes: 30
         run: |
           export PYTHONPATH="$(python/.venv/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+          # Both modes keep the same shell logging and environment. Only the
+          # wrapper opt-in differs; raw uses the original pytest entry point.
+          unset PYTHON_EXIT_DIAGNOSTICS_DIR
+          if [ '${{ matrix.mode }}' = wrapper ]; then
+            export PYTHON_EXIT_DIAGNOSTICS_DIR="$CI_EXIT_LOG_DIR"
+          fi
+          echo 'mode=${{ matrix.mode }}' | tee "$CI_EXIT_LOG_DIR/mode.txt"
           # Match the public fork PR run: no external model API key is injected.
           set +e
-          tools/ut.sh -p -e -f '${{ matrix.flink }}' 2>&1 | tee "$PYTHON_EXIT_DIAGNOSTICS_DIR/console.log"
+          tools/ut.sh -p -e -f '${{ matrix.flink }}' 2>&1 | tee "$CI_EXIT_LOG_DIR/console.log"
           codes=("${PIPESTATUS[@]}")
-          echo "ut.sh exit=${codes[0]}, tee exit=${codes[1]}" | tee "$PYTHON_EXIT_DIAGNOSTICS_DIR/shell-exit.txt"
+          echo "ut.sh exit=${codes[0]}, tee exit=${codes[1]}" | tee "$CI_EXIT_LOG_DIR/shell-exit.txt"
           if [ "${codes[0]}" -ne 0 ]; then exit "${codes[0]}"; fi
           exit "${codes[1]}"
       - name: Record environment
         if: always()
         run: |
-          mkdir -p "$PYTHON_EXIT_DIAGNOSTICS_DIR"
+          mkdir -p "$CI_EXIT_LOG_DIR"
           {
             git rev-parse HEAD
             uname -a
@@ -92,15 +89,15 @@ jobs:
             uv --version
             python/.venv/bin/python --version
             uv pip freeze --python python/.venv/bin/python
-          } > "$PYTHON_EXIT_DIAGNOSTICS_DIR/environment.txt" 2>&1
-          if [ -f python/uv.lock ]; then cp python/uv.lock "$PYTHON_EXIT_DIAGNOSTICS_DIR/uv.lock"; fi
+          } > "$CI_EXIT_LOG_DIR/environment.txt" 2>&1
+          if [ -f python/uv.lock ]; then cp python/uv.lock "$CI_EXIT_LOG_DIR/uv.lock"; fi
           for crash_log in python/hs_err_pid*.log; do
-            if [ -f "$crash_log" ]; then cp "$crash_log" "$PYTHON_EXIT_DIAGNOSTICS_DIR/"; fi
+            if [ -f "$crash_log" ]; then cp "$crash_log" "$CI_EXIT_LOG_DIR/"; fi
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: python-exit-${{ matrix.flink }}-${{ matrix.sample }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: python-exit-${{ matrix.mode }}-${{ matrix.flink }}-${{ matrix.sample }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: output/ci-exit/
           retention-days: 7
           if-no-files-found: error
