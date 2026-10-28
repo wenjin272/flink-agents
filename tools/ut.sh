@@ -306,6 +306,14 @@ python_tests() {
     set +e
     pushd "${ROOT}"/python
 
+    # Opt-in wrapper records pytest return and interpreter shutdown separately.
+    local pytest_command=(pytest)
+    local pytest_fallback_command=(python3 -m pytest)
+    if [ -n "${PYTHON_EXIT_DIAGNOSTICS_DIR:-}" ]; then
+        pytest_command=(python "${ROOT}/tools/ci/pytest_diagnostics.py")
+        pytest_fallback_command=(python3 "${ROOT}/tools/ci/pytest_diagnostics.py")
+    fi
+
     # Run tests for each Flink version
     local all_passed=true
     for version in "${flink_versions[@]}"; do
@@ -323,7 +331,7 @@ python_tests() {
                 # There will be an individual build step before run e2e test for including java dist
                 uv pip install apache-flink~=${version}.0
                 # Arm 1: existing e2e tests (directory-based selector).
-                uv run --no-sync pytest flink_agents \
+                uv run --no-sync "${pytest_command[@]}" flink_agents \
                 -s \
                 -k "e2e_tests_integration" \
                 --reruns 2 \
@@ -331,15 +339,17 @@ python_tests() {
                 -o log_cli=true \
                 -o log_cli_level=${LOG_LEVEL:-CRITICAL}
                 rc1=$?
+                echo "Python pytest exit: flink=${version} arm=e2e raw_rc=${rc1}"
                 # Arm 2: integration-marked tests (registered in pyproject.toml).
                 # Trap exit code 5 (no tests collected) as failure to defend
                 # against -m selector typos that --strict-markers does not catch.
-                uv run --no-sync pytest flink_agents \
+                uv run --no-sync "${pytest_command[@]}" flink_agents \
                 -s \
                 -m "integration" \
                 -o log_cli=true \
                 -o log_cli_level=${LOG_LEVEL:-CRITICAL}
                 rc2=$?
+                echo "Python pytest exit: flink=${version} arm=integration raw_rc=${rc2}"
                 if [ $rc2 -eq 5 ]; then rc2=1; fi
                 # Logical-OR aggregation: any nonzero exit on either arm yields testcode=1.
                 # Side effect: pytest exit 5 (no tests collected) becomes failure on BOTH
@@ -349,7 +359,7 @@ python_tests() {
             else
                 uv sync --extra test
                 uv pip install apache-flink~=${version}.0
-                uv run --no-sync pytest flink_agents \
+                uv run --no-sync "${pytest_command[@]}" flink_agents \
                 -k "not e2e_tests" \
                 -m "not integration" \
                 -o log_cli=true \
@@ -372,11 +382,13 @@ python_tests() {
                 echo "Running tests with pytest..."
             fi
             if $run_e2e; then
-                python3 -m pytest flink_agents -k "e2e_tests_integration" --reruns 2 --reruns-delay 5 -o log_cli=true -o log_cli_level=${LOG_LEVEL:-CRITICAL}
+                "${pytest_fallback_command[@]}" flink_agents -k "e2e_tests_integration" --reruns 2 --reruns-delay 5 -o log_cli=true -o log_cli_level=${LOG_LEVEL:-CRITICAL}
                 rc1=$?
+                echo "Python pytest exit: flink=${version} arm=e2e raw_rc=${rc1}"
                 # Arm 2: integration-marked tests; trap exit code 5 as failure.
-                python3 -m pytest flink_agents -m "integration" -o log_cli=true -o log_cli_level=${LOG_LEVEL:-CRITICAL}
+                "${pytest_fallback_command[@]}" flink_agents -m "integration" -o log_cli=true -o log_cli_level=${LOG_LEVEL:-CRITICAL}
                 rc2=$?
+                echo "Python pytest exit: flink=${version} arm=integration raw_rc=${rc2}"
                 if [ $rc2 -eq 5 ]; then rc2=1; fi
                 # Logical-OR aggregation: any nonzero exit on either arm yields testcode=1.
                 # Side effect: pytest exit 5 (no tests collected) becomes failure on BOTH
@@ -384,7 +396,7 @@ python_tests() {
                 # on either arm indicates a selector regression).
                 testcode=$((rc1 || rc2))
             else
-                python3 -m pytest flink_agents -k "not e2e_tests" -m "not integration" -o log_cli=true -o log_cli_level=${LOG_LEVEL:-CRITICAL}
+                "${pytest_fallback_command[@]}" flink_agents -k "not e2e_tests" -m "not integration" -o log_cli=true -o log_cli_level=${LOG_LEVEL:-CRITICAL}
                 testcode=$?
             fi
         fi
