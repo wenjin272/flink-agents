@@ -45,7 +45,6 @@ jobs:
             sample: 1
     env:
       SKIP_SPOTLESS_CHECK: 'true'
-      PYTHONFAULTHANDLER: '1'
       PYTHON_EXIT_DIAGNOSTICS_DIR: ${{ github.workspace }}/output/ci-exit
     steps:
       - uses: actions/checkout@v7
@@ -67,6 +66,7 @@ jobs:
       - name: Install Ollama
         run: bash tools/start_ollama_server.sh
       - name: Reproduce Python IT exit
+        timeout-minutes: 30
         run: |
           export PYTHONPATH="$(python/.venv/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
           # Match the public fork PR run: no external model API key is injected.
@@ -90,6 +90,9 @@ jobs:
             uv pip freeze --python python/.venv/bin/python
           } > "$PYTHON_EXIT_DIAGNOSTICS_DIR/environment.txt" 2>&1
           if [ -f python/uv.lock ]; then cp python/uv.lock "$PYTHON_EXIT_DIAGNOSTICS_DIR/uv.lock"; fi
+          for crash_log in python/hs_err_pid*.log; do
+            if [ -f "$crash_log" ]; then cp "$crash_log" "$PYTHON_EXIT_DIAGNOSTICS_DIR/"; fi
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

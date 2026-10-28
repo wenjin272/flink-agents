@@ -71,6 +71,8 @@ def main():
         sys.unraisablehook = unraisable
         sys.excepthook = uncaught
         threading.excepthook = thread_exception
+        # Enable only in this process. PYTHONFAULTHANDLER in the environment
+        # also enables handlers in JVM-embedded Python and can conflict with HotSpot.
         faulthandler.enable(file=trace_fd, all_threads=True)
 
     def exit_begin():
