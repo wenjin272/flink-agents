@@ -51,7 +51,7 @@ model, deployment, and server must also support the requested input and tool cal
 |---|---|---|
 | [Alibaba Cloud Model Studio (DashScope)](#alibaba-cloud-model-studio-dashscope) | Python | No media input; media blocks are rejected. |
 | [OpenAI Chat Completions](#multimodal-input), [Azure OpenAI](#azure-openai), [vLLM](#vllm) | Java, Python | User messages: images by URL or Base64; WAV/MP3 audio and documents by Base64. See the conversion and model restrictions below. |
-| [OpenAI Responses](#responses-api) | Java | No media input; media blocks are rejected. |
+| [OpenAI Responses](#responses-api) | Java | User messages: images by URL or Base64; documents by URL or Base64. No audio or video. |
 | [Anthropic](#anthropic) | Java, Python | User messages: JPEG/PNG/GIF/WebP images and PDF documents by URL or Base64; plain-text documents by Base64. |
 | [Ollama](#ollama) | Java, Python | User messages: Base64 images, sent separately from text; requires a vision model. |
 | [Gemini](#gemini) | Java | User messages: images, audio, video and documents by URL or Base64. |
@@ -961,10 +961,9 @@ See [Provider Capabilities](#provider-capabilities) for other integrations.
 The OpenAI Responses integration currently has a Java implementation only. To use OpenAI Responses API from Python agents, see [Cross-Language Resources]({{< ref "docs/development/create-agent/resources#cross-language-resources" >}}).
 {{< /hint >}}
 
-The Flink Agents Responses integration currently rejects media blocks before
-sending a request. Its capabilities differ from the Chat Completions integration
-above, even when both connect to OpenAI. This is an integration limit, not a claim
-that the upstream Responses API lacks multimodal support.
+The Flink Agents Responses integration sends images and documents from user
+messages, but not audio or video; see **Multimodal input** below. Its capabilities
+differ from the Chat Completions integration above, even when both connect to OpenAI.
 
 ##### OpenAIResponsesModelConnection Parameters
 
@@ -1039,6 +1038,17 @@ public class MyAgent extends Agent {
 {{< /tab >}}
 
 {{< /tabs >}}
+
+**Multimodal input.** The media blocks of a user message are sent as Responses input content, in block order, next to its text blocks:
+
+| Block | Sent as |
+|---|---|
+| `TextBlock` | an `input_text` part |
+| `ImageBlock` | an `input_image` part: the URL, or a `data:` URI for Base64 data, with `detail: auto` |
+| `DocumentBlock` | an `input_file` part: Base64 data as `file_data` (a `data:` URI) with the block's `name` as `filename` (`document` when unset), or a URL as `file_url` |
+| `AudioBlock`, `VideoBlock` | not supported |
+
+A user message with only text blocks is sent as before. Audio, video, and media in assistant messages or tool results raise `UnsupportedContentBlockException` before the request is sent. Which image and file types a model accepts is up to OpenAI.
 
 #### Available Models
 
