@@ -30,7 +30,7 @@ jobs:
     name: exit diagnostics [${{ matrix.mode }}] [flink-${{ matrix.flink }}] [sample-${{ matrix.sample }}]
     if: github.repository == 'wenjin272/flink-agents'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -59,7 +59,33 @@ jobs:
           bash tools/build.sh 2>&1 | tee "$CI_EXIT_LOG_DIR/build.log"
       - name: Install Ollama
         run: bash tools/start_ollama_server.sh
+      - name: Prepare all test models
+        timeout-minutes: 20
+        run: |
+          mkdir -p "$CI_EXIT_LOG_DIR"
+          for model in qwen3.5:2b qwen3:1.7b nomic-embed-text:latest all-minilm:22m; do
+            model_log="$CI_EXIT_LOG_DIR/pull-${model//:/_}.log"
+            ready=false
+            for attempt in 1 2 3; do
+              echo "Preparing $model (attempt $attempt/3)"
+              echo "Attempt $attempt/3" >> "$model_log"
+              if timeout 300 ollama pull "$model" >> "$model_log" 2>&1; then
+                ready=true
+                break
+              fi
+              tail -n 5 "$model_log"
+            done
+            if [ "$ready" != true ]; then
+              echo "Model preparation failed: $model" >&2
+              exit 1
+            fi
+            ollama show "$model" > "$CI_EXIT_LOG_DIR/model-${model//:/_}.txt"
+            # Confirm the same pull used during collection now fits its 120s limit.
+            timeout 90 bash python/flink_agents/e2e_tests/scripts/ollama_pull_model.sh "$model" >> "$model_log" 2>&1
+          done
+          ollama list | tee "$CI_EXIT_LOG_DIR/models.txt"
       - name: Reproduce Python IT exit
+        id: python_it
         timeout-minutes: 30
         run: |
           export PYTHONPATH="$(python/.venv/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
@@ -77,6 +103,9 @@ jobs:
           echo "ut.sh exit=${codes[0]}, tee exit=${codes[1]}" | tee "$CI_EXIT_LOG_DIR/shell-exit.txt"
           if [ "${codes[0]}" -ne 0 ]; then exit "${codes[0]}"; fi
           exit "${codes[1]}"
+      - name: Validate full test coverage
+        if: always() && steps.python_it.outcome != 'skipped'
+        run: python tools/ci/check_python_exit_coverage.py "$CI_EXIT_LOG_DIR"
       - name: Record environment
         if: always()
         run: |
@@ -87,6 +116,7 @@ jobs:
             java -version
             mvn -version
             uv --version
+            ollama --version
             python/.venv/bin/python --version
             uv pip freeze --python python/.venv/bin/python
           } > "$CI_EXIT_LOG_DIR/environment.txt" 2>&1
