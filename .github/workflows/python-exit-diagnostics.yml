@@ -41,8 +41,12 @@ jobs:
             sample: 2
           - flink: '1.20'
             sample: 3
-          - flink: '2.0'
-            sample: 1
+          - flink: '1.20'
+            sample: 4
+          - flink: '1.20'
+            sample: 5
+          - flink: '1.20'
+            sample: 6
     env:
       SKIP_SPOTLESS_CHECK: 'true'
       PYTHON_EXIT_DIAGNOSTICS_DIR: ${{ github.workspace }}/output/ci-exit
