@@ -65,7 +65,8 @@ module.exports = async ({ github, context, core, workflowRunId, triggerWorkflow 
 
     const baseBranch = pr.base.ref;
     const fixVersionLabelMap = {
-      'main': 'fixVersion/0.4.0',
+      'main': 'fixVersion/1.0.0',
+      'release-0.4': 'fixVersion/0.4.1',
       'release-0.3': 'fixVersion/0.3.2',
       'release-0.2': 'fixVersion/0.2.2',
       'release-0.1': 'fixVersion/0.1.2',

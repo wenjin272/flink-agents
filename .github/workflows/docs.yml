@@ -49,7 +49,7 @@ jobs:
           
           if [ "${currentBranch}" = "main" ]; then
             echo "flink_alias=release-1.0" >> ${GITHUB_ENV}
-          elif [ "${currentBranch}" = "release-0.3" ]; then
+          elif [ "${currentBranch}" = "release-0.4" ]; then
             echo "flink_alias=latest" >> ${GITHUB_ENV}
           fi
 
