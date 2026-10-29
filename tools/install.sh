@@ -456,7 +456,7 @@ mark_explicit INSTALL_DIR
 mark_explicit VENV_DIR
 
 FLINK_VERSION="${FLINK_VERSION:-2.2.1}"
-FLINK_AGENTS_VERSION="${FLINK_AGENTS_VERSION:-0.3.0}"
+FLINK_AGENTS_VERSION="${FLINK_AGENTS_VERSION:-0.4.0}"
 FLINK_SCALA_VERSION="${FLINK_SCALA_VERSION:-2.12}"
 FLINK_BASE_URL="${FLINK_BASE_URL:-https://dlcdn.apache.org/flink}"
 # Flink Agents JARs live next to Flink on the ASF mirror network. Override
@@ -471,10 +471,10 @@ FLINK_RECOMMENDED_VERSION="2.2.1"
 
 # Mirrors https://flink.apache.org/downloads/#apache-flink-agents
 # (latest first). Note: 0.1.x only ships JARs for Flink 1.20, while 0.2.x
-# and 0.3.x ship JARs for Flink 1.20 / 2.0 / 2.1 / 2.2 — see the download
-# page for the exact compatibility matrix.
-FLINK_AGENTS_SUPPORTED_VERSIONS=("0.3.0" "0.2.1" "0.2.0" "0.1.1" "0.1.0")
-FLINK_AGENTS_RECOMMENDED_VERSION="0.3.0"
+# and 0.3.0 ship JARs for Flink 1.20 / 2.0 / 2.1 / 2.2. Releases 0.3.1
+# and 0.4.0 also support Flink 2.3. See the download page for the exact matrix.
+FLINK_AGENTS_SUPPORTED_VERSIONS=("0.4.0" "0.3.1" "0.3.0" "0.2.1" "0.2.0" "0.1.1" "0.1.0")
+FLINK_AGENTS_RECOMMENDED_VERSION="0.4.0"
 
 INSTALL_FLINK="${INSTALL_FLINK:-Ask}"
 ENABLE_PYFLINK="${ENABLE_PYFLINK:-Ask}"
