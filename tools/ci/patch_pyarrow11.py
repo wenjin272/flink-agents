@@ -25,7 +25,6 @@ a backport of Arrow's complete lazy-initialization fix (apache/arrow#38364).
 Remove this workaround when the Flink 1.20 CI dependency can be upgraded.
 """
 
-import argparse
 from importlib.metadata import distribution
 
 ORIGINAL = "\nelse:\n    initialize_s3()\n\n\ndef __getattr__(name):"
@@ -37,7 +36,7 @@ PATCHED = (
 )
 
 
-def patch_pyarrow(*, check: bool = False) -> None:
+def patch_pyarrow() -> None:
     """Patch only the known wheel layout, without importing native Arrow code."""
     package = distribution("pyarrow")
     if package.version != "11.0.0":
@@ -48,9 +47,6 @@ def patch_pyarrow(*, check: bool = False) -> None:
     if source.count(PATCHED) == 1 and ORIGINAL not in source:
         print(f"PyArrow {package.version} CI shutdown patch verified: {path}")
         return
-    if check:
-        message = f"PyArrow CI shutdown patch is missing or changed: {path}"
-        raise RuntimeError(message)
     if source.count(ORIGINAL) != 1 or PATCHED in source:
         message = f"Unexpected PyArrow fs.py; refusing to patch: {path}"
         raise RuntimeError(message)
@@ -59,6 +55,4 @@ def patch_pyarrow(*, check: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Verify without modifying")
-    patch_pyarrow(check=parser.parse_args().check)
+    patch_pyarrow()

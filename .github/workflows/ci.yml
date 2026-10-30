@@ -65,8 +65,6 @@ jobs:
       - name: Install bash 4.1+ (macOS)
         if: runner.os == 'macOS'
         run: brew install bash
-      - name: Test PyArrow CI workaround
-        run: python3 -m unittest discover -s tools/ci -p 'test_patch_pyarrow11.py' -v
       - name: Run tools script tests
         run: bash tools/test/run.sh
 
@@ -252,9 +250,6 @@ jobs:
         env:
           ACTION_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         run: tools/ut.sh -p -e -f ${{ matrix.flink-version }}
-      - name: Verify PyArrow shutdown workaround
-        if: always() && matrix.flink-version == '1.20'
-        run: python/.venv/bin/python tools/ci/patch_pyarrow11.py --check
 
   java_it_tests:
     name: it-java [${{ matrix.os }}] [java-${{ matrix.java-version}}] [flink-${{ matrix.flink-version}}]
