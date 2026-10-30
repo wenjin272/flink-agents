@@ -340,8 +340,6 @@ python_tests() {
                 -o log_cli=true \
                 -o log_cli_level=${LOG_LEVEL:-CRITICAL}
                 rc2=$?
-                printf 'Python test command exit codes (Flink %s): e2e rc1=%s, integration rc2=%s\n' \
-                    "$version" "$rc1" "$rc2"
                 if [ $rc2 -eq 5 ]; then rc2=1; fi
                 # Logical-OR aggregation: any nonzero exit on either arm yields testcode=1.
                 # Side effect: pytest exit 5 (no tests collected) becomes failure on BOTH
@@ -379,8 +377,6 @@ python_tests() {
                 # Arm 2: integration-marked tests; trap exit code 5 as failure.
                 python3 -m pytest flink_agents -m "integration" -o log_cli=true -o log_cli_level=${LOG_LEVEL:-CRITICAL}
                 rc2=$?
-                printf 'Python test command exit codes (Flink %s): e2e rc1=%s, integration rc2=%s\n' \
-                    "$version" "$rc1" "$rc2"
                 if [ $rc2 -eq 5 ]; then rc2=1; fi
                 # Logical-OR aggregation: any nonzero exit on either arm yields testcode=1.
                 # Side effect: pytest exit 5 (no tests collected) becomes failure on BOTH

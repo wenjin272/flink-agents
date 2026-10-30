@@ -24,10 +24,8 @@ on:
     branches: [ main, 'release-*' ]
   workflow_dispatch:
 
-# Temporary diagnostic draft: restore the full CI matrix and disabled jobs before merging.
 jobs:
   lint:
-    if: false
     name: Code Style Check
     runs-on: ubuntu-latest
     steps:
@@ -61,11 +59,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v7
-      - name: Check test script syntax
-        run: bash -n tools/ut.sh && bash -n tools/ci/collect_native_crash.sh
+      - name: Install bash 4.1+ (macOS)
+        if: runner.os == 'macOS'
+        run: brew install bash
       - name: Test PyArrow CI workaround
         run: python3 -m unittest discover -s tools/ci -p 'test_patch_pyarrow11.py' -v
       - name: Run tools script tests
@@ -77,7 +76,6 @@ jobs:
   # interpreter the harness itself needs, and that pin reaches the scripts under
   # test as well, so this leg points them back at the one they ship against.
   tools_script_tests_bash32:
-    if: false
     name: tools script tests (macos-latest, subject on bash 3.2)
     runs-on: macos-latest
     # Declared once for the whole job so the check below and the run below read
@@ -114,7 +112,6 @@ jobs:
         run: bash tools/test/run.sh
 
   build_backend_tests:
-    if: false
     name: ut-build-backend
     runs-on: ubuntu-latest
     steps:
@@ -136,7 +133,6 @@ jobs:
             -o log_cli_level=INFO
 
   java_tests:
-    if: false
     name: ut-java [${{ matrix.os }}] [java-${{ matrix.java-version}}] [python-3.12]
     runs-on: ${{ matrix.os }}
     env:
@@ -175,7 +171,6 @@ jobs:
           tools/ut.sh -j
 
   python_tests:
-    if: false
     name: ut-python [${{ matrix.os }}] [java-17] [python-${{ matrix.python-version}}]
     runs-on: ${{ matrix.os }}
     strategy:
@@ -204,7 +199,7 @@ jobs:
         run: tools/ut.sh -p
 
   python_it_tests:
-    name: it-python [${{ matrix.os }}] [java-17] [python-${{ matrix.python-version}}] [flink-${{ matrix.flink-version}}] [sample-${{ matrix.sample }}]
+    name: it-python [${{ matrix.os }}] [java-17] [python-${{ matrix.python-version}}] [flink-${{ matrix.flink-version}}]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
@@ -212,10 +207,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ['ubuntu-latest']
-        python-version: ['3.11']
-        flink-version: ['1.20']
-        sample: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        include:
+          - os: 'ubuntu-latest'
+            python-version: '3.11'
+            flink-version: "1.20"
+          - os: 'ubuntu-latest'
+            python-version: '3.11'
+            flink-version: "2.0"
+          - os: 'ubuntu-latest'
+            python-version: '3.12'
+            flink-version: "2.1"
+          - os: 'ubuntu-latest'
+            python-version: '3.12'
+            flink-version: "2.2"
+          - os: 'ubuntu-latest'
+            python-version: '3.12'
+            flink-version: "2.3"
     steps:
       - uses: actions/checkout@v7
       - name: Install java
@@ -235,62 +242,21 @@ jobs:
         run: bash tools/build.sh
       - name: Install ollama
         run: bash tools/start_ollama_server.sh
+      - name: Apply PyArrow shutdown workaround for Flink 1.20
+        if: matrix.flink-version == '1.20'
+        run: |
+          # ut.sh reuses these dependencies; patch the shared wheel for pytest and workers.
+          uv pip install --python python/.venv/bin/python 'apache-flink~=${{ matrix.flink-version }}.0'
+          python/.venv/bin/python tools/ci/patch_pyarrow11.py
       - name: Run Python IT
         env:
           ACTION_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/flink-agents-cores" output/native-crash
-          cat /proc/sys/kernel/core_pattern > output/native-crash/original-core-pattern.txt
-          sudo sysctl -w "kernel.core_pattern=$RUNNER_TEMP/flink-agents-cores/core.%p.%t.%E"
-          ulimit -c unlimited
-          # Install first: ut.sh will reuse these versions without replacing the patch.
-          uv pip install --python python/.venv/bin/python 'apache-flink~=${{ matrix.flink-version }}.0'
-          python/.venv/bin/python tools/ci/patch_pyarrow11.py | tee output/native-crash/pyarrow-patch.txt
-          {
-            printf 'core_limit='; ulimit -c
-            cat /proc/sys/kernel/core_pattern
-            git rev-parse HEAD
-            uname -a
-            cat /etc/os-release
-            lscpu
-            free -h
-            df -h
-            java -version
-            python/.venv/bin/python -VV
-            uv --version
-            ollama --version
-          } > output/native-crash/environment.txt 2>&1
-          dpkg-query -W > output/native-crash/packages-before.txt
-          uv pip freeze --python python/.venv/bin/python > output/native-crash/python-packages.txt
-          tools/ut.sh -p -e -f ${{ matrix.flink-version }}
-      - name: Verify PyArrow shutdown patch after testing
-        if: always()
-        run: |
-          mkdir -p output/native-crash
-          uv pip freeze --python python/.venv/bin/python > output/native-crash/python-packages-after.txt
-          python/.venv/bin/python tools/ci/patch_pyarrow11.py --check | tee output/native-crash/pyarrow-patch-after.txt
-      - name: Collect native crash diagnostics
-        if: always()
-        timeout-minutes: 10
-        run: |
-          mkdir -p output/native-crash
-          sudo dmesg --ctime 2> output/native-crash/kernel-read-error.txt | grep -Ei 'segfault|general protection|traps:|out of memory|killed process' > output/native-crash/kernel-crashes.txt || true
-          if compgen -G "$RUNNER_TEMP/flink-agents-cores/core.*" > /dev/null && ! command -v gdb > /dev/null 2>&1; then
-            (sudo apt-get update && sudo apt-get install -y --no-install-recommends --no-upgrade gdb) > output/native-crash/gdb-install.txt 2>&1 || true
-          fi
-          dpkg-query -W > output/native-crash/packages-after.txt
-          bash tools/ci/collect_native_crash.sh "$RUNNER_TEMP/flink-agents-cores" output/native-crash
-      - name: Upload native crash diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-crash-flink-1.20-sample-${{ matrix.sample }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: output/native-crash/
-          if-no-files-found: warn
-          retention-days: 7
+        run: tools/ut.sh -p -e -f ${{ matrix.flink-version }}
+      - name: Verify PyArrow shutdown workaround
+        if: always() && matrix.flink-version == '1.20'
+        run: python/.venv/bin/python tools/ci/patch_pyarrow11.py --check
 
   java_it_tests:
-    if: false
     name: it-java [${{ matrix.os }}] [java-${{ matrix.java-version}}] [flink-${{ matrix.flink-version}}]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
@@ -343,7 +309,6 @@ jobs:
         run: docker compose -f tools/docker/pgvector/docker-compose.yml down -v
 
   cross_language_tests:
-    if: false
     name: cross-language [${{ matrix.os }}] [python-${{ matrix.python-version}}] [java-${{ matrix.java-version}}]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
