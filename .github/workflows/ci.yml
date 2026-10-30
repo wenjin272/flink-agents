@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Check test script syntax
-        run: bash -n tools/ut.sh
+        run: bash -n tools/ut.sh && bash -n tools/ci/collect_native_crash.sh
       - name: Run tools script tests
         run: bash tools/test/run.sh
 
@@ -236,7 +236,47 @@ jobs:
       - name: Run Python IT
         env:
           ACTION_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
-        run: tools/ut.sh -p -e -f ${{ matrix.flink-version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/flink-agents-cores" output/native-crash
+          cat /proc/sys/kernel/core_pattern > output/native-crash/original-core-pattern.txt
+          sudo sysctl -w "kernel.core_pattern=$RUNNER_TEMP/flink-agents-cores/core.%p.%t.%E"
+          ulimit -c unlimited
+          {
+            printf 'core_limit='; ulimit -c
+            cat /proc/sys/kernel/core_pattern
+            git rev-parse HEAD
+            uname -a
+            cat /etc/os-release
+            lscpu
+            free -h
+            df -h
+            java -version
+            python/.venv/bin/python -VV
+            uv --version
+            ollama --version
+          } > output/native-crash/environment.txt 2>&1
+          dpkg-query -W > output/native-crash/packages-before.txt
+          uv pip freeze --python python/.venv/bin/python > output/native-crash/python-packages.txt
+          tools/ut.sh -p -e -f ${{ matrix.flink-version }}
+      - name: Collect native crash diagnostics
+        if: always()
+        timeout-minutes: 10
+        run: |
+          mkdir -p output/native-crash
+          sudo dmesg --ctime 2> output/native-crash/kernel-read-error.txt | grep -Ei 'segfault|general protection|traps:|out of memory|killed process' > output/native-crash/kernel-crashes.txt || true
+          if compgen -G "$RUNNER_TEMP/flink-agents-cores/core.*" > /dev/null && ! command -v gdb > /dev/null 2>&1; then
+            (sudo apt-get update && sudo apt-get install -y --no-install-recommends --no-upgrade gdb) > output/native-crash/gdb-install.txt 2>&1 || true
+          fi
+          dpkg-query -W > output/native-crash/packages-after.txt
+          bash tools/ci/collect_native_crash.sh "$RUNNER_TEMP/flink-agents-cores" output/native-crash
+      - name: Upload native crash diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-crash-flink-1.20-sample-${{ matrix.sample }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/native-crash/
+          if-no-files-found: warn
+          retention-days: 7
 
   java_it_tests:
     if: false
