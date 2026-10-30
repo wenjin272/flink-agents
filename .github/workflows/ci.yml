@@ -197,7 +197,7 @@ jobs:
         run: tools/ut.sh -p
 
   python_it_tests:
-    name: it-python [${{ matrix.os }}] [java-17] [python-${{ matrix.python-version}}] [flink-${{ matrix.flink-version}}]
+    name: it-python [${{ matrix.os }}] [java-17] [python-${{ matrix.python-version}}] [flink-${{ matrix.flink-version}}]${{ matrix.sample && format(' [sample-{0}]', matrix.sample) || '' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
@@ -206,9 +206,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Independent runners retain the normal build, model setup, and test flow.
           - os: 'ubuntu-latest'
             python-version: '3.11'
             flink-version: "1.20"
+            sample: 1
+          - os: 'ubuntu-latest'
+            python-version: '3.11'
+            flink-version: "1.20"
+            sample: 2
+          - os: 'ubuntu-latest'
+            python-version: '3.11'
+            flink-version: "1.20"
+            sample: 3
           - os: 'ubuntu-latest'
             python-version: '3.11'
             flink-version: "2.0"
